@@ -108,11 +108,11 @@ def agent(observation, configuration):
     if game_state.turn == 0:
         print("Agent is running!", file=sys.stderr)
 
+    print("----------------------- Turn number ",game_state.turn,"----------------------------", file=sys.stderr)
+
     resource_tiles = find_resources(game_state)
     #     print("Observation setp: ",observation["step"])
 
-    # tract the agent move
-    move_mapper = {}
     #     build_worker()
 
     #     print(len(player.cities))
@@ -132,39 +132,29 @@ def agent(observation, configuration):
 
     night_step_left = 40 - max((observation["step"] % 40), 30)
 
-    can_build = False
-    if len(player.cities) > 0:
-        for k, city in player.cities.items():
-            #             print(city.fuel)
-            total_city_tiles = len(city.citytiles)
-            #             print(total_city_tiles)
+    can_build = can_build_due_to_night(night_step_left, player)
 
-            total_need_fuel = (23 * total_city_tiles * night_step_left) * 3.5
-            #             print('fuel need: ', total_need_fuel)
-
-            if city.fuel - total_need_fuel > 20:
-                can_build = True
-                #                 print('can build true')
-                break
-
-    # store all unit current loacaion on move tracker
+    # tract the agent move
+    move_mapper = {}
+    # store all unit current location on move tracker
     for unit in player.units:
         move_mapper[(unit.pos.x, unit.pos.y)] = unit
 
     #     print("Straing unit loop..")
 
     for unit in player.units:
+        print("Unit ",unit.id," pos ",unit.pos,' can act',unit.can_act(), file=sys.stderr)
         # if the unit is a worker (can mine resources) and can perform an action this turn
         #         print('free space: ', unit.get_cargo_space_left())
         #         print('cool down: ', unit.cooldown )
         if unit.is_worker() and unit.can_act():
-            # we want to mine only if there is space left in the worker's cargo
+            # build city tiles adjacent of other tiles to make only one city.
             if can_build and unit.can_build(game_state.map):
                 if is_position_adjacent_city(player, unit.pos):
                     action = unit.build_city()
                     actions.append(action)
                     can_build = False
-                    #                     print('city build..')
+                    print('- build city in adjacent city..', file=sys.stderr)
                     continue
             #
 
@@ -194,25 +184,16 @@ def agent(observation, configuration):
                                 direction = unit.pos.direction_to(closest_resource_tile.pos)
                                 next_pos = unit.pos.translate(direction, 1)
 
+                                #if we are trying to move on top of somebody else, abort
                                 if move_mapper.get((next_pos.x, next_pos.y)):
                                     continue
 
                                 can_move = True
-                                next_state_pos = unit.pos.translate(direction, 1)
-
-                                action = unit.move(direction)
-                                actions.append(action)
-                                move_mapper[(next_state_pos.x, next_state_pos.y)] = unit
-                                #                         print("Move..")
+                                move_unit_to(actions, direction, move_mapper, unit," towards closest resource "+closest_resource_tile.pos.__str__())
                                 break
                     if not can_move:
-                        print("Random.... pos")
                         direction = get_random_step()
-                        next_state_pos = unit.pos.translate(direction, 1)
-
-                        action = unit.move(direction)
-                        actions.append(action)
-                        move_mapper[(next_state_pos.x, next_state_pos.y)] = unit
+                        move_unit_to(actions, direction, move_mapper, unit,"randomly (due to resource)")
 
             else:
                 # find the closest citytile and move the unit towards it to drop resources to a citytile to fuel the city
@@ -235,32 +216,46 @@ def agent(observation, configuration):
                                     continue
 
                                 can_move = True
-                                next_state_pos = unit.pos.translate(direction, 1)
-
-                                action = unit.move(direction)
-                                actions.append(action)
-                                move_mapper[(next_state_pos.x, next_state_pos.y)] = unit
+                                move_unit_to(actions, direction, move_mapper, unit, " towards closest city "+closest_city_tile.pos.__str__())
                                 #                         print('Back in city..')
                                 break
 
                     if not can_move:
-                        print("Random .. City")
                         direction = get_random_step()
-                        next_state_pos = unit.pos.translate(direction, 1)
-
-                        action = unit.move(direction)
-                        actions.append(action)
-                        move_mapper[(next_state_pos.x, next_state_pos.y)] = unit
+                        move_unit_to(actions, direction, move_mapper, unit,"randomly (due to city)")
 
     #     print(move_mapper)
     #     print('')
     return actions
 
 
+def move_unit_to(actions, direction, move_mapper, unit, reason=""):
+    next_state_pos = unit.pos.translate(direction, 1)
+    action = unit.move(direction)
+    actions.append(action)
+    move_mapper[(next_state_pos.x, next_state_pos.y)] = unit
+    print('- moving towards "',direction,'" ',reason, file=sys.stderr)
+
+
+def can_build_due_to_night(night_step_left, player):
+    can_build = False
+    if len(player.cities) > 0:
+        for k, city in player.cities.items():
+            #             print(city.fuel)
+            total_city_tiles = len(city.citytiles)
+            #             print(total_city_tiles)
+
+            total_need_fuel = (23 * total_city_tiles * night_step_left) * 3.5
+            #             print('fuel need: ', total_need_fuel)
+
+            if city.fuel - total_need_fuel > 20:
+                can_build = True
+                #                 print('can build true')
+                break
+    return can_build
+
+
 def is_position_adjacent_city(player, pos):
-    is_build = False
-    #                 print("Is build...")
-    # build city tiles adjacent of other tiles to make only one city.
     for city in player.cities.values():
         for citytiles in city.citytiles:
             if citytiles.pos.is_adjacent(pos):
@@ -268,6 +263,11 @@ def is_position_adjacent_city(player, pos):
 
     return False
 
+def is_position_adjacent_to_resource(resource_tiles, pos):
+    for r in resource_tiles:
+        if r.pos.is_adjacent(pos):
+            return True
+    return False
 
 def is_position_resource(resource_tiles, pos):
     for r in resource_tiles:
