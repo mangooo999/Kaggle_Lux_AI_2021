@@ -54,14 +54,7 @@ def agent(observation, configuration):
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
                 if len(player.cities) > 0:
-                    closest_dist = math.inf
-                    closest_city_tile = None
-                    for k, city in player.cities.items():
-                        for city_tile in city.citytiles:
-                            dist = city_tile.pos.distance_to(unit.pos)
-                            if dist < closest_dist:
-                                closest_dist = dist
-                                closest_city_tile = city_tile
+                    closest_city_tile = getClosestCity(player, unit.pos)
                     if closest_city_tile is not None:
                         move_dir = unit.pos.direction_to(closest_city_tile.pos)
                         actions.append(unit.move(move_dir))
@@ -70,3 +63,15 @@ def agent(observation, configuration):
     # actions.append(annotate.circle(0, 0))
     
     return actions
+
+
+def getClosestCity(player, pos):
+    closest_dist = math.inf
+    closest_city_tile = None
+    for k, city in player.cities.items():
+        for city_tile in city.citytiles:
+            dist = city_tile.pos.distance_to(pos)
+            if dist < closest_dist:
+                closest_dist = dist
+                closest_city_tile = city_tile
+    return closest_city_tile
