@@ -10,6 +10,9 @@ import sys
 
 ### Define helper functions
 
+def get_cell_from_pos(game_state,pos):
+    return game_state.map.get_cell(pos.x, pos.y)
+
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
 def find_resources(game_state):
     resource_tiles: list[Cell] = []
@@ -51,6 +54,22 @@ def find_closest_city_tile(pos, player):
                     closest_city_tile = city_tile
     return closest_city_tile
 
+def can_build_now(player,night_step_left):
+    can_build = False
+    if len(player.cities) > 0:
+        for k, city in player.cities.items():
+            #             print(city.fuel)
+            total_city_tiles = len(city.citytiles)
+            #             print(total_city_tiles)
+
+            total_need_fuel = (23 * total_city_tiles * night_step_left) * 3.5
+            #             print('fuel need: ', total_need_fuel)
+
+            if city.fuel - total_need_fuel > 20:
+                can_build = True
+                #                 print('can build true')
+                break
+    return can_build
 
 game_state = None
 
@@ -73,12 +92,41 @@ def agent(observation, configuration):
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     width, height = game_state.map.width, game_state.map.height
+    night_step_left = 40 - max((observation["step"] % 40), 30)
 
     resource_tiles = find_resources(game_state)
+
+    can_build = can_build_now(player, night_step_left)
 
     for unit in player.units:
         # if the unit is a worker (can mine resources) and can perform an action this turn
         if unit.is_worker() and unit.can_act():
+
+            is_building = False
+            # we want to mine only if there is space left in the worker's cargo
+            if can_build and unit.can_build(game_state.map):
+                #                 print("Is build...")
+                # build city tiles is_adjacent of other tiles to make only one city.
+                for city in player.cities.values():
+                    for citytiles in city.citytiles:
+                        if citytiles.pos.is_adjacent(unit.pos):
+                            is_building = True
+                            #                             print("IS Build")
+                            break
+
+                    if is_building:
+                        break
+
+                if is_building:
+                    action = unit.build_city()
+                    actions.append(action)
+                    can_build = False
+                    #                     print('city build..')
+                    continue
+            #
+            if is_building:
+                continue
+
             # we want to mine only if there is space left in the worker's cargo
             if unit.get_cargo_space_left() > 0:
                 # find the closest resource if it exists to this unit
@@ -88,6 +136,7 @@ def agent(observation, configuration):
                     action = unit.move(unit.pos.direction_to(closest_resource_tile.pos))
                     actions.append(action)
             else:
+
                 # find the closest citytile and move the unit towards it to drop resources to a citytile to fuel the city
                 closest_city_tile = find_closest_city_tile(unit.pos, player)
                 if closest_city_tile is not None:
