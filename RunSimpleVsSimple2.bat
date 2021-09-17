@@ -1,1 +1,1 @@
-lux-ai-2021 simple/main.py rule/main.py --out=replay.json
+lux-ai-2021 rule/main.py rule2/main.py --out=replay.json
