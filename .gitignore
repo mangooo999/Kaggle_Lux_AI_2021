@@ -1,2 +1,4 @@
 /lux/__pycache__/*.pyc
 /.idea
+/__pycache__/*.pyc
+/replay.json
