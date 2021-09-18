@@ -107,17 +107,18 @@ def find_resources_distance(pos, player, resource_tiles):
 
 
 # snippet to find the all citytiles distance and sort them.
-def find_city_tile_distance(pos, player):
+def find_city_tile_distance(pos, player,unsafeCities):
     city_tiles_distance = {}
     if len(player.cities) > 0:
         closest_dist = math.inf
         # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
         # contains the information of all citytiles in that city
         for k, city in player.cities.items():
-            for city_tile in city.citytiles:
-                dist = city_tile.pos.distance_to(pos)
-                # order by distance asc, autonomy desc
-                city_tiles_distance[city_tile] = (dist,-get_autonomy_turns(city))
+            if city.cityid in unsafeCities:
+                for city_tile in city.citytiles:
+                    dist = city_tile.pos.distance_to(pos)
+                    # order by distance asc, autonomy desc
+                    city_tiles_distance[city_tile] = (dist,-get_autonomy_turns(city))
     city_tiles_distance = collections.OrderedDict(sorted(city_tiles_distance.items(), key= lambda x:x[1]))
 #     print(len(city_tiles_distance))
     return city_tiles_distance
@@ -198,7 +199,6 @@ def agent(observation, configuration):
             if not will_live:
                 unsafeCities[city.cityid]=  (len(city.citytiles),(night_steps_left-city_autonomy)*city.get_light_upkeep())
 
-
             for city_tile in city.citytiles[::-1]:
                 print("- Citytile ", city_tile.pos, " CD=", city_tile.cooldown,file=sys.stderr)
                 if city_tile.can_act():
@@ -214,7 +214,7 @@ def agent(observation, configuration):
                         can_create_worker = False
                         print("- - created worker", file = sys.stderr)
 
-    print("Unsafe cities",unsafeCities,file=sys.stderr)
+        print("Unsafe cities",unsafeCities,file=sys.stderr)
 
 
 
@@ -262,7 +262,7 @@ def agent(observation, configuration):
 
             # if unit cant make citytiles try to collct resouce collection.
             resources_distance = find_resources_distance(unit.pos, player, resource_tiles)
-            city_tile_distance = find_city_tile_distance(unit.pos, player)
+            city_tile_distance = find_city_tile_distance(unit.pos, player,unsafeCities)
             #             print(closest_resource_tile.resource.type, closest_resource_tile.resource.amount)
 
             if unit.get_cargo_space_left() > 0 and not is_position_resource(resource_tiles, unit.pos):
