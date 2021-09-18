@@ -83,7 +83,7 @@ def find_closest_empty_tile(pos, game_state,player):
         for adjacent_position in empty_tyles:
             number_of_adjacent = find_number_of_adjacent_city_tile(adjacent_position,player)
             results[number_of_adjacent] = adjacent_position
-            print("- ",adjacent_position,number_of_adjacent, file=sys.stderr)
+            #print("- ",adjacent_position,number_of_adjacent, file=sys.stderr)
         # ordered by number of tiles, so we take last element
         #print("results", results, file=sys.stderr)
         result = list(results.values())[-1]
@@ -126,6 +126,15 @@ import random
 def get_random_step():
     return random.choice(['s','n','w','e'])
 
+def cargo_to_string(cargo):
+    if cargo.wood>0:
+        return f"Wood:{cargo.wood}"
+    elif cargo.coal>0:
+        return f"Coal:{cargo.coal}"
+    elif cargo.uranium>0:
+        return f"Uran:{cargo.uranium}"
+    else:
+        return f"empty"
 
 game_state = None
 
@@ -153,7 +162,7 @@ def agent(observation, configuration):
     if game_state.turn == 0:
         print("Agent is running!", file=sys.stderr)
 
-    print("----------------------- Turn number ",game_state.turn,"----------------------------", file=sys.stderr)
+    print("---------Turn number ",game_state.turn, file=sys.stderr)
 
     resource_tiles = find_resources(game_state)
     #     print("Observation setp: ",observation["step"])
@@ -170,13 +179,25 @@ def agent(observation, configuration):
 
     night_steps_left = ((359 - game_state.turn) // 40 + 1) * 10
     steps_until_night = 30 - game_state.turn % 40
+    if steps_until_night<0:
+        night_steps_left=night_steps_left+steps_until_night
+
+    # we want to build new tiless only if we have a lot of fuel in all cities
+    can_build = can_build_for_resources(night_steps_left,steps_until_night, player)
+    print(game_state.turn,"night_step_left ", night_steps_left, "steps_until_night ", steps_until_night, 'can_build: ', can_build,file=sys.stderr)
 
     cities = list(player.cities.values())
+
     if len(cities) > 0:
+        unsafeCities = {}
         for city in cities:
             can_create_worker = (units < units_cap)
-            turns_city_can_live = get_autonomy_turns(city)
-            print("City ", city.cityid,'size=', len(city.citytiles), ' fuel=',city.fuel,' upkeep=',city.get_light_upkeep(),'autonomy',turns_city_can_live,file=sys.stderr)
+            city_autonomy = get_autonomy_turns(city)
+            will_live = city_autonomy>=night_steps_left
+            print("City ", city.cityid,'size=', len(city.citytiles), ' fuel=',city.fuel,' upkeep=',city.get_light_upkeep(),'autonomy=',city_autonomy,'safe=',will_live,file=sys.stderr)
+            if not will_live:
+                unsafeCities[city.cityid]=  (len(city.citytiles),(night_steps_left-city_autonomy)*city.get_light_upkeep())
+
 
             for city_tile in city.citytiles[::-1]:
                 print("- Citytile ", city_tile.pos, " CD=", city_tile.cooldown,file=sys.stderr)
@@ -193,12 +214,12 @@ def agent(observation, configuration):
                         can_create_worker = False
                         print("- - created worker", file = sys.stderr)
 
+    print("Unsafe cities",unsafeCities,file=sys.stderr)
 
 
-    # we want to build new tiless only if we have a lot of fuel in all cities
-    can_build = can_build_for_resources(night_steps_left,steps_until_night, player)
 
-    print("night_step_left ", night_steps_left, "steps_until_night ", steps_until_night, 'can_build: ', can_build,file=sys.stderr)
+
+
 
     # trace the agent move
     move_mapper = {}
@@ -209,17 +230,34 @@ def agent(observation, configuration):
     #     print("Straing unit loop..")
 
     for unit in player.units:
-        print("Unit",unit.id,";pos",unit.pos,'CD=',unit.cooldown,unit.cargo,'free:', unit.get_cargo_space_left(),"canBuildHere",unit.can_build(game_state.map),file=sys.stderr)
+        print("Unit",unit.id,";pos",unit.pos,'CD=',unit.cooldown,cargo_to_string(unit.cargo),"canBuildHere",unit.can_build(game_state.map),file=sys.stderr)
         # if the unit is a worker (can mine resources) and can perform an action this turn
         #         print('free:', unit.get_cargo_space_left())
         #         print('cooldown:', unit.cooldown )
         if unit.is_worker() and unit.can_act():
+            closest_empty_tile = find_closest_empty_tile(unit.pos, game_state, player)
 
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
-                #if is_position_adjacent_city(player, unit.pos):
-                    build_city(actions, unit,'in adjacent city..')
-                    continue
+                if is_position_adjacent_city(player, unit.pos):
+                    build_city(actions, unit,'in adjacent city!')
+                else:
+                    #if we can move to a tile where we are adjacent, do and it and build there
+                    if closest_empty_tile is not None:
+                        print("Unit", unit.id, " check if adjacent empty is more interesting",closest_empty_tile.pos,file=sys.stderr)
+                        direction = unit.pos.direction_to(closest_empty_tile.pos)
+                        next_pos = unit.pos.translate(direction, 1)
+                        #if nobody is already moving there
+                        if not move_mapper.get((next_pos.x, next_pos.y)):
+                            print("Unit", unit.id, " and nobody is moving here",file=sys.stderr)
+                            #and if next pos is actually adjacent
+                            if is_position_adjacent_city(player, next_pos):
+                                move_unit_to(actions, direction, move_mapper, unit, " we could have build here, but we move close to city instead",next_pos)
+                                continue
+
+                build_city(actions, unit, 'NOT in adjacent city')
+                #we either built or moved, next
+                continue
             #
 
             # if unit cant make citytiles try to collct resouce collection.
@@ -260,7 +298,6 @@ def agent(observation, configuration):
 
 
             else:
-                closest_empty_tile = find_closest_empty_tile(unit.pos, game_state, player)
                 if steps_until_night > 10 and can_build and unit.get_cargo_space_left() <= 20 and is_position_resource(resource_tiles, unit.pos) and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile, then it means we can at least collect 20 next turn on CD and then build
                     # find the closest empty tile it to build a city
@@ -341,10 +378,12 @@ def move_unit_to(actions, direction, move_mapper, unit, reason="", pos=None):
         print("Unit", unit.id,'- moving towards "', direction, '" ', reason, pos, file=sys.stderr)
 
 
-def is_position_adjacent_city(player, pos):
+def is_position_adjacent_city(player, pos, doLog=False):
     for city in player.cities.values():
         for citytiles in city.citytiles:
             if citytiles.pos.is_adjacent(pos):
+                if doLog:
+                    print(pos,"is_position_adjacent_city",citytiles.pos, file=sys.stderr)
                 return True
 
     return False
