@@ -189,18 +189,21 @@ def agent(observation, configuration):
         night_steps_left=night_steps_left+steps_until_night
 
     # we want to build new tiless only if we have a lot of fuel in all cities
-    can_build = can_build_for_resources(night_steps_left,steps_until_night, player)
     is_night = steps_until_night<=0
     is_night_tomorrow =  -8 <= steps_until_night and steps_until_night <=1
-    print(game_state.turn,"night_step_left ", night_steps_left, "steps_until_night ", steps_until_night, 'can_build: ', can_build,file=sys.stderr)
+    unit_ceiling = int(min(float(units_cap), max(float(len(resource_tiles))*1.8,5)))
+    print(game_state.turn,"night_step_left ", night_steps_left, "steps_until_night ", steps_until_night,
+          'resources',len(resource_tiles),'units',units,'unit_ceiling',unit_ceiling,file=sys.stderr)
 
     cities = list(player.cities.values())
     unsafeCities = {}
+    lowest_autonomy = 0
 
     if len(cities) > 0:
         for city in cities:
-            can_create_worker = (units < units_cap) and (units < min(len(resource_tiles)*1.5,5))
+            can_create_worker = (units < unit_ceiling)
             city_autonomy = get_autonomy_turns(city)
+            lowest_autonomy = min(lowest_autonomy,city_autonomy)
             will_live = city_autonomy>=night_steps_left
             print("City ", city.cityid,'size=', len(city.citytiles), ' fuel=',city.fuel,' upkeep=',city.get_light_upkeep(),'autonomy=',city_autonomy,'safe=',will_live,file=sys.stderr)
             if not will_live:
@@ -209,10 +212,10 @@ def agent(observation, configuration):
             for city_tile in city.citytiles[::-1]:
                 print("- Citytile ", city_tile.pos, " CD=", city_tile.cooldown,file=sys.stderr)
                 if city_tile.can_act():
-                    if can_create_worker and not will_live :
+                    if can_create_worker and ((units < unit_ceiling - 3) or not will_live) :
                         # let's create one more unit in the last created city tile if we can
                         actions.append(city_tile.build_worker())
-                        #can_create_worker = False
+                        units=units+1
                         print("- - created worker", file = sys.stderr)
                     elif not player.researched_uranium():
                         # let's do research
@@ -223,6 +226,9 @@ def agent(observation, configuration):
 
 
         print("Unsafe cities",unsafeCities,file=sys.stderr)
+
+    can_build = can_build_for_resources(night_steps_left, lowest_autonomy, steps_until_night, player)
+    print(game_state.turn, 'can_build: ', can_build, file=sys.stderr)
 
     # trace the agent move
     move_mapper = {}
@@ -364,10 +370,12 @@ def build_city(actions, unit,msg=''):
     print("Unit", unit.id, '- build city',msg, file=sys.stderr)
 
 
-def can_build_for_resources(night_steps_left, steps_until_night,player):
+def can_build_for_resources(night_steps_left,lowest_autonomy , steps_until_night,player):
     if steps_until_night>20:
         return True
-    
+    elif lowest_autonomy>12 and steps_until_night>10:
+        return True
+
     can_build = True
     for city in player.cities.values():
         city_can_live = can_city_live(city, night_steps_left)
