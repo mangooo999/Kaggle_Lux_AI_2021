@@ -214,7 +214,7 @@ def agent(observation, configuration):
                         can_create_worker = False
                         print("- - created worker", file = sys.stderr)
 
-    print("Unsafe cities",unsafeCities,file=sys.stderr)
+        print("Unsafe cities",unsafeCities,file=sys.stderr)
 
 
 
