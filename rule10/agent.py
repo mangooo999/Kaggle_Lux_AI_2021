@@ -29,21 +29,26 @@ def find_resources(game_state):
 
     return resource_tiles, wood_tiles
 
-
-# the next snippet finds the closest resources that we can mine given position on a map
-def find_closest_resources(pos, player, resource_tiles):
-    closest_dist = math.inf
-    closest_resource_tile = None
+# the next snippet all resources distance and return as sorted order.
+def find_resources_distance(pos, player, resource_tiles,game_info : GameInfo) -> dict:
+    resources_distance = {}
     for resource_tile in resource_tiles:
-        # we skip over resources that we can't mine due to not having researched them
-        if resource_tile.resource.type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal(): continue
-        if resource_tile.resource.type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium(): continue
-        dist = resource_tile.pos.distance_to(pos)
-        if dist < closest_dist:
-            closest_dist = dist
-            closest_resource_tile = resource_tile
-    return closest_resource_tile
 
+        dist = resource_tile.pos.distance_to(pos)
+
+        #check if we are likely to have researched this by the time we arrive
+        if resource_tile.resource.type == Constants.RESOURCE_TYPES.COAL and \
+                float (game_info.reseach_points) + (float (dist*2) * game_info.get_research_rate(5)) < 50.0:
+            continue
+        elif resource_tile.resource.type == Constants.RESOURCE_TYPES.URANIUM and \
+                float(game_info.reseach_points) + (float(dist * 2) * game_info.get_research_rate(5)) < 200.0:
+            continue
+        else:
+            # order by distance asc, resource asc
+            resources_distance[resource_tile] = (dist, -resource_tile.resource.amount)
+
+    resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
+    return resources_distance
 
 def find_closest_city_tile(pos, player):
     closest_city_tile = None
@@ -149,18 +154,7 @@ def adjacent_empty_tile_adjacent_wood_and_city(empty_tyles, wood_tiles, game_sta
     return game_state.map.get_cell_by_pos(result)
 
 
-# the next snippet all resources distance and return as sorted order.
-def find_resources_distance(pos, player, resource_tiles):
-    resources_distance = {}
-    for resource_tile in resource_tiles:
-        # we skip over resources that we can't mine due to not having researched them
-        if resource_tile.resource.type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal(): continue
-        if resource_tile.resource.type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium(): continue
-        dist = resource_tile.pos.distance_to(pos)
-        # order by distance asc, resource asc
-        resources_distance[resource_tile] = (dist, -resource_tile.resource.amount)
-    resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
-    return resources_distance
+
 
 
 # snippet to find the all city tiles distance and sort them.
@@ -422,7 +416,7 @@ def agent(observation, configuration):
                 # we either built or moved, next
                 continue
             #
-            resources_distance = find_resources_distance(unit.pos, player, resource_tiles)
+            resources_distance = find_resources_distance(unit.pos, player, resource_tiles, game_info)
 
             # if unit cant make citytiles try to collct resouce collection.
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafeCities)
