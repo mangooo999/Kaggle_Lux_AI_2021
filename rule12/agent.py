@@ -417,12 +417,12 @@ def agent(observation, configuration):
                 print("Unit", unit.id, ' it is night, we are in city, do not move', file=sys.stderr)
                 continue
 
-            #   TRAVELLER
-            if info.is_role_traveller():
-                print("Unit", unit.id, ' is traveller to',info.target_position, file=sys.stderr)
+            #   TRAVELER
+            if info.is_role_traveler():
+                print("Unit", unit.id, ' is traveler to',info.target_position, file=sys.stderr)
                 direction = get_direction_to(move_mapper, player, unit.pos, info.target_position)
                 if direction is not None:
-                    move_unit_to(actions, direction, move_mapper, unit," move to traveller pos",info.target_position)
+                    move_unit_to(actions, direction, move_mapper, unit," move to traveler pos",info.target_position)
                     continue
 
 
@@ -506,7 +506,7 @@ def agent(observation, configuration):
                                                                             unit)
                     if resource_type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal()\
                             or resource_type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium():
-                        info.set_unit_role_traveller(pos,2*pos.distance_to(unit.pos))
+                        info.set_unit_role_traveler(pos,2*pos.distance_to(unit.pos))
                     move_unit_to(actions, direction, move_mapper, unit, msg, pos)
                     continue
 
@@ -642,7 +642,7 @@ def move_unit_to(actions, direction, move_mapper, unit, reason="", pos=None):
         actions.append(annotate.line(unit.pos.x, unit.pos.y, pos.x, pos.y))
         actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
         move_mapper[(next_state_pos.x, next_state_pos.y)] = unit
-        print("Unit", unit.id, '- moving towards "', direction, '" ', reason, pos, file=sys.stderr)
+        print("Unit", unit.id, '- moving towards "', direction, '" :', reason, pos, file=sys.stderr)
 
 
 def is_position_adjacent_city(player, pos, doLog=False):

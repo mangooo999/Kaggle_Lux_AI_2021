@@ -35,9 +35,9 @@ class UnitInfo:
             if self.role_time_turn_limit == 0:
                 self.clean_unit_role()
 
-    def set_unit_role_traveller(self, pos:Position,number_turns):
-        print(self.log_prefix, 'set this unit as traveller to',pos," for number_turns",number_turns,file=sys.stderr)
-        self.set_unit_role('traveller')
+    def set_unit_role_traveler(self, pos:Position,number_turns):
+        print(self.log_prefix, 'set this unit as traveler to',pos," for number_turns",number_turns,file=sys.stderr)
+        self.set_unit_role('traveler')
         self.target_position=pos
         self.role_time_turn_limit = number_turns
 
@@ -57,5 +57,5 @@ class UnitInfo:
     def is_role_hassler(self):
         return self.role == 'hassler'
 
-    def is_role_traveller(self):
-        return self.role == 'traveller'
+    def is_role_traveler(self):
+        return self.role == 'traveler'
