@@ -232,7 +232,7 @@ def agent(observation, configuration):
     if game_state.turn == 0:
         print("Agent is running!", file=sys.stderr)
 
-    game_info.update(player,game_state)
+    game_info.update(player, game_state)
 
     print("---------Turn number ", game_state.turn, file=sys.stderr)
 
@@ -277,7 +277,7 @@ def agent(observation, configuration):
             will_live = get_autonomy_turns(city) >= night_steps_left
             if not will_live:
                 unsafeCities[city.cityid] = (
-                len(city.citytiles), (night_steps_left - get_autonomy_turns(city)) * city.get_light_upkeep())
+                    len(city.citytiles), (night_steps_left - get_autonomy_turns(city)) * city.get_light_upkeep())
 
     number_city_tiles = 0
     if len(cities) > 0:
@@ -290,13 +290,17 @@ def agent(observation, configuration):
                   city.get_light_upkeep(), 'autonomy=', city_autonomy, 'safe=', will_live, file=sys.stderr)
             if not will_live:
                 unsafeCities[city.cityid] = (
-                len(city.citytiles), (night_steps_left - city_autonomy) * city.get_light_upkeep())
+                    len(city.citytiles), (night_steps_left - city_autonomy) * city.get_light_upkeep())
 
             for city_tile in city.citytiles[::-1]:
                 number_city_tiles = number_city_tiles + 1
                 print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
-                    if can_create_worker and ((not will_live) or len(unsafeCities) == 0):
+                    if len(resource_tiles) == 0 and not player.researched_uranium():
+                        # let's do research
+                        actions.append(city_tile.research())
+                        print("- - research (no resources)", file=sys.stderr)
+                    elif can_create_worker and ((not will_live) or len(unsafeCities) == 0):
                         # let's create one more unit in the last created city tile if we can
                         actions.append(city_tile.build_worker())
                         units = units + 1
@@ -329,7 +333,7 @@ def agent(observation, configuration):
               file=sys.stderr)
         if (is_position_city(player,
                              unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(
-                player.units) == 1):
+            player.units) == 1):
             print("Unit", unit.id, ' NEEDS to become an expander', file=sys.stderr)
             info.set_unit_role('expander')
 
