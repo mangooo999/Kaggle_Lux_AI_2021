@@ -419,12 +419,11 @@ def agent(observation, configuration):
 
             #   TRAVELER
             if info.is_role_traveler():
-                print("Unit", unit.id, ' is traveler to',info.target_position, file=sys.stderr)
+                print("Unit", unit.id, ' is traveler to', info.target_position, file=sys.stderr)
                 direction = get_direction_to(move_mapper, player, unit.pos, info.target_position)
                 if direction is not None:
-                    move_unit_to(actions, direction, move_mapper, unit," move to traveler pos",info.target_position)
+                    move_unit_to(actions, direction, move_mapper, unit, " move to traveler pos", info.target_position)
                     continue
-
 
             #   HASSLER
             if info.is_role_hassler():
@@ -456,7 +455,6 @@ def agent(observation, configuration):
 
                 continue
             #   HASSLER ENDS
-
 
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
@@ -504,9 +502,9 @@ def agent(observation, configuration):
                     # create a move action to the direction of the closest resource tile and add to our actions list
                     direction, pos, msg, resource_type = find_best_resource(move_mapper, player, resources_distance,
                                                                             unit)
-                    if resource_type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal()\
+                    if resource_type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal() \
                             or resource_type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium():
-                        info.set_unit_role_traveler(pos,2*pos.distance_to(unit.pos))
+                        info.set_unit_role_traveler(pos, 2 * pos.distance_to(unit.pos))
                     move_unit_to(actions, direction, move_mapper, unit, msg, pos)
                     continue
 
@@ -536,7 +534,8 @@ def agent(observation, configuration):
     #     print('')
     return actions
 
-def get_direction_to(move_mapper, player,from_pos,to_pos):
+
+def get_direction_to(move_mapper, player, from_pos, to_pos):
     if from_pos.equals(to_pos):
         return DIRECTIONS.CENTER
 
@@ -554,6 +553,7 @@ def get_direction_to(move_mapper, player,from_pos,to_pos):
 
     return None
 
+
 def find_best_city(city_tile_distance, move_mapper, player, unit):
     closest_city_tile = None
     moved = False
@@ -562,7 +562,7 @@ def find_best_city(city_tile_distance, move_mapper, player, unit):
             closest_city_tile = city_tile
 
             if closest_city_tile is not None:
-                direction = get_direction_to(move_mapper, player,unit.pos, closest_city_tile.pos)
+                direction = get_direction_to(move_mapper, player, unit.pos, closest_city_tile.pos)
                 if direction is not None:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy" + dist.__str__()
@@ -570,6 +570,7 @@ def find_best_city(city_tile_distance, move_mapper, player, unit):
     if not moved:
         direction = get_random_step()
         return direction, None, "randomly (due to city)"
+
 
 def find_best_resource(move_mapper, player, resources_distance, unit):
     closest_resource_tile, c_dist = None, None
@@ -580,8 +581,8 @@ def find_best_resource(move_mapper, player, resources_distance, unit):
     for resource, resourse_dist_and_info in resources_distance.items():
 
         # print("Unit", unit.id, " XXX - ", resource.pos, resourse_dist_and_info, file=sys.stderr)
-         if resource is not None and not resource.pos.equals(unit.pos):
-            direction = get_direction_to(move_mapper, player,unit.pos, resource.pos)
+        if resource is not None and not resource.pos.equals(unit.pos):
+            direction = get_direction_to(move_mapper, player, unit.pos, resource.pos)
             if direction is not None:
                 moved = True
                 return direction, resource.pos, " towards closest resource ", resourse_dist_and_info[2]
@@ -635,7 +636,7 @@ def move_unit_to(actions, direction, move_mapper, unit, reason="", pos=None):
     action = unit.move(direction)
     actions.append(action)
 
-    if pos is None:
+    if pos is None or direction == DIRECTIONS.CENTER:
         print("Unit", unit.id, '- not moving "', '', '" ', reason, file=sys.stderr)
         move_mapper[(unit.pos.x, unit.pos.y)] = unit
     else:
