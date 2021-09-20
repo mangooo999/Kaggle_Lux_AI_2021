@@ -229,8 +229,8 @@ def agent(observation, configuration):
             unit_info[unit.id]= UnitInfo(unit)
             if unit_number==2 and units==2:
                 unit_info[unit.id].set_unit_role('expander')
-            elif unit_number == 5 and units == 5:
-                unit_info[unit.id].set_unit_role('hassler')
+            #elif unit_number == 5 and units == 5:
+            #    unit_info[unit.id].set_unit_role('hassler')
         else:
             unit_info[unit.id].update(unit)
         
@@ -261,6 +261,7 @@ def agent(observation, configuration):
             if not will_live:
                 unsafeCities[city.cityid]=  (len(city.citytiles),(night_steps_left-get_autonomy_turns(city))*city.get_light_upkeep())
 
+    number_city_tiles=0
     if len(cities) > 0:
         for city in cities:
             can_create_worker = (units < unit_ceiling)
@@ -272,6 +273,7 @@ def agent(observation, configuration):
                 unsafeCities[city.cityid]=  (len(city.citytiles),(night_steps_left-city_autonomy)*city.get_light_upkeep())
 
             for city_tile in city.citytiles[::-1]:
+                number_city_tiles = number_city_tiles+1
                 print("- Citytile ", city_tile.pos, " CD=", city_tile.cooldown,file=sys.stderr)
                 if city_tile.can_act():
                     if can_create_worker and ((not will_live) or len(unsafeCities)==0):
@@ -304,6 +306,9 @@ def agent(observation, configuration):
     for unit in player.units:
         info = unit_info[unit.id]
         print("Unit",unit.id,";pos",unit.pos,'CD=',unit.cooldown,cargo_to_string(unit.cargo),'fuel=',cargo_to_fuel(unit.cargo),'canBuildHere',unit.can_build(game_state.map),'role',info.role,file=sys.stderr)
+        if (is_position_city(player,unit.pos) and game_state.turn > 2 and game_state.turn < 15 and number_city_tiles == 1 and len(player.units)==1):
+            print("Unit", unit.id, ' NEEDS to become an expander', file=sys.stderr)
+            info.set_unit_role('expander')
 
         if unit.is_worker() and unit.can_act():
             adjacent_empty_tiles=find_all_adjacent_empty_tiles(game_state, unit.pos)
@@ -369,6 +374,7 @@ def agent(observation, configuration):
             if unit.can_build(game_state.map):
                 if is_position_adjacent_city(player, unit.pos):
                     build_city(actions, unit,'in adjacent city!')
+                    continue
                 else:
                     #if we can move to a tile where we are adjacent, do and it and build there
                     if closest_empty_tile is not None:
@@ -398,11 +404,11 @@ def agent(observation, configuration):
                 enough_fuel=300
 
             if unit.get_cargo_space_left() > 0 \
-                    and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafeCities)==0 or info.is_role_hassler) \
+                    and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafeCities)==0 or info.is_role_hassler()) \
                     and not is_position_resource(resource_tiles, unit.pos):
                 # find the closest resource if it exists to this unit
 
-                #                 print(closest_resource_tile
+                print("Unit", unit.id, " Find resources",file=sys.stderr)
 
                 if resources_distance is not None and len(resources_distance) > 0:
                     # create a move action to move this unit in the direction of the closest resource tile and add to our actions list
@@ -442,8 +448,10 @@ def agent(observation, configuration):
                     direction = unit.pos.direction_to(closest_empty_tile.pos)
                     move_unit_to(actions, direction, move_mapper, unit, " towards closest empty ", closest_empty_tile.pos)
                 else:
+                    print("Unit", unit.id, " Goto city", file=sys.stderr)
                     # find the closest citytile and move the unit towards it to drop resources to a citytile to fuel the city
-                    if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler:
+                    if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler():
+                        print("Unit", unit.id, " Goto city2", file=sys.stderr)
                         closest_city_tile = None
                         can_move = False
                         for city_tile, dist in city_tile_distance.items():
