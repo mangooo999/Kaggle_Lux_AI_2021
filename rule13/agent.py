@@ -145,7 +145,15 @@ def find_all_adjacent_empty_tiles(game_state, pos):
                           Position(pos.x + 1, pos.y)];
     empty_tyles = []
     for adjacent_position in adjacent_positions:
+        if adjacent_position.x<0 or adjacent_position.y<0 \
+                or adjacent_position.x>=game_state.map_width or adjacent_position.y>=game_state.map_height:
+            continue
         try:
+            if game_state.map.get_cell_by_pos(adjacent_position) is None:
+                continue
+            if not adjacent_position.is_adjacent(pos):
+                # strangely the above return cell on the other side of the map
+                continue
             if is_cell_empty(adjacent_position, game_state):
                 empty_tyles.append(adjacent_position)
         except Exception:
@@ -394,6 +402,8 @@ def agent(observation, configuration):
 
         if unit.is_worker() and unit.can_act():
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
+
+            print("Unit", unit.id, 'adjacent_empty_tiles',[x.__str__() for x in adjacent_empty_tiles] ,file=sys.stderr)
             closest_empty_tile = adjacent_empty_tile_favor_close_to_city(adjacent_empty_tiles, game_state, player)
 
             #   EXPANDER
@@ -422,7 +432,7 @@ def agent(observation, configuration):
                 continue
 
             #   TRAVELER
-            if False and info.is_role_traveler():
+            if info.is_role_traveler():
                 print("Unit", unit.id, ' is traveler to', info.target_position, file=sys.stderr)
                 direction = get_direction_to(move_mapper, player, unit.pos, info.target_position)
                 if direction is not None:
@@ -558,11 +568,11 @@ def get_direction_to(move_mapper, player, from_pos, to_pos):
     return None
 
 
-def find_best_city(city_tile_distance, move_mapper : MoveHelper, player, unit):
+def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit):
     closest_city_tile = None
     moved = False
     for city_tile, dist in city_tile_distance.items():
-        if move_mapper.get((city_tile.pos.x, city_tile.pos.y)) is None:
+        if not move_mapper.has_position(city_tile.pos):
             closest_city_tile = city_tile
 
             if closest_city_tile is not None:
