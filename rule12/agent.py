@@ -422,7 +422,7 @@ def agent(observation, configuration):
                 continue
 
             #   TRAVELER
-            if False and info.is_role_traveler():
+            if info.is_role_traveler():
                 print("Unit", unit.id, ' is traveler to', info.target_position, file=sys.stderr)
                 direction = get_direction_to(move_mapper, player, unit.pos, info.target_position)
                 if direction is not None:
