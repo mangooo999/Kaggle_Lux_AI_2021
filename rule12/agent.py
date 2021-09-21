@@ -558,11 +558,11 @@ def get_direction_to(move_mapper, player, from_pos, to_pos):
     return None
 
 
-def find_best_city(city_tile_distance, move_mapper : MoveHelper, player, unit):
+def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit):
     closest_city_tile = None
     moved = False
     for city_tile, dist in city_tile_distance.items():
-        if move_mapper.get((city_tile.pos.x, city_tile.pos.y)) is None:
+        if not move_mapper.has_position(city_tile.pos):
             closest_city_tile = city_tile
 
             if closest_city_tile is not None:
