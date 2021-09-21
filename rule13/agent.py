@@ -12,15 +12,14 @@ from UnitInfo import UnitInfo
 from GameInfo import GameInfo
 from MoveHelper import MoveHelper
 
+
 # todo
 # - optimise where create worker
-# - avoid path on enemy cities
 # - do not create units in the night
 
 ### Define helper functions
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
-
 
 
 def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]:
@@ -72,7 +71,7 @@ def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) ->
         if resource_tile.resource.type == Constants.RESOURCE_TYPES.WOOD:
             resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
         else:
-            expected_resource_additional = (float(dist * 1.8) * game_info.get_research_rate(5))
+            expected_resource_additional = (float(dist * 2.0) * game_info.get_research_rate(5))
             expected_resource_at_distance = float(game_info.reseach_points) + expected_resource_additional
 
             # check if we are likely to have researched this by the time we arrive
@@ -143,10 +142,10 @@ def find_number_of_adjacent_city_tile(pos, player):
 def find_all_adjacent_empty_tiles(game_state, pos):
     adjacent_positions = [Position(pos.x, pos.y + 1), Position(pos.x - 1, pos.y), Position(pos.x, pos.y - 1),
                           Position(pos.x + 1, pos.y)];
-    empty_tyles = []
+    empty_tiles = []
     for adjacent_position in adjacent_positions:
-        if adjacent_position.x<0 or adjacent_position.y<0 \
-                or adjacent_position.x>=game_state.map_width or adjacent_position.y>=game_state.map_height:
+        if adjacent_position.x < 0 or adjacent_position.y < 0 \
+                or adjacent_position.x >= game_state.map_width or adjacent_position.y >= game_state.map_height:
             continue
         try:
             if game_state.map.get_cell_by_pos(adjacent_position) is None:
@@ -155,10 +154,10 @@ def find_all_adjacent_empty_tiles(game_state, pos):
                 # strangely the above return cell on the other side of the map
                 continue
             if is_cell_empty(adjacent_position, game_state):
-                empty_tyles.append(adjacent_position)
+                empty_tiles.append(adjacent_position)
         except Exception:
             continue
-    return empty_tyles
+    return empty_tiles
 
 
 def adjacent_empty_tile_favor_close_to_city(empty_tyles, game_state, player):
@@ -262,15 +261,13 @@ def agent(observation, configuration):
     ### AI Code goes down here! ###
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
-    width, height = game_state.map.width, game_state.map.height
 
     # add debug statements like so!
     if game_state.turn == 0:
         print("Agent is running!", file=sys.stderr)
 
-    game_info.update(player, game_state)
-
     print("---------Turn number ", game_state.turn, file=sys.stderr)
+    game_info.update(player, game_state)
 
     # current number of units
     units = len(player.units)
@@ -383,51 +380,55 @@ def agent(observation, configuration):
     print(game_state.turn, 'can_build: ', can_build, file=sys.stderr)
 
     # trace the agent move
-    move_mapper = MoveHelper()
+    move_mapper = MoveHelper(player, opponent)
     # store all unit current location on move tracker
     for unit in player.units:
         if not unit.can_act():
-            move_mapper.add_position(unit.pos,unit)
+            move_mapper.add_position(unit.pos, unit)
 
     for unit in player.units:
         info: UnitInfo = unit_info[unit.id]
         print("Unit", unit.id, ";pos", unit.pos, 'CD=', unit.cooldown, cargo_to_string(unit.cargo), 'fuel=',
               cargo_to_fuel(unit.cargo), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role,
               file=sys.stderr)
-        if (is_position_city(player,
-                             unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(
-            player.units) == 1):
+        if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(
+                player.units) == 1):
             print("Unit", unit.id, ' NEEDS to become an expander', file=sys.stderr)
             info.set_unit_role('expander')
 
         if unit.is_worker() and unit.can_act():
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
 
-            print("Unit", unit.id, 'adjacent_empty_tiles',[x.__str__() for x in adjacent_empty_tiles] ,file=sys.stderr)
             closest_empty_tile = adjacent_empty_tile_favor_close_to_city(adjacent_empty_tiles, game_state, player)
+
+            print("Unit", unit.id, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
+                  'favoured',closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
 
             #   EXPANDER
             if info.is_role_city_expander() and unit.get_cargo_space_left() > 0:
                 print("Unit", unit.id, ' is expander', file=sys.stderr)
-                if is_position_adjacent_city(player, unit.pos) and (not is_position_city(player, unit.pos)) \
-                        and is_position_adjacent_to_resource(wood_tiles, unit.pos):
-                    # if we are next to city and to wood, just stay here
-                    print("Unit", unit.id, ' expander we are between city and wood do not move', file=sys.stderr)
-                    continue
 
-                # if we have the possibility of going in a tile that is like the  above
-                expander_perfect_spot = adjacent_empty_tile_adjacent_wood_and_city(adjacent_empty_tiles, wood_tiles,
-                                                                                   game_state, player)
-                if expander_perfect_spot is not None:
-                    direction = unit.pos.direction_to(expander_perfect_spot.pos)
-                    # if nobody is already moving there
-                    if not move_mapper.has_position(expander_perfect_spot.pos):
-                        move_unit_to(actions, direction, move_mapper, unit, " move to expander perfect spot",
-                                     expander_perfect_spot.pos)
+                # all action expander are based on building next turn. We don't build at last day, so skip if day before
+                if steps_until_night > 1:
+                    if is_position_adjacent_city(player, unit.pos) and (not move_mapper.is_position_city(unit.pos)) \
+                            and is_position_adjacent_to_resource(wood_tiles, unit.pos):
+                        # if we are next to city and to wood, just stay here
+                        print("Unit", unit.id, ' expander we are between city and wood do not move', file=sys.stderr)
                         continue
+
+                    # if we have the possibility of going in a tile that is like the  above
+                    expander_perfect_spot = adjacent_empty_tile_adjacent_wood_and_city(adjacent_empty_tiles, wood_tiles,
+                                                                                       game_state, player)
+                    if expander_perfect_spot is not None:
+                        direction = unit.pos.direction_to(expander_perfect_spot.pos)
+                        # if nobody is already moving there
+                        if not move_mapper.has_position(expander_perfect_spot.pos):
+                            move_unit_to(actions, direction, move_mapper, unit, " move to expander perfect spot",
+                                         expander_perfect_spot.pos)
+                            continue
             #   EXPANDER ENDS
 
-            if (is_night or is_night_tomorrow) and is_position_city(player, unit.pos):
+            if (is_night or is_night_tomorrow) and move_mapper.is_position_city(unit.pos):
                 print("Unit", unit.id, ' it is night, we are in city, do not move', file=sys.stderr)
                 continue
 
@@ -471,7 +472,7 @@ def agent(observation, configuration):
             #   HASSLER ENDS
 
             # build city tiles adjacent of other tiles to make only one city.
-            if unit.can_build(game_state.map):
+            if unit.can_build(game_state.map) :
                 if is_position_adjacent_city(player, unit.pos):
                     build_city(actions, unit, 'in adjacent city!')
                     continue
@@ -491,15 +492,14 @@ def agent(observation, configuration):
                                              " we could have build here, but we move close to city instead", next_pos)
                                 continue
 
-                build_city(actions, unit, 'NOT in adjacent city')
-                # we either built or moved, next
-                continue
+                if steps_until_night > 1 or (steps_until_night == 1 and is_position_adjacent_to_resource(resource_tiles, unit.pos)):
+                    build_city(actions, unit, 'NOT in adjacent city')
+                    continue
             #
             resources_distance = find_resources_distance(unit.pos, player, resource_tiles, game_info)
 
-            # if unit cant make citytiles try to collct resouce collection.
+            # if unit cant make city tiles try to collect resource collection.
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
-            #             print(closest_resource_tile.resource.type, closest_resource_tile.resource.amount)
 
             enough_fuel = 500
             if is_night:
@@ -559,7 +559,7 @@ def get_direction_to(move_mapper, player, from_pos, to_pos):
 
         # if we are trying to move on top of somebody else, abort
         # print("Unit", unit.id, ' XXX - try', direction, next_pos, file=sys.stderr)
-        if cannot_move_to(player, move_mapper, next_pos):
+        if move_mapper.cannot_move_to(next_pos):
             # print("Unit", unit.id, ' XXX - skip', file=sys.stderr)
             continue
         else:
@@ -606,15 +606,6 @@ def find_best_resource(move_mapper: MoveHelper, player, resources_distance, unit
         return direction, None, "randomly (due to resource)", ""
 
 
-def can_move_to(player, move_mapper: MoveHelper, pos):
-    # we cannot move if somebody is already going, and it is not a city
-    return (not move_mapper.has_position(pos)) or is_position_city(player, pos)
-
-
-def cannot_move_to(player, move_mapper: MoveHelper, pos):
-    return not can_move_to(player, move_mapper, pos)
-
-
 def get_autonomy_turns(city):
     turns_city_can_live = city.fuel // city.get_light_upkeep()
     return turns_city_can_live
@@ -648,21 +639,21 @@ def can_city_live(city, night_steps_left):
 def move_unit_to(actions, direction, move_mapper: MoveHelper, unit, reason="", target_far_position=None):
     next_state_pos = unit.pos.translate(direction, 1)
 
-
     if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
-        #do not annotate
+        # do not annotate
         print("Unit", unit.id, '- not moving "', '', '" ', reason, file=sys.stderr)
-        move_mapper.add_position(unit.pos,unit)
+        move_mapper.add_position(unit.pos, unit)
     else:
         if target_far_position is not None:
-            #target_far_position is only used for the annotation line
+            # target_far_position is only used for the annotation line
             actions.append(annotate.line(unit.pos.x, unit.pos.y, target_far_position.x, target_far_position.y))
-            actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
+            #actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
 
         action = unit.move(direction)
         actions.append(action)
-        move_mapper.add_position(next_state_pos,unit)
+        move_mapper.add_position(next_state_pos, unit)
         print("Unit", unit.id, '- moving towards "', direction, '" :', reason, target_far_position, file=sys.stderr)
+
 
 def is_position_adjacent_city(player, pos, do_log=False):
     for city in player.cities.values():
@@ -687,16 +678,3 @@ def is_position_resource(resource_tiles, pos):
         if r.pos.equals(pos):
             return True
     return False
-
-
-def is_position_city(player, pos):
-    return get_city_id_from_pos(player, pos) != ''
-
-
-def get_city_id_from_pos(player, pos):
-    for city in player.cities.values():
-        for city_tile in city.citytiles:
-            if city_tile.pos.equals(pos):
-                return city.cityid
-
-    return ''
