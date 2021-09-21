@@ -1,4 +1,4 @@
-from random import random
+import random
 
 from lux.game import Game
 from lux.game_map import Cell, RESOURCE_TYPES, Position, DIRECTIONS
@@ -10,7 +10,7 @@ import sys
 import collections
 from UnitInfo import UnitInfo
 from GameInfo import GameInfo
-
+from MoveHelper import MoveHelper
 
 # todo
 # - optimise where create worker
@@ -20,6 +20,8 @@ from GameInfo import GameInfo
 ### Define helper functions
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
+
+
 
 def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]:
     """
@@ -373,11 +375,11 @@ def agent(observation, configuration):
     print(game_state.turn, 'can_build: ', can_build, file=sys.stderr)
 
     # trace the agent move
-    move_mapper = {}
+    move_mapper = MoveHelper()
     # store all unit current location on move tracker
     for unit in player.units:
         if not unit.can_act():
-            move_mapper[(unit.pos.x, unit.pos.y)] = unit
+            move_mapper.add_position(unit.pos,unit)
 
     for unit in player.units:
         info: UnitInfo = unit_info[unit.id]
@@ -409,7 +411,7 @@ def agent(observation, configuration):
                 if expander_perfect_spot is not None:
                     direction = unit.pos.direction_to(expander_perfect_spot.pos)
                     # if nobody is already moving there
-                    if not move_mapper.get((expander_perfect_spot.pos.x, expander_perfect_spot.pos.y)):
+                    if not move_mapper.has_position(expander_perfect_spot.pos):
                         move_unit_to(actions, direction, move_mapper, unit, " move to expander perfect spot",
                                      expander_perfect_spot.pos)
                         continue
@@ -451,7 +453,7 @@ def agent(observation, configuration):
                     enemy_surrounding = find_closest_adjacent_enemy_city_tile(unit.pos, opponent)
                     direction = unit.pos.direction_to(enemy_surrounding.pos)
                     # if nobody is already moving there
-                    if not move_mapper.get((enemy_surrounding.pos.x, enemy_surrounding.pos.y)):
+                    if not move_mapper.has_position(enemy_surrounding.pos):
                         move_unit_to(actions, direction, move_mapper, unit, " move to enemy", enemy_surrounding.pos)
                         continue
 
@@ -471,7 +473,7 @@ def agent(observation, configuration):
                         direction = unit.pos.direction_to(closest_empty_tile.pos)
                         next_pos = unit.pos.translate(direction, 1)
                         # if nobody is already moving there
-                        if not move_mapper.get((next_pos.x, next_pos.y)):
+                        if not move_mapper.has_position(next_pos):
                             print("Unit", unit.id, " and nobody is moving here", file=sys.stderr)
                             # and if next pos is actually adjacent
                             if is_position_adjacent_city(player, next_pos):
@@ -556,7 +558,7 @@ def get_direction_to(move_mapper, player, from_pos, to_pos):
     return None
 
 
-def find_best_city(city_tile_distance, move_mapper, player, unit):
+def find_best_city(city_tile_distance, move_mapper : MoveHelper, player, unit):
     closest_city_tile = None
     moved = False
     for city_tile, dist in city_tile_distance.items():
@@ -574,7 +576,7 @@ def find_best_city(city_tile_distance, move_mapper, player, unit):
         return direction, None, "randomly (due to city)"
 
 
-def find_best_resource(move_mapper, player, resources_distance, unit):
+def find_best_resource(move_mapper: MoveHelper, player, resources_distance, unit):
     closest_resource_tile, c_dist = None, None
     moved = False
     # print("Unit", unit.id, " XXX Find resources dis", resources_distance.values(), file=sys.stderr)
@@ -594,12 +596,12 @@ def find_best_resource(move_mapper, player, resources_distance, unit):
         return direction, None, "randomly (due to resource)", ""
 
 
-def can_move_to(player, move_mapper, pos):
+def can_move_to(player, move_mapper: MoveHelper, pos):
     # we cannot move if somebody is already going, and it is not a city
-    return (move_mapper.get((pos.x, pos.y)) is None) or is_position_city(player, pos)
+    return (not move_mapper.has_position(pos)) or is_position_city(player, pos)
 
 
-def cannot_move_to(player, move_mapper, pos):
+def cannot_move_to(player, move_mapper: MoveHelper, pos):
     return not can_move_to(player, move_mapper, pos)
 
 
@@ -633,20 +635,24 @@ def can_city_live(city, night_steps_left):
     return city.fuel / (city.get_light_upkeep() + 20) >= min(night_steps_left, 30)
 
 
-def move_unit_to(actions, direction, move_mapper, unit, reason="", pos=None):
+def move_unit_to(actions, direction, move_mapper: MoveHelper, unit, reason="", target_far_position=None):
     next_state_pos = unit.pos.translate(direction, 1)
-    action = unit.move(direction)
-    actions.append(action)
 
-    if pos is None or direction == DIRECTIONS.CENTER:
+
+    if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
+        #do not annotate
         print("Unit", unit.id, '- not moving "', '', '" ', reason, file=sys.stderr)
-        move_mapper[(unit.pos.x, unit.pos.y)] = unit
+        move_mapper.add_position(unit.pos,unit)
     else:
-        actions.append(annotate.line(unit.pos.x, unit.pos.y, pos.x, pos.y))
-        actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
-        move_mapper[(next_state_pos.x, next_state_pos.y)] = unit
-        print("Unit", unit.id, '- moving towards "', direction, '" :', reason, pos, file=sys.stderr)
+        if target_far_position is not None:
+            #target_far_position is only used for the annotation line
+            actions.append(annotate.line(unit.pos.x, unit.pos.y, target_far_position.x, target_far_position.y))
+            actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
 
+        action = unit.move(direction)
+        actions.append(action)
+        move_mapper.add_position(next_state_pos,unit)
+        print("Unit", unit.id, '- moving towards "', direction, '" :', reason, target_far_position, file=sys.stderr)
 
 def is_position_adjacent_city(player, pos, do_log=False):
     for city in player.cities.values():
