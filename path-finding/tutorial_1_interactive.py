@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 import mortoray_path_finding as mpf
+from lux.game_map import Position
+
 
 class MyFinder(mpf.draw.Finder):
 	"""Integrate into the simple UI	"""
@@ -14,7 +16,7 @@ class MyFinder(mpf.draw.Finder):
 	
 	def reset(self):
 		#self.game = mpf.random_creator.create_wall_maze(20,10)
-		self.game = mpf.random_creator.create_wall_maze(20,10,mpf.maze.Position(7, 6),mpf.maze.Position(13,4))
+		self.game = mpf.random_creator.create_wall_maze(20,10,Position(7, 6),Position(13,4))
 		print('start',self.game.start)
 		print('end  ',self.game.end)
 		self.max_distance = 18

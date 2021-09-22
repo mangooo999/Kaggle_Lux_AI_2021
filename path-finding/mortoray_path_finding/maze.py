@@ -1,6 +1,9 @@
 import random, types, copy
 from enum import Enum
 
+from lux.game_map import Position
+
+
 class CellType(Enum):
     Empty = 1
     Block = 2
@@ -9,32 +12,6 @@ class CellMark(Enum):
     No = 0
     Start = 1
     End = 2
-
-class Position:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
-    def __sub__(self, pos) -> int:
-        return abs(pos.x - self.x) + abs(pos.y - self.y)
-
-    def distance_to(self, pos):
-        """
-        Returns Manhattan (L1/grid) distance to pos
-        """
-        return self - pos
-
-    def is_adjacent(self, pos):
-        return (self - pos) <= 1
-
-    def __eq__(self, pos) -> bool:
-        return self.x == pos.x and self.y == pos.y
-
-    def equals(self, pos):
-        return self == pos
-
-    def __str__(self) -> str:
-        return f"({self.x}, {self.y})"
 
 
 class Cell:
