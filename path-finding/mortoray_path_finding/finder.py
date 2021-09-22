@@ -34,15 +34,15 @@ def fill_shortest_path(board, start, end, max_distance=math.inf):
         cur_cell = nboard.at(cur_pos)
 
         for neighbour in neighbours:
-            ncell_pos = maze.add_point(cur_pos, neighbour)
+            next_pos = maze.add_points(cur_pos, neighbour)
 
             # We must take the edges of the grid into consideration though, which is what is_valid_point does. For
             # example, if we’re at the right edge of the grid, then the offset [1,0], which moves one to the right,
             # is no longer on the graph, so we’ll skip that.
-            if not nboard.is_valid_point(ncell_pos):
+            if not nboard.is_valid_point(next_pos):
                 continue
             # We’ll also skip any cells that isn’t empty, as these are the walls in the maze and we can't walk through them
-            cell = nboard.at(ncell_pos)
+            cell = nboard.at(next_pos)
 
             if cell.type != maze.CellType.Empty:
                 continue
@@ -54,7 +54,7 @@ def fill_shortest_path(board, start, end, max_distance=math.inf):
             if cell.count > dist:
                 cell.count = dist
                 cell.path_from = cur_cell
-                open_list.append(ncell_pos)
+                open_list.append(next_pos)
 
     return nboard
 

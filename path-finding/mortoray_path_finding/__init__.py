@@ -1,2 +1,2 @@
-from . import tutorial_1
+from . import finder
 from . import draw, maze
