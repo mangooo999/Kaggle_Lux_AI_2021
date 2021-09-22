@@ -1,19 +1,14 @@
 import random, types, copy
 from enum import Enum
 
-
-
-
 class CellType(Enum):
     Empty = 1
     Block = 2
-
 
 class CellMark(Enum):
     No = 0
     Start = 1
     End = 2
-
 
 class Position:
     def __init__(self, x, y):
@@ -40,6 +35,9 @@ class Position:
 
     def __str__(self) -> str:
         return f"({self.x}, {self.y})"
+
+    def get_from_me(self, b) :
+        return Position(self.x + b.x, self.y + b.y)
 
 class Cell:
     def __init__(self, type=CellType.Empty, pos=None):
@@ -77,15 +75,4 @@ class CellGrid:
         return pos.x >= 0 and pos.y >= 0 and pos.x < sz[0] and pos.y < sz[1]
 
 
-def create_empty_maze(x, y):
-    return types.SimpleNamespace(
-        board=CellGrid([[Cell(type=CellType.Empty, pos=[ix, iy]) for iy in range(y)] for ix in range(x)]),
-        start=[random.randrange(0, x), random.randrange(0, y)],
-        end=[random.randrange(0, x), random.randrange(0, y)])
 
-
-
-
-
-def add_points(a: Position, b: Position)->Position:
-    return Position(a.x + b.x, a.y + b.y)

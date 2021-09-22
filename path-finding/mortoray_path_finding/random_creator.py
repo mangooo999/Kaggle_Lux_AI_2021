@@ -1,6 +1,13 @@
 import random
 from .maze import *
 
+
+def create_empty_maze(x, y):
+    return types.SimpleNamespace(
+        board=CellGrid([[Cell(type=CellType.Empty, pos=[ix, iy]) for iy in range(y)] for ix in range(x)]),
+        start=[random.randrange(0, x), random.randrange(0, y)],
+        end=[random.randrange(0, x), random.randrange(0, y)])
+
 def create_wall_maze(width, height):
     board = [[Cell(type=CellType.Empty, pos=[ix, iy]) for iy in range(height)] for ix in range(width)]
     for i in range(0, width):

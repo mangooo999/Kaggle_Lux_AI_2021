@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import mortoray_path_finding as mpf
-	
+
 class MyFinder(mpf.draw.Finder):
 	"""Integrate into the simple UI	"""
 	def __init__(self):
@@ -9,8 +9,8 @@ class MyFinder(mpf.draw.Finder):
 	def step(self, frames):
 		self.max_distance = max( 0, self.max_distance + frames )
 		self.result = mpf.finder.fill_shortest_path(self.game.board, self.game.start, self.game.end, max_distance = self.max_distance)
-		self.set_board(self.result)
-		self.set_path(mpf.finder.backtrack_to_start(self.result, self.game.end))
+		self.set_board(self.result[0])
+		self.set_path(mpf.finder.backtrack_to_start(self.result[0], self.game.end))
 	
 	def reset(self):
 		self.game = mpf.maze.create_wall_maze(20,10)
