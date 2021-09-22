@@ -76,9 +76,8 @@ def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) ->
         if resource_tile.resource.type == Constants.RESOURCE_TYPES.WOOD:
             resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
         else:
-            expected_resource_additional = (float(dist * 2.0) * game_info.get_research_rate(5))
+            expected_resource_additional = (float(dist * 2.0) * float (game_info.get_research_rate(5)))
             expected_resource_at_distance = float(game_info.reseach_points) + expected_resource_additional
-
             # check if we are likely to have researched this by the time we arrive
             if resource_tile.resource.type == Constants.RESOURCE_TYPES.COAL and \
                     expected_resource_at_distance < 50.0:
@@ -291,8 +290,8 @@ def agent(observation, configuration):
             unit_info[unit.id] = UnitInfo(unit)
             if unit_number == 2 and units == 2:
                 unit_info[unit.id].set_unit_role('expander')
-            elif game_state.turn < 25 and unit_number == game_info.at_start_resources_within3:
-                unit_info[unit.id].set_unit_role('explorer')
+            #elif game_state.turn < 25 and unit_number == game_info.at_start_resources_within3:
+            #    unit_info[unit.id].set_unit_role('explorer')
 			# elif unit_number == 5 and units == 5:
             #    unit_info[unit.id].set_unit_role('hassler')
         else:
@@ -356,7 +355,7 @@ def agent(observation, configuration):
 
     number_city_tiles = 0
     if len(cities) > 0:
-        for city in cities:
+        for city in reversed(cities):
             can_create_worker = (units < unit_ceiling)
             city_autonomy = get_autonomy_turns(city)
             lowest_autonomy = min(lowest_autonomy, city_autonomy)
@@ -427,7 +426,6 @@ def agent(observation, configuration):
                         #try to find the farwest resource we can find within reach before night
                         target_pos = None
                         for r in resources_distance:
-                            print(prefix, 'XXXX explorer',r.pos,unit.pos.distance_to(r.pos), file=sys.stderr)
                             if 3<unit.pos.distance_to(r.pos) <= (steps_until_night+1)/2:
                                 target_pos = r.pos
 
@@ -484,8 +482,8 @@ def agent(observation, configuration):
                         continue
 
                 # if we have the possibility of going in a tile that is like the above,
-                # go id not in a city, or if you are in a city, go just last 5 days of night (so we gather and covered)
-                if (not move_mapper.is_position_city(unit.pos)) or time_to_dawn <= 2:
+                # go id not in a city, or if you are in a city, go just last 1 days of night (so we gather and covered)
+                if (not move_mapper.is_position_city(unit.pos)) or time_to_dawn <= 1:
                     best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles, wood_tiles,
                                                                     game_state, player)
                     if best_night_spot is not None \
@@ -494,6 +492,15 @@ def agent(observation, configuration):
 
                 if move_mapper.is_position_city(unit.pos):
                     print(prefix, ' it is night, we are in city, do not move', file=sys.stderr)
+                    continue
+
+            #DAWN
+
+            if steps_until_night==30:
+                print(prefix, "It's dawn", steps_until_night, file=sys.stderr)
+                if is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos, game_state)\
+                        and 0<unit.get_cargo_space_left()<=21:
+                    print(prefix, ' at dawn, can build next day', file=sys.stderr)
                     continue
 
             #   TRAVELER
@@ -562,32 +569,38 @@ def agent(observation, configuration):
                     build_city(actions, unit, 'NOT in adjacent city')
                     continue
             #
-            resources_distance = find_resources_distance(unit.pos, player, available_resources_tiles, game_info)
+            resources_distance = find_resources_distance(unit.pos, player, all_resources_tiles, game_info)
 
             # if unit cant make city tiles try to collect resource collection.
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
 
-            enough_fuel = 500
+            enough_fuel = 600
+            if steps_until_night<4:
+                enough_fuel = 400
             if is_night:
                 enough_fuel = 300
 
             if unit.get_cargo_space_left() > 0 \
-                    and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()) \
-                    and not is_position_resource(available_resources_tiles, unit.pos):
-                # find the closest resource if it exists to this unit
+                    and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
+                if not is_position_resource(available_resources_tiles, unit.pos):
+                    # find the closest resource if it exists to this unit
 
-                print(prefix, " Find resources", file=sys.stderr)
+                    print(prefix, " Find resources", file=sys.stderr)
 
-                if resources_distance is not None and len(resources_distance) > 0:
-                    # create a move action to the direction of the closest resource tile and add to our actions list
-                    direction, pos, msg, resource_type = find_best_resource(move_mapper, player, resources_distance,
-                                                                            unit)
-                    if resource_type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal() \
-                            or resource_type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium():
-                        info.set_unit_role_traveler(pos, 2 * pos.distance_to(unit.pos))
-                    move_unit_to(actions, direction, move_mapper, unit, msg, pos)
+                    if resources_distance is not None and len(resources_distance) > 0:
+                        # create a move action to the direction of the closest resource tile and add to our actions list
+                        direction, pos, msg, resource_type = find_best_resource(move_mapper, player, resources_distance,
+                                                                                unit)
+                        if (resource_type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal()) \
+                                or (resource_type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
+                            distance_to_res=pos.distance_to(unit.pos)
+                            print(prefix, " Found resource not yet researched:", resource_type,"dist",distance_to_res, file=sys.stderr)
+                            info.set_unit_role_traveler(pos, 2 * distance_to_res)
+                        move_unit_to(actions, direction, move_mapper, unit, msg, pos)
+                        continue
+                else:
+                    print(prefix, " Stay on resources", file=sys.stderr)
                     continue
-
             else:
                 if steps_until_night > 10 and can_build and unit.get_cargo_space_left() <= 20 and is_position_resource(
                         available_resources_tiles, unit.pos) and closest_empty_tile is not None:
