@@ -103,7 +103,7 @@ def draw_board(surface, area, board):
 	}
 	for y in range(0,metrics.num_y):
 		for x in range(0,metrics.num_x):
-			cell = board.at([x,y])
+			cell = board.at(types.SimpleNamespace(x=x,y=y))
 			clr = colors.get(cell.type, (100,100,0))
 			cell_rect = metrics.cell_rect( [x, y] )
 			
