@@ -8,7 +8,7 @@ def create_empty_maze(x, y):
         start=[random.randrange(0, x), random.randrange(0, y)],
         end=[random.randrange(0, x), random.randrange(0, y)])
 
-def create_wall_maze(width, height):
+def create_wall_maze(width, height, start=None, end=None):
     board = [[Cell(type=CellType.Empty, pos=[ix, iy]) for iy in range(height)] for ix in range(width)]
     for i in range(0, width):
         board[i][int(height / 2)].type = CellType.Block
@@ -19,7 +19,11 @@ def create_wall_maze(width, height):
     board[random.randint(width / 2 + 1, width - 1)][int(height / 2)].type = CellType.Empty
     board[int(width / 2)][random.randint(0, height / 2 - 1)].type = CellType.Empty
     board[int(width / 2)][random.randint(height / 2 + 1, height - 1)].type = CellType.Empty
+    if start is None:
+        start = Position(random.randrange(0, width / 2), random.randrange(height / 2 + 1, height))
+    if end is None:
+        end = Position(random.randrange(width / 2 + 1, width), random.randrange(0, height / 2))
 
     return types.SimpleNamespace(board=CellGrid(board),
-                                 start=Position(random.randrange(0, width / 2), random.randrange(height / 2 + 1, height)),
-                                 end=Position(random.randrange(width / 2 + 1, width), random.randrange(0, height / 2)))
+                                 start=start,
+                                 end=end)
