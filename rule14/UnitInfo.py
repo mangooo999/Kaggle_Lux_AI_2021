@@ -43,6 +43,7 @@ class UnitInfo:
 
     def set_unit_role(self, role):
         self.role = role
+        print("Setting unit", self.id, " as ", self.role, file=sys.stderr)
 
     def clean_unit_role(self):
         if self.role != '':
@@ -53,6 +54,9 @@ class UnitInfo:
 
     def is_role_city_expander(self):
         return self.role == 'expander'
+
+    def is_role_city_explorer(self):
+        return self.role == 'explorer'
 
     def is_role_hassler(self):
         return self.role == 'hassler'

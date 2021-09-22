@@ -15,6 +15,7 @@ class GameInfo:
         self.turn = 0
         self.increase_research_points_last_turn = 0
         self.increase_research_points_sequence = []
+        self.at_start_resources_within3 = 0
 
     def update(self, player: Player, game_state: Game):
         self.increase_research_points_last_turn = player.research_points - self.reseach_points

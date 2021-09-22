@@ -270,13 +270,19 @@ def agent(observation, configuration):
     # add debug statements like so!
     if game_state.turn == 0:
         print("Agent is running!", file=sys.stderr)
-
     print("---------Turn number ", game_state.turn, file=sys.stderr)
     game_info.update(player, game_state)
 
     # current number of units
     units = len(player.units)
     unit_number = 0
+
+    all_resources_tiles, available_resources_tiles, wood_tiles = find_all_resources(game_state, player)
+    if game_state.turn == 0:
+        initial_city_pos = list(player.cities.values())[0].citytiles[0].pos
+        x3:list= get_resources_around(available_resources_tiles,initial_city_pos,3)
+        game_info.at_start_resources_within3 = len(x3)
+        print("Resources within distance 3 of", initial_city_pos,"initial pos", len(x3), file=sys.stderr)
 
     for unit in player.units:
         unit_number = unit_number + 1
@@ -285,12 +291,13 @@ def agent(observation, configuration):
             unit_info[unit.id] = UnitInfo(unit)
             if unit_number == 2 and units == 2:
                 unit_info[unit.id].set_unit_role('expander')
-            # elif unit_number == 5 and units == 5:
+            elif game_state.turn < 25 and unit_number == game_info.at_start_resources_within3:
+                unit_info[unit.id].set_unit_role('explorer')
+			# elif unit_number == 5 and units == 5:
             #    unit_info[unit.id].set_unit_role('hassler')
         else:
             unit_info[unit.id].update(unit)
 
-    all_resources_tiles, available_resources_tiles, wood_tiles = find_all_resources(game_state, player)
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -412,6 +419,26 @@ def agent(observation, configuration):
 
             print(prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
+
+            #   EXPLORER
+            if info.is_role_city_explorer():
+                print(prefix, ' is explorer', file=sys.stderr)
+                if resources_distance is not None and len(resources_distance) > 0 and steps_until_night > 1:
+                        #try to find the farwest resource we can find within reach before night
+                        target_pos = None
+                        for r in resources_distance:
+                            print(prefix, 'XXXX explorer',r.pos,unit.pos.distance_to(r.pos), file=sys.stderr)
+                            if 3<unit.pos.distance_to(r.pos) <= (steps_until_night+1)/2:
+                                target_pos = r.pos
+
+                        if target_pos is not None:
+                            distance = unit.pos.distance_to(target_pos)
+                            print(prefix, ' explorer will go to',target_pos, 'dist',distance, file=sys.stderr)
+                            info.set_unit_role_traveler(target_pos, 2 * distance)
+
+                if info.is_role_city_explorer():
+                    print(prefix, ' failed to find resource for explorer, clearing role', file=sys.stderr)
+                    info.clean_unit_role()
 
             #   EXPANDER
             if info.is_role_city_expander() and unit.get_cargo_space_left() > 0:
@@ -727,3 +754,11 @@ def try_to_move_to(actions, move_mapper, unit, pos: Position, msg: str):
         return True
     else:
         return False
+
+def get_resources_around(resource_tiles, pos, max_dist):
+    resources=[]
+    for r in resource_tiles:
+        if pos.distance_to(r.pos)<=max_dist:
+            resources.append(r)
+
+    return resources
