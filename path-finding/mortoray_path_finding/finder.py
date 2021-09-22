@@ -21,8 +21,12 @@ def fill_shortest_path(board, start:maze.Position, end:maze.Position, max_distan
 
     directions = get_manattham_direction(end, start)
 
-    manattham_result =  get_distance_array(manattham_distance, nboard, directions, start, end, True)
-    return manattham_result[0]
+    manattham_result = get_distance_array(manattham_distance, nboard, directions, start, end, True)
+    if manattham_result[1]:
+        return manattham_result
+    else:
+        directions = [maze.Position(-1, 0), maze.Position(1, 0), maze.Position(0, -1), maze.Position(0, 1)]
+        return get_distance_array(max_distance, nboard, directions, start, end, False)
 
 def get_manattham_direction(end, start):
     directions = []
@@ -65,10 +69,11 @@ def get_distance_array(max_distance, nboard, neighbours, start:maze.Position, en
                 continue
 
             #if we are walking only manattham, then we cannot get out the rectangle identified by start and end
-            if next_pos.x < min(start.x,end.x) or next_pos.x > max(start.x,end.x):
-                continue
-            if next_pos.y < min(start.y,end.y) or next_pos.y > max(start.y,end.y):
-                continue
+            if walk_only_manattham:
+                if next_pos.x < min(start.x,end.x) or next_pos.x > max(start.x,end.x):
+                    continue
+                if next_pos.y < min(start.y,end.y) or next_pos.y > max(start.y,end.y):
+                    continue
 
             # We’ll also skip any cells that isn’t empty, as these are the walls in the maze and we can't walk through them
             cell:maze.Cell= nboard.at(next_pos)
