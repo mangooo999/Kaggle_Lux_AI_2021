@@ -1,2 +1,2 @@
 from . import finder
-from . import draw, maze
+from . import draw, maze, random_creator

@@ -13,7 +13,7 @@ class MyFinder(mpf.draw.Finder):
 		self.set_path(mpf.finder.backtrack_to_start(self.result[0], self.game.end))
 	
 	def reset(self):
-		self.game = mpf.maze.create_wall_maze(20,10)
+		self.game = mpf.random_creator.create_wall_maze(20,10)
 		self.max_distance = 18
 		self.step(0)
 	
