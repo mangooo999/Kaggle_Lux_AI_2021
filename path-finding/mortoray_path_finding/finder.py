@@ -67,7 +67,7 @@ def get_distance_array(max_distance, input_board, neighbours, start: maze.Positi
         for direction in neighbours:
             next_pos = maze.add_points(cur_pos, direction)
             dist = cur_cell.count + 1
-            print(' - ', cur_pos, next_pos, dist)
+            #print(' - ', cur_pos, next_pos, dist)
             # We must take the edges of the grid into consideration though, which is what is_valid_point does. For
             # example, if we’re at the right edge of the grid, then the offset [1,0], which moves one to the right,
             # is no longer on the graph, so we’ll skip that.
