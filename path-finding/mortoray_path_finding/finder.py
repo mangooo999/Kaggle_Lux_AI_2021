@@ -17,14 +17,16 @@ def fill_shortest_path(board, start:maze.Position, end:maze.Position, max_distan
     nboard.at(start).mark = maze.CellMark.Start
     nboard.at(end).mark = maze.CellMark.End
 
-    manattham_distance = start.distance_to(end);
+    manhattan_distance = start.distance_to(end);
 
     directions = get_manattham_direction(end, start)
 
-    manattham_result = get_distance_array(manattham_distance, nboard, directions, start, end, True)
+    manattham_result = get_distance_array(manhattan_distance, nboard, directions, start, end, True)
     if manattham_result[1]:
+        print('found as manhattan')
         return manattham_result
     else:
+        print('not found as manhattan')
         directions = [maze.Position(-1, 0), maze.Position(1, 0), maze.Position(0, -1), maze.Position(0, 1)]
         return get_distance_array(max_distance, nboard, directions, start, end, False)
 
