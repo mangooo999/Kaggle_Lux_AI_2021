@@ -283,6 +283,8 @@ def agent(observation, configuration):
         game_info.at_start_resources_within3 = len(x3)
         print("Resources within distance 3 of", initial_city_pos, "initial pos", len(x3), file=sys.stderr)
 
+
+    # Spawn of new troops and assigment of roles below
     for unit in player.units:
         unit_number = unit_number + 1
         if not unit.id in unit_info:
@@ -318,6 +320,7 @@ def agent(observation, configuration):
     available_city_actions_now_and_next = 0;
     do_research_points = 0
 
+    number_city_tiles = 0
     if len(cities) > 0:
         for city in cities:
             will_live = get_autonomy_turns(city) >= night_steps_left
@@ -328,6 +331,7 @@ def agent(observation, configuration):
 
             # record how many research points we have now
             for city_tile in city.citytiles[::-1]:
+                number_city_tiles = number_city_tiles + 1
                 if city_tile.can_act(): available_city_actions += 1
                 if city_tile.cooldown <= 1: available_city_actions_now_and_next += 1
 
@@ -354,34 +358,39 @@ def agent(observation, configuration):
 
     number_work_we_can_build = available_city_actions - do_research_points
     number_work_we_want_to_build = unit_ceiling - units
+    if len(available_resources_tiles) == 0 and game_info.still_can_do_reseach():
+        number_work_we_want_to_build = 0
 
-    number_city_tiles = 0
-    if len(cities) > 0:
+    # Find how many and where to create builders
+
+    print('number_work_we_can_build', number_work_we_can_build, 'number_work_we_want_to_build',
+          number_work_we_want_to_build,file=sys.stderr)
+    do_another_cicle=True
+    while min(number_work_we_can_build, number_work_we_want_to_build) >0 and do_another_cicle:
+        do_another_cicle = False
         for city in reversed(cities):
-            can_create_worker = (units < unit_ceiling)
             city_autonomy = get_autonomy_turns(city)
-            lowest_autonomy = min(lowest_autonomy, city_autonomy)
             will_live = city_autonomy >= night_steps_left
-            print("City ", city.cityid, 'size=', len(city.citytiles), ' fuel=', city.fuel, ' upkeep=',
-                  city.get_light_upkeep(), 'autonomy=', city_autonomy, 'safe=', will_live, file=sys.stderr)
-
+            lowest_autonomy = min(lowest_autonomy, city_autonomy)
             for city_tile in city.citytiles[::-1]:
-                number_city_tiles = number_city_tiles + 1
                 print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
-                    if do_research_points > 0 and game_info.still_can_do_reseach():
-                        # we can complete something this turn, let's do research
-                        game_info.do_research(actions, city_tile, "- - research (rushed)")
-                        do_research_points -= 1
-                    if len(available_resources_tiles) == 0 and game_info.still_can_do_reseach():
-                        # let's do research
-                        game_info.do_research(actions, city_tile, "- - research (no resources)")
-                    elif can_create_worker and ((not will_live) or len(unsafe_cities) == 0):
+                    if (not will_live) or len(unsafe_cities) == 0:
                         # let's create one more unit in the last created city tile if we can
                         actions.append(city_tile.build_worker())
                         print("- - created worker", file=sys.stderr)
-                        units = units + 1
-                    elif game_info.still_can_do_reseach():
+                        number_work_we_can_build -=  1
+                        number_work_we_want_to_build -= 1
+                        do_another_cicle = True
+
+
+
+    if len(cities) > 0:
+        for city in reversed(cities):
+            for city_tile in city.citytiles[::-1]:
+                print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
+                if city_tile.can_act():
+                    if game_info.still_can_do_reseach():
                         # let's do research
                         game_info.do_research(actions, city_tile, "- - research")
                     else:
@@ -413,8 +422,8 @@ def agent(observation, configuration):
 
         if unit.is_worker() and unit.can_act():
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
-
             closest_empty_tile = adjacent_empty_tile_favor_close_to_city(adjacent_empty_tiles, game_state, player)
+            resources_distance = find_resources_distance(unit.pos, player, all_resources_tiles, game_info)
 
             print(prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
@@ -590,8 +599,7 @@ def agent(observation, configuration):
                                                                                     unit.pos)):
                     build_city(actions, unit, 'NOT in adjacent city')
                     continue
-            #
-            resources_distance = find_resources_distance(unit.pos, player, all_resources_tiles, game_info)
+
 
             # if unit cant make city tiles try to collect resource collection.
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
