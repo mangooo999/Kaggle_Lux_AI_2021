@@ -290,8 +290,8 @@ def agent(observation, configuration):
             unit_info[unit.id] = UnitInfo(unit)
             if unit_number == 2 and units == 2:
                 unit_info[unit.id].set_unit_role('expander')
-            #elif game_state.turn < 25 and unit_number == game_info.at_start_resources_within3:
-            #    unit_info[unit.id].set_unit_role('explorer')
+            elif game_state.turn < 25 and unit_number == game_info.at_start_resources_within3:
+                unit_info[unit.id].set_unit_role('explorer')
 			# elif unit_number == 5 and units == 5:
             #    unit_info[unit.id].set_unit_role('hassler')
         else:
