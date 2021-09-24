@@ -43,6 +43,9 @@ class UnitInfo:
             if self.role_time_turn_limit == 0:
                 self.clean_unit_role()
 
+        if self.is_role_returner() and self.unit.get_cargo_space_left()==100:
+            self.clean_unit_role()
+
     def set_last_action_move(self, direction):
         self.last_move = 'm'
         self.last_move_direction = direction
@@ -86,3 +89,6 @@ class UnitInfo:
 
     def is_role_traveler(self):
         return self.role == 'traveler'
+
+    def is_role_returner(self):
+        return self.role == 'returner'
