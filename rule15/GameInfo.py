@@ -24,7 +24,6 @@ class GameInfo:
         self.turn = game_state.turn
         self.log_research_stats(5)
         self.log_prefix = 'GameInfo#' + self.turn.__str__()
-        self.research_this_turn=0
 
     def get_research_increase_last_n_turns(self, n: int) -> int:
         sum = 0
@@ -32,24 +31,9 @@ class GameInfo:
             sum += r
         return sum
 
-    def do_research(self,actions, city_tile, msg):
-        actions.append(city_tile.research())
-        print(msg, file=sys.stderr)
-        self.research_this_turn += 1
-
     def get_research_rate(self, n: int) -> float:
         return float(self.get_research_increase_last_n_turns(n)) / float(n)
 
     def log_research_stats(self, n: int):
         print(self.log_prefix, 'Research points', self.reseach_points, ' research rate', self.get_research_rate(5),
               file=sys.stderr)
-
-    def get_total_reseach(self):
-        return self.reseach_points+self.research_this_turn
-
-    def still_can_do_reseach(self):
-        return self.get_total_reseach()<200
-
-
-
-
