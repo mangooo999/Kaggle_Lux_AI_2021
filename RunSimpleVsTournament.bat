@@ -1,1 +1,1 @@
-lux-ai-2021 --rankSystem="trueskill" --tournament --storeReplay=false --storeLogs=false rule4/main.py rule6/main.py rule9/main.py rule10/main.py
+lux-ai-2021 --rankSystem="trueskill" --tournament --storeReplay=false --storeLogs=false rule14/main.py rule15/main.py rule16/main.py 
