@@ -415,6 +415,7 @@ def agent(observation, configuration):
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
 
             closest_empty_tile = adjacent_empty_tile_favor_close_to_city(adjacent_empty_tiles, game_state, player)
+            resources_distance = find_resources_distance(unit.pos, player, all_resources_tiles, game_info)
 
             print(prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
@@ -589,8 +590,7 @@ def agent(observation, configuration):
                                                                                     unit.pos)):
                     build_city(actions, unit, 'NOT in adjacent city')
                     continue
-            #
-            resources_distance = find_resources_distance(unit.pos, player, all_resources_tiles, game_info)
+
 
             # if unit cant make city tiles try to collect resource collection.
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
