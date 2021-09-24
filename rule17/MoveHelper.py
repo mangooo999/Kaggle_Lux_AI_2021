@@ -24,7 +24,10 @@ class MoveHelper:
     def __hash_pos__(self, pos: Position):
         return (pos.x, pos.y)
 
-    def can_move_to(self, pos) -> bool:
+    def can_move_to_direction(self, pos:Position, direction:str) -> bool:
+        return self.can_move_to_pos(pos.translate(direction,1))
+
+    def can_move_to_pos(self, pos:Position) -> bool:
         # we cannot move if somebody is already going, and it is not a city
         if self.has_position(pos) and not self.is_position_city(pos):
             unit: Unit = self.move_mapper.get(self.__hash_pos__(pos))
@@ -34,7 +37,7 @@ class MoveHelper:
             return not self.is_position_enemy_city(pos)
 
     def cannot_move_to(self, pos) -> bool:
-        return not self.can_move_to(pos)
+        return not self.can_move_to_pos(pos)
 
     def is_position_city(self, pos) -> bool:
         return self.get_city_id_from_pos(pos, self.player) != ''

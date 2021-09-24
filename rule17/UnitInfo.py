@@ -12,6 +12,7 @@ class UnitInfo:
         self.unit = unit
         self.last_action = ''
         self.last_move = ''
+        self.last_move_direction = ''
         self.last_move_turn = 0
         self.current_turn = 0
         self.has_mission = False
@@ -24,6 +25,7 @@ class UnitInfo:
         self.target_position = None
         self.role_time_turn_limit = 0
         self.has_done_action_this_turn = False
+        self.last_move_before_pos = unit.pos
         print(self.log_prefix, 'created', file=sys.stderr)
 
     def update(self, unit: Unit, current_turn):
@@ -37,28 +39,29 @@ class UnitInfo:
         self.gathered_last_turn = unit.get_cargo_space_left() - self.last_free_cargo
         self.last_free_cargo = unit.get_cargo_space_left()
         if self.role_time_turn_limit > 0:
-            self.role_time_turn_limit -=1
+            self.role_time_turn_limit -= 1
             if self.role_time_turn_limit == 0:
                 self.clean_unit_role()
 
-    def set_last_action_move(self,direction):
-        self.last_move='m'
-        self.last_move=direction
-        self.last_move_turn=self.current_turn
+    def set_last_action_move(self, direction):
+        self.last_move = 'm'
+        self.last_move_direction = direction
+        self.last_move_turn = self.current_turn
+        self.last_move_before_pos = self.unit.pos
         self.has_done_action_this_turn = True
 
     def set_last_action_build(self):
-        self.last_move='m'
+        self.last_move = 'b'
         self.has_done_action_this_turn = True
 
     def set_last_action_transfer(self):
-        self.last_move='t'
+        self.last_move = 't'
         self.has_done_action_this_turn = True
 
-    def set_unit_role_traveler(self, pos:Position,number_turns):
-        print(self.log_prefix, 'set this unit as traveler to',pos," for number_turns",number_turns,file=sys.stderr)
+    def set_unit_role_traveler(self, pos: Position, number_turns):
+        print(self.log_prefix, 'set this unit as traveler to', pos, " for number_turns", number_turns, file=sys.stderr)
         self.set_unit_role('traveler')
-        self.target_position=pos
+        self.target_position = pos
         self.role_time_turn_limit = number_turns
 
     def set_unit_role(self, role):
@@ -67,7 +70,7 @@ class UnitInfo:
 
     def clean_unit_role(self):
         if self.role != '':
-            print(self.log_prefix, 'removing role',self.role,file=sys.stderr)
+            print(self.log_prefix, 'removing role', self.role, file=sys.stderr)
         self.role = ''
         self.target_position = None
         self.role_time_turn_limit = 0
