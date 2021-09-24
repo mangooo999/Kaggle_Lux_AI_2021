@@ -5,3 +5,6 @@
 *.pyc
 /errorlogs/
 /*.log
+/path-finding/.idea/*
+/replays
+/*.json
