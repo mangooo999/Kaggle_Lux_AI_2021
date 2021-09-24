@@ -678,7 +678,7 @@ def agent(observation, configuration):
                     continue
             else:
                 if steps_until_night > 10 and can_build and unit.get_cargo_space_left() <= 20 and is_position_resource(
-                        wood_tiles, unit.pos) and closest_empty_tile is not None:
+                        available_resources_tiles, unit.pos) and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
                     # then it means we can at least collect 20 next turn on CD and then build
                     # find the closest empty tile it to build a city
@@ -707,7 +707,8 @@ def agent(observation, configuration):
                                 unit_info[unit.id].clean_unit_role();
                         else:
                             move_unit_to(actions, direction, move_mapper, info, msg, pos)
-                            info.set_unit_role("returner")
+                            if cargo_to_fuel(unit.cargo) >= enough_fuel:
+                                info.set_unit_role("returner")
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
     for unit in player.units:
