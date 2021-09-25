@@ -1,5 +1,4 @@
 from lux import annotate
-import random
 from typing import Dict, List
 
 from .constants import Constants
@@ -141,12 +140,6 @@ class Unit:
         """
         return "m {} {}".format(self.id, dir)
 
-    def random_move(self) -> str:
-        return "m {} {}".format(self.id, random.choice([
-            DIRECTIONS.NORTH,
-            DIRECTIONS.EAST,
-            DIRECTIONS.SOUTH,
-            DIRECTIONS.WEST]))
 
     def transfer(self, dest_id, resourceType, amount) -> str:
         """

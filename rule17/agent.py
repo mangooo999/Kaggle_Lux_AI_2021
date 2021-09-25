@@ -1,5 +1,6 @@
 import random
 from operator import ne
+random.seed(50)
 
 from lux.game import Game
 from lux.game_map import Cell, RESOURCE_TYPES, Position, DIRECTIONS

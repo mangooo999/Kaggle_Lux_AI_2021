@@ -2,6 +2,7 @@ import math
 import sys
 import collections
 import random
+random.seed(50)
 
 from typing import Optional, List, Dict, Tuple
 
