@@ -388,8 +388,14 @@ def agent(observation, configuration):
 
     number_work_we_can_build = available_city_actions - do_research_points
     number_work_we_want_to_build = unit_ceiling - units
+
+
     if len(available_resources_tiles) == 0 and game_info.still_can_do_reseach():
         number_work_we_want_to_build = 0
+
+    # last ten turn, just build in case it is a tie
+    if game_state.turn > 350:
+            number_work_we_want_to_build = number_work_we_can_build
 
     # Find how many and where to create builders
 
