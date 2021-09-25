@@ -1,5 +1,6 @@
 import random
 from operator import ne
+from typing import Optional
 
 from lux.game import Game
 from lux.game_map import Cell, RESOURCE_TYPES, Position, DIRECTIONS
@@ -12,6 +13,7 @@ import collections
 from UnitInfo import UnitInfo
 from GameInfo import GameInfo
 from MoveHelper import MoveHelper
+from lux.game_objects import CityTile, Unit, City
 
 
 # todo
@@ -25,7 +27,8 @@ from MoveHelper import MoveHelper
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
 
-def get_4_directions() -> list:
+
+def get_4_directions() -> [DIRECTIONS]:
     return [DIRECTIONS.SOUTH, DIRECTIONS.NORTH, DIRECTIONS.WEST, DIRECTIONS.EAST]
 
 
@@ -53,7 +56,7 @@ def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]
     return closest_dirs
 
 
-def find_all_resources(game_state, player):
+def find_all_resources(game_state, player) -> (list[Cell], list[Cell], list[Cell]):
     resource_tiles_all: list[Cell] = []
     resource_tiles_available: list[Cell] = []
     wood_tiles: list[Cell] = []
@@ -74,7 +77,8 @@ def find_all_resources(game_state, player):
 
 
 # the next snippet all resources distance and return as sorted order.
-def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) -> dict:
+def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) -> {CityTile,
+                                                                                  tuple[int, int, DIRECTIONS]}:
     resources_distance = {}
     for resource_tile in resource_tiles:
 
@@ -100,7 +104,7 @@ def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) ->
     return resources_distance
 
 
-def find_closest_city_tile(pos, player):
+def find_closest_city_tile(pos, player) -> CityTile:
     closest_city_tile = None
     if len(player.cities) > 0:
         closest_dist = math.inf
@@ -115,7 +119,7 @@ def find_closest_city_tile(pos, player):
     return closest_city_tile
 
 
-def find_closest_adjacent_enemy_city_tile(pos, opponent):
+def find_closest_adjacent_enemy_city_tile(pos, opponent) -> CityTile:
     closest_city_tile = None
     if len(opponent.cities) > 0:
         closest_dist = math.inf
@@ -132,15 +136,15 @@ def find_closest_adjacent_enemy_city_tile(pos, opponent):
     return closest_city_tile
 
 
-def is_cell_empty(pos, game_state):
+def is_cell_empty(pos, game_state) -> bool:
     cell = game_state.map.get_cell(pos.x, pos.y)
     result = (not cell.has_resource()) and cell.citytile is None;
     # print("- ", pos, 'empty',result, file=sys.stderr)
     return result
 
 
-# snippet to find the all citytiles distance and sort them.
-def find_number_of_adjacent_city_tile(pos, player):
+# snippet to find the all city tiles distance and sort them.
+def find_number_of_adjacent_city_tile(pos, player) -> int:
     number = 0
     for city in player.cities.values():
         for citytiles in city.citytiles:
@@ -150,7 +154,7 @@ def find_number_of_adjacent_city_tile(pos, player):
     return number
 
 
-def find_all_adjacent_empty_tiles(game_state, pos):
+def find_all_adjacent_empty_tiles(game_state, pos) -> list[Position]:
     adjacent_positions = [Position(pos.x, pos.y + 1), Position(pos.x - 1, pos.y), Position(pos.x, pos.y - 1),
                           Position(pos.x + 1, pos.y)];
     empty_tiles = []
@@ -170,7 +174,7 @@ def find_all_adjacent_empty_tiles(game_state, pos):
     return empty_tiles
 
 
-def is_position_valid(position, game_state):
+def is_position_valid(position, game_state) -> bool:
     return not (position.x < 0 or position.y < 0 \
                 or position.x >= game_state.map_width or position.y >= game_state.map_height)
 
@@ -195,7 +199,7 @@ def adjacent_empty_tile_favor_close_to_city(empty_tyles, game_state, player):
         return game_state.map.get_cell_by_pos(result)
 
 
-def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -> Cell:
+def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -> Optional[Cell]:
     results = {}
     for adjacent_position in empty_tiles:
         number_of_adjacent = find_number_of_adjacent_city_tile(adjacent_position, player)
@@ -217,8 +221,8 @@ def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -
 
 
 # snippet to find the all city tiles distance and sort them.
-def find_city_tile_distance(pos, player, unsafe_cities):
-    city_tiles_distance = {}
+def find_city_tile_distance(pos: Position, player, unsafe_cities) -> dict[CityTile, tuple[int, int]]:
+    city_tiles_distance: dict[CityTile, tuple[int, int]] = {}
     if len(player.cities) > 0:
         closest_dist = math.inf
         # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
@@ -234,11 +238,11 @@ def find_city_tile_distance(pos, player, unsafe_cities):
     return city_tiles_distance
 
 
-def get_random_step():
+def get_random_step() -> DIRECTIONS:
     return random.choice(get_4_directions())
 
 
-def cargo_to_string(cargo):
+def cargo_to_string(cargo) -> str:
     return_value = ''
     if cargo.wood > 0:
         return_value = return_value + f"Wood:{cargo.wood}"
@@ -250,7 +254,7 @@ def cargo_to_string(cargo):
     return return_value
 
 
-def cargo_to_fuel(cargo):
+def cargo_to_fuel(cargo) -> int:
     return cargo.wood + cargo.coal * 10 + cargo.uranium * 40
 
 
@@ -666,8 +670,8 @@ def agent(observation, configuration):
                     else:
                         print(prefix, " resources_distance invalid (or empty?)", file=sys.stderr)
                 else:
-                    resource_type=game_state.map.get_cell(unit.pos.x, unit.pos.y).resource.type
-                    print(prefix, " Already on resources:",resource_type, file=sys.stderr)
+                    resource_type = game_state.map.get_cell(unit.pos.x, unit.pos.y).resource.type
+                    print(prefix, " Already on resources:", resource_type, file=sys.stderr)
                     if resource_type != Constants.RESOURCE_TYPES.WOOD \
                             and get_friendly_unit(player, info.last_move_before_pos) is not None and \
                             move_mapper.can_move_to_direction(unit.pos, info.last_move_direction):
@@ -734,7 +738,7 @@ def agent(observation, configuration):
     return actions
 
 
-def get_friendly_unit(player, pos):
+def get_friendly_unit(player, pos) -> Unit:
     for unit in player.units:
         if unit.pos.equals(pos):
             return unit
@@ -742,7 +746,7 @@ def get_friendly_unit(player, pos):
     return None
 
 
-def get_direction_to(move_mapper, from_pos, to_pos):
+def get_direction_to(move_mapper, from_pos, to_pos) -> DIRECTIONS:
     if from_pos.equals(to_pos):
         return DIRECTIONS.CENTER
 
@@ -761,7 +765,7 @@ def get_direction_to(move_mapper, from_pos, to_pos):
     return None
 
 
-def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit):
+def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) -> tuple[str, Optional[Position], str]:
     closest_city_tile = None
     moved = False
     for city_tile, dist in city_tile_distance.items():
@@ -779,7 +783,8 @@ def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit):
         return direction, None, "randomly (due to city)"
 
 
-def find_best_resource(move_mapper: MoveHelper, player, resources_distance, resource_target_by_unit, unit, prefix):
+def find_best_resource(move_mapper: MoveHelper, player, resources_distance, resource_target_by_unit, unit, prefix) -> \
+        tuple[str, Optional[Position], str, str]:
     closest_resource_tile, c_dist = None, None
     moved = False
     # print(prefix, " XXX Find resources dis", resources_distance.values(), file=sys.stderr)
@@ -800,7 +805,7 @@ def find_best_resource(move_mapper: MoveHelper, player, resources_distance, reso
     return direction, None, "randomly (due to resource)", ""
 
 
-def get_autonomy_turns(city):
+def get_autonomy_turns(city) -> int:
     turns_city_can_live = city.fuel // city.get_light_upkeep()
     return turns_city_can_live
 
@@ -826,7 +831,7 @@ def transfer_all_resources(actions, info: UnitInfo, dest_id, msg=''):
         info.set_last_action_transfer()
 
 
-def can_build_for_resources(night_steps_left, lowest_autonomy, steps_until_night, player):
+def can_build_for_resources(night_steps_left, lowest_autonomy, steps_until_night, player) -> bool:
     if steps_until_night > 20:
         return True
     elif lowest_autonomy > 12 and steps_until_night > 10:
@@ -841,7 +846,7 @@ def can_build_for_resources(night_steps_left, lowest_autonomy, steps_until_night
     return can_build
 
 
-def can_city_live(city, night_steps_left):
+def can_city_live(city, night_steps_left) -> bool:
     return city.fuel / (city.get_light_upkeep() + 20) >= min(night_steps_left, 30)
 
 
@@ -866,7 +871,7 @@ def move_unit_to(actions, direction, move_mapper: MoveHelper, info: UnitInfo, re
               , str(target_far_position or ''), file=sys.stderr)
 
 
-def is_position_adjacent_city(player, pos, do_log=False):
+def is_position_adjacent_city(player, pos, do_log=False) -> bool:
     for city in player.cities.values():
         for city_tile in city.citytiles:
             if city_tile.pos.is_adjacent(pos):
@@ -877,21 +882,21 @@ def is_position_adjacent_city(player, pos, do_log=False):
     return False
 
 
-def is_position_adjacent_to_resource(resource_tiles, pos):
+def is_position_adjacent_to_resource(resource_tiles, pos) -> bool:
     for r in resource_tiles:
         if r.pos.is_adjacent(pos):
             return True
     return False
 
 
-def is_position_resource(resource_tiles, pos):
+def is_position_resource(resource_tiles, pos) -> bool:
     for r in resource_tiles:
         if r.pos.equals(pos):
             return True
     return False
 
 
-def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str):
+def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str) -> bool:
     direction = info.unit.pos.direction_to(pos)
     # if nobody is already moving there
     if not move_mapper.has_position(pos):
@@ -901,7 +906,7 @@ def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str
         return False
 
 
-def get_resources_around(resource_tiles, pos, max_dist):
+def get_resources_around(resource_tiles: list[Cell], pos: Position, max_dist) -> list[Cell]:
     resources = []
     for r in resource_tiles:
         if pos.distance_to(r.pos) <= max_dist:
@@ -911,7 +916,7 @@ def get_resources_around(resource_tiles, pos, max_dist):
 
 
 # return dist of cities, autonomy
-def adjacent_cities(player, pos, do_log=False):
+def adjacent_cities(player, pos: Position, do_log=False) -> {City, tuple[int, int, DIRECTIONS]}:
     cities = {}
     for city in player.cities.values():
         for city_tile in city.citytiles:
