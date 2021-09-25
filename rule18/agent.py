@@ -1,6 +1,6 @@
 import random
 from operator import ne
-from typing import Optional
+from typing import Optional, List, Dict, Tuple
 
 from lux.game import Game
 from lux.game_map import Cell, RESOURCE_TYPES, Position, DIRECTIONS
@@ -56,10 +56,10 @@ def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]
     return closest_dirs
 
 
-def find_all_resources(game_state, player) -> (list[Cell], list[Cell], list[Cell]):
-    resource_tiles_all: list[Cell] = []
-    resource_tiles_available: list[Cell] = []
-    wood_tiles: list[Cell] = []
+def find_all_resources(game_state, player) -> (List[Cell], List[Cell], List[Cell]):
+    resource_tiles_all: List[Cell] = []
+    resource_tiles_available: List[Cell] = []
+    wood_tiles: List[Cell] = []
     width, height = game_state.map_width, game_state.map_height
     for y in range(height):
         for x in range(width):
@@ -77,8 +77,8 @@ def find_all_resources(game_state, player) -> (list[Cell], list[Cell], list[Cell
 
 
 # the next snippet all resources distance and return as sorted order.
-def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) -> {CityTile,
-                                                                                  tuple[int, int, DIRECTIONS]}:
+def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) -> Dict[CityTile,
+                                                                                  Tuple[int, int, DIRECTIONS]]:
     resources_distance = {}
     for resource_tile in resource_tiles:
 
@@ -154,7 +154,7 @@ def find_number_of_adjacent_city_tile(pos, player) -> int:
     return number
 
 
-def find_all_adjacent_empty_tiles(game_state, pos) -> list[Position]:
+def find_all_adjacent_empty_tiles(game_state, pos) -> List[Position]:
     adjacent_positions = [Position(pos.x, pos.y + 1), Position(pos.x - 1, pos.y), Position(pos.x, pos.y - 1),
                           Position(pos.x + 1, pos.y)];
     empty_tiles = []
@@ -179,7 +179,7 @@ def is_position_valid(position, game_state) -> bool:
                 or position.x >= game_state.map_width or position.y >= game_state.map_height)
 
 
-def adjacent_empty_tile_favor_close_to_city(empty_tyles, game_state, player):
+def adjacent_empty_tile_favor_close_to_city(empty_tyles, game_state, player)->dict:
     if len(empty_tyles) == 0:
         return None
     elif len(empty_tyles) == 1:
@@ -221,8 +221,8 @@ def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -
 
 
 # snippet to find the all city tiles distance and sort them.
-def find_city_tile_distance(pos: Position, player, unsafe_cities) -> dict[CityTile, tuple[int, int]]:
-    city_tiles_distance: dict[CityTile, tuple[int, int]] = {}
+def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int]]:
+    city_tiles_distance: Dict[CityTile, Tuple[int, int]] = {}
     if len(player.cities) > 0:
         closest_dist = math.inf
         # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
@@ -771,7 +771,7 @@ def get_direction_to(move_mapper, from_pos, to_pos) -> DIRECTIONS:
     return None
 
 
-def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) -> tuple[str, Optional[Position], str]:
+def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) -> Tuple[str, Optional[Position], str]:
     closest_city_tile = None
     moved = False
     for city_tile, dist in city_tile_distance.items():
@@ -790,7 +790,7 @@ def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) ->
 
 
 def find_best_resource(move_mapper: MoveHelper, player, resources_distance, resource_target_by_unit, unit, prefix) -> \
-        tuple[str, Optional[Position], str, str]:
+        Tuple[str, Optional[Position], str, str]:
     closest_resource_tile, c_dist = None, None
     moved = False
     # print(prefix, " XXX Find resources dis", resources_distance.values(), file=sys.stderr)
@@ -912,7 +912,7 @@ def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str
         return False
 
 
-def get_resources_around(resource_tiles: list[Cell], pos: Position, max_dist) -> list[Cell]:
+def get_resources_around(resource_tiles: List[Cell], pos: Position, max_dist) -> List[Cell]:
     resources = []
     for r in resource_tiles:
         if pos.distance_to(r.pos) <= max_dist:
@@ -922,7 +922,7 @@ def get_resources_around(resource_tiles: list[Cell], pos: Position, max_dist) ->
 
 
 # return dist of cities, autonomy
-def adjacent_cities(player, pos: Position, do_log=False) -> {City, tuple[int, int, DIRECTIONS]}:
+def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, int, DIRECTIONS]}:
     cities = {}
     for city in player.cities.values():
         for city_tile in city.citytiles:
