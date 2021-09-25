@@ -1,19 +1,19 @@
-import random
-from operator import ne
-from typing import Optional, List, Dict, Tuple
-
-from lux.game import Game
-from lux.game_map import Cell, RESOURCE_TYPES, Position, DIRECTIONS
-from lux.constants import Constants
-from lux.game_constants import GAME_CONSTANTS
-from lux import annotate
 import math
 import sys
 import collections
+import random
+
+from typing import Optional, List, Dict, Tuple
+
+from lux.game import Game
+from lux.game_map import Cell, Position
+from lux.constants import Constants
+from lux import annotate
+
 from UnitInfo import UnitInfo
 from GameInfo import GameInfo
 from MoveHelper import MoveHelper
-from lux.game_objects import CityTile, Unit, City
+from lux.game_objects import CityTile, Unit, City, DIRECTIONS
 
 
 # todo
