@@ -1,21 +1,54 @@
 @echo off
-set agent1=rule15/main.py
-set agent2=rule16/main.py
-set num_loops=1000
+set agent1=rule18smart_city/main.py
+set agent2=rule18smart_resource/main.py
+set num_loops=100
 SetLocal EnableDelayedExpansion
 
-echo start %DATE% %TIME% > results.log
-FOR /L %%G IN (1,18,%num_loops%) DO (
-	echo|set /p="!TIME! %%G a" >> results.log
-	lux-ai-2021 --seed %%G --loglevel 1 %agent1% %agent2% | grep "rank: 1" >> results.log  
-	echo|set /p="!TIME! %%G b" >> results.log
-	lux-ai-2021 --seed %%G --loglevel 1 %agent2% %agent1% | grep "rank: 1" >> results.log  	
+
+For %%A in ("%agent1%") do (
+    Set Folder1=%%~dpA
+    Set Name1=%%~nxA
 )
 
-echo end %DATE% %TIME% >> results.log
+For %%A in ("%agent2%") do (
+    Set Folder2=%%~dpA
+    Set Name2=%%~nxA
+)
+echo.Folder1 is: %Folder1%
+echo.Folder2 is: %Folder2%
 
-echo|set /p="%agent1% win " >> results.log
-grep --count %agent1% results.log | tee -a results.log
+set MYDIR1=%Folder1:~0,-1%
+for %%f in (%MYDIR1%) do set myfolder1=%%~nxf
 
-echo|set /p="%agent2% win " >> results.log
-grep --count %agent2% results.log | tee -a results.log
+set MYDIR2=%Folder2:~0,-1%
+for %%f in (%MYDIR2%) do set myfolder2=%%~nxf
+
+echo.Folder1 is: %myfolder1%
+echo.Folder2 is: %myfolder2%
+
+set log_file=results/%myfolder1%_%myfolder2%.log
+
+echo.log file is:%log_file%
+
+echo start %DATE% %TIME% > %log_file%
+FOR /L %%G IN (1,1,%num_loops%) DO (
+	echo|set /p="!TIME! %%G a" >> %log_file%
+	lux-ai-2021 --seed %%G --loglevel 1 %agent1% %agent2% | grep "rank: 1" >> %log_file%  
+	echo|set /p="!TIME! %%G b" >> %log_file%
+	lux-ai-2021 --seed %%G --loglevel 1 %agent2% %agent1% | grep "rank: 1" >> %log_file%  	
+	echo|set /p="."
+)
+
+echo end %DATE% %TIME% >> %log_file%
+
+
+echo end
+echo /p="%agent1% win "
+echo|set /p="%agent1% win " >> %log_file%
+grep --count %agent1% %log_file% | tee -a %log_file%
+
+echo /p="%agent2% win "
+echo|set /p="%agent2% win " >> %log_file%
+grep --count %agent2% %log_file% | tee -a %log_file%
+
+pause

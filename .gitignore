@@ -8,3 +8,4 @@
 /path-finding/.idea/*
 /replays
 /*.json
+/rule17/*.gz
