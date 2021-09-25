@@ -5,6 +5,15 @@ from lux.game_objects import Player, Unit
 from lux.game_map import Position
 
 
+def get_city_id_from_pos(pos, actor):
+    for city in actor.cities.values():
+        for city_tile in city.citytiles:
+            if city_tile.pos.equals(pos):
+                return city.cityid
+
+    return ''
+
+
 class MoveHelper:
     def __init__(self, player, opponent):
         """
@@ -42,15 +51,7 @@ class MoveHelper:
         return not self.can_move_to_pos(pos)
 
     def is_position_city(self, pos: Position) -> bool:
-        return self.get_city_id_from_pos(pos, self.player) != ''
+        return get_city_id_from_pos(pos, self.player) != ''
 
     def is_position_enemy_city(self, pos: Position) -> bool:
-        return self.get_city_id_from_pos(pos, self.opponent) != ''
-
-    def get_city_id_from_pos(self, pos, actor):
-        for city in actor.cities.values():
-            for city_tile in city.citytiles:
-                if city_tile.pos.equals(pos):
-                    return city.cityid
-
-        return ''
+        return get_city_id_from_pos(pos, self.opponent) != ''
