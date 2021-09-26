@@ -6,7 +6,7 @@ random.seed(50)
 
 from typing import Optional, List, Dict, Tuple
 
-from lux.game import Game, Missions
+from lux.game import Game
 from lux.game_map import Cell, Position
 from lux.constants import Constants
 from lux import annotate
@@ -279,7 +279,6 @@ def agent(observation, configuration):
     actions = []
 
     ### AI Code goes down here! ###
-    game_state.calculate_features(Missions())
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     move_mapper = MoveHelper(player, opponent)
@@ -575,7 +574,7 @@ def agent(observation, configuration):
             #   TRAVELER
             if info.is_role_traveler():
                 print(prefix, ' is traveler to', info.target_position, file=sys.stderr)
-                direction = get_direction_to_smart(game_state,unit, info.target_position,move_mapper)
+                direction = get_direction_to(move_mapper, unit.pos, info.target_position)
                 if direction is not None and move_mapper.can_move_to_direction(info.unit.pos, direction):
                     move_unit_to(actions, direction, move_mapper, info, " move to traveler pos", info.target_position)
                     continue
@@ -754,7 +753,23 @@ def get_friendly_unit(player, pos) -> Unit:
     return None
 
 
+def get_direction_to(move_mapper, from_pos, to_pos) -> DIRECTIONS:
+    if from_pos.equals(to_pos):
+        return DIRECTIONS.CENTER
 
+    directions = directions_to(from_pos, to_pos)
+    for direction in directions:
+        next_pos = from_pos.translate(direction, 1)
+
+        # if we are trying to move on top of somebody else, skip
+        # print(' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
+        if move_mapper.cannot_move_to(next_pos):
+            # print(' XXX - skip', file=sys.stderr)
+            continue
+        else:
+            return direction
+
+    return None
 
 
 def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) -> Tuple[str, Optional[Position], str]:
@@ -765,7 +780,7 @@ def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) ->
             closest_city_tile = city_tile
 
             if closest_city_tile is not None:
-                direction = get_direction_to_quick(game_state,unit, closest_city_tile.pos,move_mapper)
+                direction = get_direction_to(move_mapper, unit.pos, closest_city_tile.pos)
                 if direction is not None:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy" + dist.__str__()
@@ -789,7 +804,7 @@ def find_best_resource(move_mapper: MoveHelper, player, resources_distance, reso
             if resource is not None and not resource.pos.equals(unit.pos):
                 if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
                                                           [])) < max_units_per_resource:
-                    direction = get_direction_to_quick(game_state,unit, resource.pos,move_mapper)
+                    direction = get_direction_to(move_mapper, unit.pos, resource.pos)
                     if direction is not None:
                         return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
 
@@ -918,77 +933,3 @@ def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, in
                 cities[city] = (len(city.citytiles), get_autonomy_turns(city), directions_to(pos, city_tile.pos)[0])
 
     return cities
-
-def get_direction_to_quick(game_state: Game,unit:Unit, target_pos: Position, move_mapper) -> DIRECTIONS:
-
-    from_pos = unit.pos
-    if from_pos.equals(target_pos):
-        return DIRECTIONS.CENTER
-
-    directions = directions_to(from_pos, target_pos)
-    for direction in directions:
-        next_pos = from_pos.translate(direction, 1)
-
-        # if we are trying to move on top of somebody else, skip
-        # print(' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
-        if move_mapper.cannot_move_to(next_pos):
-            # print(' XXX - skip', file=sys.stderr)
-            continue
-        else:
-            return direction
-
-    return None
-
-def get_direction_to_smart(game_state: Game, unit: Unit, target_pos: Position, move_mapper) -> DIRECTIONS:
-
-    smallest_cost = [2,2,2,2]
-    closest_dir = DIRECTIONS.CENTER
-    closest_pos = unit.pos
-
-    for direction in game_state.dirs:
-        newpos = unit.pos.translate(direction, 1)
-
-        cost = [0,0,0,0]
-
-        # do not go out of map
-        if tuple(newpos) in game_state.xy_out_of_map:
-            continue
-
-        # discourage if new position is occupied
-        if tuple(newpos) in game_state.occupied_xy_set:
-            if tuple(newpos) not in game_state.player_city_tile_xy_set:
-                cost[0] = 2
-
-        # discourage going into a city tile if you are carrying substantial wood
-        if tuple(newpos) in game_state.player_city_tile_xy_set and unit.cargo.wood >= 60:
-            cost[0] = 1
-
-        # path distance as main differentiator
-        path_dist = game_state.retrieve_distance(newpos.x, newpos.y, target_pos.x, target_pos.y)
-        cost[1] = path_dist
-
-        # manhattan distance to tie break
-        manhattan_dist = (newpos - target_pos)
-        cost[2] = manhattan_dist
-
-        # prefer to walk on tiles with resources
-        aux_cost = game_state.convolved_collectable_tiles_matrix[newpos.y, newpos.x]
-        cost[3] = -aux_cost
-
-        # if starting from the city, consider manhattan distance instead of path distance
-        if tuple(unit.pos) in game_state.player_city_tile_xy_set:
-            cost[1] = manhattan_dist
-
-        # update decision
-        if cost < smallest_cost:
-            smallest_cost = cost
-            closest_dir = direction
-            closest_pos = newpos
-
-    if closest_dir != DIRECTIONS.CENTER:
-        game_state.occupied_xy_set.discard(tuple(unit.pos))
-        if tuple(closest_pos) not in game_state.player_city_tile_xy_set:
-            game_state.occupied_xy_set.add(tuple(closest_pos))
-        unit.cooldown += 2
-
-    return closest_dir
