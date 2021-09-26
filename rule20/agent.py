@@ -365,11 +365,9 @@ def agent(observation, configuration):
                 if city_tile.cooldown <= 1:
                     available_city_actions_now_and_next += 1
 
-    #todo move print in  game_state_info class
-    print(game_state.turn, "night_step_left ", game_state_info.all_night_turns_lef, "steps_until_night ", game_state_info.steps_until_night,
-          'resources', len(available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling, 'research',
-          player.research_points,
-          ' avail city points', available_city_actions, file=sys.stderr)
+    # todo move print in  game_state_info class
+    print(game_state.turn, 'resources', len(available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
+          'research', player.research_points, ' avail city points', available_city_actions, file=sys.stderr)
 
     if (not player.researched_uranium()) and player.research_points + available_city_actions >= 200:
         do_research_points = 200 - player.research_points
@@ -643,11 +641,12 @@ def agent(observation, configuration):
             # if unit cant make city tiles try to collect resource collection.
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
 
-            enough_fuel = 400
-            if game_state_info.steps_until_night < 4:
-                enough_fuel = 300
             if game_state_info.is_night_time():
                 enough_fuel = 200
+            elif game_state_info.turns_to_night < 4:
+                enough_fuel = 300
+            else:
+                enough_fuel = 400
 
             if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
                     and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
