@@ -1,7 +1,7 @@
 @echo off
-set agent1=rule18_0/main.py
-set agent2=rule18smart_traveller/main.py
-set num_loops=100
+set agent1=C:/git/luxai/light_bot/main.py
+set agent2=rule19/main.py
+set num_loops=50
 SetLocal EnableDelayedExpansion
 
 

@@ -24,6 +24,7 @@ from lux.game_objects import CityTile, Unit, City, DIRECTIONS
 # - optimise first move to go where most resources are within 2 cells
 # optimise first move
 # if moving to a city, remove move that move via another city?
+# turn 200 seems to be a good turn to go and conquer wood unexplored wood clusters as it seems to make till 360
 
 ### Define helper functions
 
@@ -577,7 +578,7 @@ def agent(observation, configuration):
             #   TRAVELER
             if info.is_role_traveler():
                 print(prefix, ' is traveler to', info.target_position, file=sys.stderr)
-                direction = get_direction_to_smart(game_state, unit, info.target_position, move_mapper)
+                direction = get_direction_to_quick(game_state, unit, info.target_position, move_mapper)
                 if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction):
                     move_unit_to(actions, direction, move_mapper, info, " move to traveler pos", info.target_position)
                     continue

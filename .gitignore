@@ -9,3 +9,4 @@
 /replays
 /*.json
 /rule17/*.gz
+/results/*.log

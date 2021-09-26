@@ -2,12 +2,12 @@ import math
 import sys
 import collections
 import random
+random.seed(50)
 
 from game_state_info.game_state_info import GameStateInfo
 
-random.seed(50)
-
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, DefaultDict
+from collections import defaultdict
 
 from lux.game import Game, Missions
 from lux.game_map import Cell, Position
@@ -19,6 +19,9 @@ from GameInfo import GameInfo
 from MoveHelper import MoveHelper
 from lux.game_objects import CityTile, Unit, City, DIRECTIONS
 
+import clusters.cluster_controller as ClusterController
+from clusters.cluster import Cluster
+import resources.resource_service as ResourceService
 
 # todo
 # - optimise where create worker
@@ -266,10 +269,11 @@ def cargo_to_fuel(cargo) -> int:
 game_state = None
 unit_info = {}
 game_info = GameInfo()
-
+clusters: DefaultDict[str, Cluster] = defaultdict(Cluster)
 
 def agent(observation, configuration):
     global game_state
+    global clusters
 
     ### Do not edit ###
     if observation["step"] == 0:
@@ -277,6 +281,9 @@ def agent(observation, configuration):
         game_state._initialize(observation["updates"])
         game_state._update(observation["updates"][2:])
         game_state.id = observation.player
+
+        # This is the start of the game
+        clusters = ClusterController.init_clusters(game_state)
     else:
         game_state._update(observation["updates"])
 
@@ -294,6 +301,19 @@ def agent(observation, configuration):
         print("Agent is running!", file=sys.stderr)
     print("---------Turn number ", game_state.turn, file=sys.stderr)
     game_info.update(player, game_state)
+
+    # The first thing we do is updating the cluster.
+    # Refer to the cluster class for its attributes.
+    for k in clusters:
+        clusters[k] = ClusterController.update_cluster(
+            clusters[k],
+            game_state,
+            player,
+        )
+
+    for k in clusters.values():
+        print("T_"+str(game_state.turn), 'cluster',
+              k.id, len(k.units), len(k.resource_cells),k.get_centroid(), file=sys.stderr)
 
     # current number of units
     units = len(player.units)
@@ -922,6 +942,9 @@ def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, in
 
 
 def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, move_mapper: MoveHelper) -> DIRECTIONS:
+    #below to turn smart direction on for all resources and city trip
+    #return get_direction_to_smart(game_state,unit, target_pos, move_mapper)
+
     from_pos = unit.pos
     if from_pos.equals(target_pos):
         return DIRECTIONS.CENTER
