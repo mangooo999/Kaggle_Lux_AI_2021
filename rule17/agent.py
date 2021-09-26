@@ -715,8 +715,8 @@ def agent(observation, configuration):
     for unit in player.units:
         info: UnitInfo = unit_info[unit.id]
         prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
-        print(prefix, "XXX check if this unit has worked", unit.can_act(), info.has_done_action_this_turn,
-              file=sys.stderr)
+        #print(prefix, "XXX check if this unit has worked", unit.can_act(), info.has_done_action_this_turn,
+        #      file=sys.stderr)
         if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
             print(prefix, " this unit has not worked", file=sys.stderr)
             if unit.cargo.coal > 0 or unit.cargo.uranium > 0:

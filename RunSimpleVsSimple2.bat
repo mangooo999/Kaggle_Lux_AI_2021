@@ -1,1 +1,1 @@
-lux-ai-2021 rule17/main.py rule18/main.py --seed 927682089 --out=replay.json > luc-ai-2021.log
+lux-ai-2021 rule17/main.py rule19/main.py --seed 656803212 --out=replay.json > luc-ai-2021.log
