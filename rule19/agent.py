@@ -405,34 +405,34 @@ def agent(observation, configuration):
 
     print('number_work_we_can_build', number_work_we_can_build, 'number_work_we_want_to_build',
           number_work_we_want_to_build, file=sys.stderr)
-    do_another_cicle = True
-    while min(number_work_we_can_build, number_work_we_want_to_build) > 0 and do_another_cicle:
-        do_another_cicle = False
+    do_another_cycle = True
+    while min(number_work_we_can_build, number_work_we_want_to_build) > 0 and do_another_cycle:
+        do_another_cycle = False
         for city in reversed(cities):
             city_autonomy = get_autonomy_turns(city)
             will_live = city_autonomy >= night_steps_left
             lowest_autonomy = min(lowest_autonomy, city_autonomy)
             for city_tile in city.citytiles[::-1]:
-                print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
+                #print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
                     if (not will_live) or len(unsafe_cities) == 0:
                         # let's create one more unit in the last created city tile if we can
                         actions.append(city_tile.build_worker())
-                        print("- - created worker", file=sys.stderr)
+                        print(city_tile.pos,"- created worker", file=sys.stderr)
                         number_work_we_can_build -= 1
                         number_work_we_want_to_build -= 1
-                        do_another_cicle = True
+                        do_another_cycle = True
 
     if len(cities) > 0:
         for city in reversed(cities):
             for city_tile in city.citytiles[::-1]:
-                print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
+                #print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
                     if game_info.still_can_do_reseach():
                         # let's do research
-                        game_info.do_research(actions, city_tile, "- - research")
-                    else:
-                        print("- - nothing", file=sys.stderr)
+                        game_info.do_research(actions, city_tile, str(city_tile.pos)+" research")
+                    #else:
+                        #print("- - nothing", file=sys.stderr)
 
         print("Unsafe cities", unsafe_cities, file=sys.stderr)
 
@@ -845,7 +845,7 @@ def can_city_live(city, night_steps_left) -> bool:
 def move_unit_to(actions, direction, move_mapper: MoveHelper, info: UnitInfo, reason="", target_far_position=None):
     unit = info.unit
     next_state_pos = unit.pos.translate(direction, 1)
-    print("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction, file=sys.stderr)
+    #print("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction, file=sys.stderr)
     if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
         # do not annotate
         print("Unit", unit.id, '- not moving "', '', '" ', reason, file=sys.stderr)
