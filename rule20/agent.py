@@ -662,7 +662,8 @@ def agent(observation, configuration):
 
                     if resources_distance is not None and len(resources_distance) > 0:
                         # create a move action to the direction of the closest resource tile and add to our actions list
-                        direction, pos, msg, resource_type = find_best_resource(move_mapper, resources_distance,
+                        direction, pos, msg, resource_type = find_best_resource(game_state, move_mapper,
+                                                                                resources_distance,
                                                                                 resource_target_by_unit, unit, prefix)
                         if (resource_type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                                 (resource_type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
@@ -710,7 +711,7 @@ def agent(observation, configuration):
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
                     if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler():
                         print(prefix, " Goto city2", file=sys.stderr)
-                        direction, pos, msg = find_best_city(city_tile_distance, move_mapper, player, unit)
+                        direction, pos, msg = find_best_city(game_state,city_tile_distance, move_mapper, player, unit)
                         # check if anybody in the pos where we come from
                         friend_unit = get_friendly_unit(player, unit.pos.translate(direction, 1))
                         if friend_unit is not None \
@@ -719,7 +720,7 @@ def agent(observation, configuration):
                                   ' in ', unit.pos.translate(direction, 1), file=sys.stderr)
                             transfer_all_resources(actions, info, friend_unit.id)
                             if unit_info[unit.id].is_role_traveler:
-                                unit_info[unit.id].clean_unit_role();
+                                unit_info[unit.id].clean_unit_role()
                         else:
                             move_unit_to(actions, direction, move_mapper, info, msg, pos)
                             if cargo_to_fuel(unit.cargo) >= enough_fuel:
@@ -756,7 +757,7 @@ def get_friendly_unit(player, pos) -> Unit:
     return None
 
 
-def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) -> Tuple[
+def find_best_city(game_state,city_tile_distance, move_mapper: MoveHelper, player, unit) -> Tuple[
     DIRECTIONS, Optional[Position], str]:
     closest_city_tile = None
     moved = False
@@ -775,7 +776,7 @@ def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) ->
         return direction, None, "randomly (due to city)"
 
 
-def find_best_resource(move_mapper: MoveHelper, resources_distance, resource_target_by_unit, unit, prefix) -> \
+def find_best_resource(game_state,move_mapper: MoveHelper, resources_distance, resource_target_by_unit, unit, prefix) -> \
         Tuple[DIRECTIONS, Optional[Position], str, str]:
     closest_resource_tile, c_dist = None, None
     moved = False
@@ -808,7 +809,7 @@ def build_city(actions, info: UnitInfo, msg=''):
     info.set_last_action_build()
 
 
-def transfer_all_resources(actions, info: UnitInfo, to_unit_id, msg=''):
+def transfer_all_resources(actions, info: UnitInfo, to_unit_id):
     if info.unit.cargo.uranium > 0:
         actions.append(info.unit.transfer(to_unit_id, Constants.RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium))
         print("Unit", info.unit.id, '- transfer', info.unit.cargo.uranium, 'uranium to ', to_unit_id, file=sys.stderr)

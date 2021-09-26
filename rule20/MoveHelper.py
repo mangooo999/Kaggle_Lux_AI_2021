@@ -1,7 +1,7 @@
 import sys
 from typing import Tuple
 
-from lux.game_objects import Player, Unit
+from lux.game_objects import Player, Unit, DIRECTIONS
 from lux.game_map import Position
 
 
@@ -35,7 +35,7 @@ class MoveHelper:
     def __hash_pos__(self, pos: Position) -> Tuple[int, int]:
         return pos.x, pos.y
 
-    def can_move_to_direction(self, pos: Position, direction: str) -> bool:
+    def can_move_to_direction(self, pos: Position, direction: DIRECTIONS) -> bool:
         return self.can_move_to_pos(pos.translate(direction, 1))
 
     def can_move_to_pos(self, pos: Position) -> bool:
