@@ -575,7 +575,7 @@ def agent(observation, configuration):
             #   TRAVELER
             if info.is_role_traveler():
                 print(prefix, ' is traveler to', info.target_position, file=sys.stderr)
-                direction = get_direction_to(game_state,unit, info.target_position,move_mapper)
+                direction = get_direction_to_smart(game_state,unit, info.target_position,move_mapper)
                 if direction is not None and move_mapper.can_move_to_direction(info.unit.pos, direction):
                     move_unit_to(actions, direction, move_mapper, info, " move to traveler pos", info.target_position)
                     continue
@@ -765,7 +765,7 @@ def find_best_city(city_tile_distance, move_mapper: MoveHelper, player, unit) ->
             closest_city_tile = city_tile
 
             if closest_city_tile is not None:
-                direction = get_direction_to(game_state,unit, closest_city_tile.pos,move_mapper)
+                direction = get_direction_to_quick(game_state,unit, closest_city_tile.pos,move_mapper)
                 if direction is not None:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy" + dist.__str__()
@@ -789,7 +789,7 @@ def find_best_resource(move_mapper: MoveHelper, player, resources_distance, reso
             if resource is not None and not resource.pos.equals(unit.pos):
                 if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
                                                           [])) < max_units_per_resource:
-                    direction = get_direction_to(game_state,unit, resource.pos,move_mapper)
+                    direction = get_direction_to_quick(game_state,unit, resource.pos,move_mapper)
                     if direction is not None:
                         return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
 
@@ -919,10 +919,8 @@ def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, in
 
     return cities
 
-def get_direction_to(game_state: Game,unit:Unit, target_pos: Position, move_mapper) -> DIRECTIONS:
+def get_direction_to_quick(game_state: Game,unit:Unit, target_pos: Position, move_mapper) -> DIRECTIONS:
 
-    return attempt_direction_to(game_state,unit,target_pos)
-    # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx
     from_pos = unit.pos
     if from_pos.equals(target_pos):
         return DIRECTIONS.CENTER
@@ -941,7 +939,7 @@ def get_direction_to(game_state: Game,unit:Unit, target_pos: Position, move_mapp
 
     return None
 
-def attempt_direction_to(game_state: Game, unit: Unit, target_pos: Position) -> DIRECTIONS:
+def get_direction_to_smart(game_state: Game, unit: Unit, target_pos: Position, move_mapper) -> DIRECTIONS:
 
     smallest_cost = [2,2,2,2]
     closest_dir = DIRECTIONS.CENTER
