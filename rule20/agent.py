@@ -562,8 +562,8 @@ def agent(observation, configuration):
 
             # DAWN
 
-            if game_state_info.steps_until_night == 30:
-                print(prefix, "It's dawn", game_state_info.steps_until_night, file=sys.stderr)
+            if game_state_info.is_dawn():
+                print(prefix, "It's dawn", file=sys.stderr)
                 if is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos, game_state) \
                         and 0 < unit.get_cargo_space_left() <= 21:
                     print(prefix, ' at dawn, can build next day', file=sys.stderr)
