@@ -267,6 +267,7 @@ game_state = None
 unit_info = {}
 game_info = GameInfo()
 
+
 def agent(observation, configuration):
     global game_state
 
@@ -338,7 +339,6 @@ def agent(observation, configuration):
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
 
-
     unit_ceiling = int(min(float(units_cap), max(float(len(available_resources_tiles)) * 1.8, 5)))
 
     cities = list(player.cities.values())
@@ -355,7 +355,8 @@ def agent(observation, configuration):
             # collect unsafe cities
             if not will_live:
                 unsafe_cities[city.cityid] = (
-                    len(city.citytiles), (game_state_info.all_night_turns_lef - get_autonomy_turns(city)) * city.get_light_upkeep())
+                    len(city.citytiles),
+                    (game_state_info.all_night_turns_lef - get_autonomy_turns(city)) * city.get_light_upkeep())
 
             # record how many research points we have now
             for city_tile in city.citytiles[::-1]:
@@ -407,12 +408,12 @@ def agent(observation, configuration):
             will_live = city_autonomy >= game_state_info.all_night_turns_lef
             lowest_autonomy = min(lowest_autonomy, city_autonomy)
             for city_tile in city.citytiles[::-1]:
-                #print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
+                # print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
                     if (not will_live) or len(unsafe_cities) == 0:
                         # let's create one more unit in the last created city tile if we can
                         actions.append(city_tile.build_worker())
-                        print(city_tile.pos,"- created worker", file=sys.stderr)
+                        print(city_tile.pos, "- created worker", file=sys.stderr)
                         number_work_we_can_build -= 1
                         number_work_we_want_to_build -= 1
                         do_another_cycle = True
@@ -420,13 +421,13 @@ def agent(observation, configuration):
     if len(cities) > 0:
         for city in reversed(cities):
             for city_tile in city.citytiles[::-1]:
-                #print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
+                # print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
                     if game_info.still_can_do_reseach():
                         # let's do research
-                        game_info.do_research(actions, city_tile, str(city_tile.pos)+" research")
-                    #else:
-                        #print("- - nothing", file=sys.stderr)
+                        game_info.do_research(actions, city_tile, str(city_tile.pos) + " research")
+                    # else:
+                    # print("- - nothing", file=sys.stderr)
 
         print("Unsafe cities", unsafe_cities, file=sys.stderr)
 
@@ -840,7 +841,7 @@ def can_city_live(city, all_night_turns_lef) -> bool:
 def move_unit_to(actions, direction, move_mapper: MoveHelper, info: UnitInfo, reason="", target_far_position=None):
     unit = info.unit
     next_state_pos = unit.pos.translate(direction, 1)
-    #print("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction, file=sys.stderr)
+    # print("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction, file=sys.stderr)
     if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
         # do not annotate
         print("Unit", unit.id, '- not moving "', '', '" ', reason, file=sys.stderr)
