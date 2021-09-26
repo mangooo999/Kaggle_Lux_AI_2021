@@ -508,6 +508,7 @@ def agent(observation, configuration):
 
             # night rules
             if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
+				# time_to_dawn differs from game_state_info.turns_to_dawn as it could be even 11 on turn before night
                 time_to_dawn = 10 + game_state_info.steps_until_night
                 print(prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
                       'inCity', move_mapper.is_position_city(unit.pos), 'empty', is_cell_empty(unit.pos, game_state)
