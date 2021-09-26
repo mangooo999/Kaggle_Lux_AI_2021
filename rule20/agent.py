@@ -267,7 +267,6 @@ game_state = None
 unit_info = {}
 game_info = GameInfo()
 
-
 def agent(observation, configuration):
     global game_state
 
@@ -339,6 +338,7 @@ def agent(observation, configuration):
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
 
+
     unit_ceiling = int(min(float(units_cap), max(float(len(available_resources_tiles)) * 1.8, 5)))
 
     cities = list(player.cities.values())
@@ -355,8 +355,7 @@ def agent(observation, configuration):
             # collect unsafe cities
             if not will_live:
                 unsafe_cities[city.cityid] = (
-                    len(city.citytiles),
-                    (game_state_info.all_night_turns_lef - get_autonomy_turns(city)) * city.get_light_upkeep())
+                    len(city.citytiles), (game_state_info.all_night_turns_lef - get_autonomy_turns(city)) * city.get_light_upkeep())
 
             # record how many research points we have now
             for city_tile in city.citytiles[::-1]:
@@ -366,9 +365,11 @@ def agent(observation, configuration):
                 if city_tile.cooldown <= 1:
                     available_city_actions_now_and_next += 1
 
-    # todo move print in  game_state_info class
-    print(game_state.turn, 'resources', len(available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
-          'research', player.research_points, ' avail city points', available_city_actions, file=sys.stderr)
+    #todo move print in  game_state_info class
+    print(game_state.turn, "night_step_left ", game_state_info.all_night_turns_lef, "steps_until_night ", game_state_info.steps_until_night,
+          'resources', len(available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling, 'research',
+          player.research_points,
+          ' avail city points', available_city_actions, file=sys.stderr)
 
     if (not player.researched_uranium()) and player.research_points + available_city_actions >= 200:
         do_research_points = 200 - player.research_points
@@ -408,12 +409,12 @@ def agent(observation, configuration):
             will_live = city_autonomy >= game_state_info.all_night_turns_lef
             lowest_autonomy = min(lowest_autonomy, city_autonomy)
             for city_tile in city.citytiles[::-1]:
-                # print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
+                #print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
                     if (not will_live) or len(unsafe_cities) == 0:
                         # let's create one more unit in the last created city tile if we can
                         actions.append(city_tile.build_worker())
-                        print(city_tile.pos, "- created worker", file=sys.stderr)
+                        print(city_tile.pos,"- created worker", file=sys.stderr)
                         number_work_we_can_build -= 1
                         number_work_we_want_to_build -= 1
                         do_another_cycle = True
@@ -421,18 +422,17 @@ def agent(observation, configuration):
     if len(cities) > 0:
         for city in reversed(cities):
             for city_tile in city.citytiles[::-1]:
-                # print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
+                #print("- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
                     if game_info.still_can_do_reseach():
                         # let's do research
-                        game_info.do_research(actions, city_tile, str(city_tile.pos) + " research")
-                    # else:
-                    # print("- - nothing", file=sys.stderr)
+                        game_info.do_research(actions, city_tile, str(city_tile.pos)+" research")
+                    #else:
+                        #print("- - nothing", file=sys.stderr)
 
         print("Unsafe cities", unsafe_cities, file=sys.stderr)
 
-    can_build = can_build_for_resources(game_state_info.all_night_turns_lef, lowest_autonomy,
-                                        game_state_info.turns_to_night, player)
+    can_build = can_build_for_resources(game_state_info.all_night_turns_lef, lowest_autonomy, game_state_info.steps_until_night, player)
     print(game_state.turn, 'can_build: ', can_build, file=sys.stderr)
 
     # trace the agent move
@@ -467,12 +467,11 @@ def agent(observation, configuration):
             #   EXPLORER
             if info.is_role_city_explorer():
                 print(prefix, ' is explorer', file=sys.stderr)
-                if resources_distance is not None and len(
-                        resources_distance) > 0 and game_state_info.turns_to_night > 1:
+                if resources_distance is not None and len(resources_distance) > 0 and game_state_info.steps_until_night > 1:
                     # try to find the farwest resource we can find within reach before night
                     target_pos = None
                     for r in resources_distance:
-                        if 3 < unit.pos.distance_to(r.pos) <= (game_state_info.turns_to_night + 1) / 2:
+                        if 3 < unit.pos.distance_to(r.pos) <= (game_state_info.steps_until_night + 1) / 2:
                             target_pos = r.pos
 
                     if target_pos is not None:
@@ -489,7 +488,7 @@ def agent(observation, configuration):
                 print(prefix, ' is expander', file=sys.stderr)
 
                 # all action expander are based on building next turn. We don't build at last day, so skip if day before
-                if game_state_info.turns_to_night > 1:
+                if game_state_info.steps_until_night > 1:
                     if is_position_adjacent_city(player, unit.pos) and (not move_mapper.is_position_city(unit.pos)) \
                             and is_position_adjacent_to_resource(wood_tiles, unit.pos):
                         # if we are next to city and to wood, just stay here
@@ -508,7 +507,8 @@ def agent(observation, configuration):
 
             # night rules
             if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
-                print(prefix, ' it is night...', 'time_to_dawn', game_state_info.turns_to_dawn,
+                time_to_dawn = 10 + game_state_info.steps_until_night
+                print(prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
                       'inCity', move_mapper.is_position_city(unit.pos), 'empty', is_cell_empty(unit.pos, game_state)
                       , 'nearwood', is_position_adjacent_to_resource(wood_tiles, unit.pos), file=sys.stderr)
 
@@ -528,7 +528,7 @@ def agent(observation, configuration):
 
                 # if we have the possibility of going in a tile that is like the above,
                 # go id not in a city, or if you are in a city, go just last 1 days of night (so we gather and covered)
-                if (not move_mapper.is_position_city(unit.pos)) or game_state_info.turns_to_dawn <= 1:
+                if (not move_mapper.is_position_city(unit.pos)) or time_to_dawn <= 1:
                     best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles, wood_tiles,
                                                                     game_state, player)
                     if best_night_spot is not None \
@@ -545,7 +545,7 @@ def agent(observation, configuration):
                         is_any_city_in_danger = False
                         for city, city_payload in cities.items():
                             autonomy = city_payload[1]
-                            if autonomy < game_state_info.turns_to_dawn:
+                            if autonomy < time_to_dawn:
                                 print(prefix, 'night, city in danger', city.cityid, 'sz/aut/dir', city_payload,
                                       file=sys.stderr)
                                 is_any_city_in_danger = True
@@ -563,8 +563,8 @@ def agent(observation, configuration):
 
             # DAWN
 
-            if game_state_info.is_dawn():
-                print(prefix, "It's dawn", file=sys.stderr)
+            if game_state_info.steps_until_night == 30:
+                print(prefix, "It's dawn", game_state_info.steps_until_night, file=sys.stderr)
                 if is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos, game_state) \
                         and 0 < unit.get_cargo_space_left() <= 21:
                     print(prefix, ' at dawn, can build next day', file=sys.stderr)
@@ -634,22 +634,20 @@ def agent(observation, configuration):
                                              " we could have build here, but we move close to city instead", next_pos)
                                 continue
 
-                if game_state_info.turns_to_night > 1 or (
-                        game_state_info.turns_to_night == 1 and is_position_adjacent_to_resource(
-                    available_resources_tiles,
-                    unit.pos)):
+                if game_state_info.steps_until_night > 1 or (
+                        game_state_info.steps_until_night == 1 and is_position_adjacent_to_resource(available_resources_tiles,
+                                                                                    unit.pos)):
                     build_city(actions, info, 'NOT in adjacent city')
                     continue
 
             # if unit cant make city tiles try to collect resource collection.
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
 
+            enough_fuel = 400
+            if game_state_info.steps_until_night < 4:
+                enough_fuel = 300
             if game_state_info.is_night_time():
                 enough_fuel = 200
-            elif game_state_info.turns_to_night < 4:
-                enough_fuel = 300
-            else:
-                enough_fuel = 400
 
             if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
                     and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
@@ -689,7 +687,7 @@ def agent(observation, configuration):
                         print(prefix, " Stay on resources", file=sys.stderr)
                     continue
             else:
-                if game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() <= 20 and is_position_resource(
+                if game_state_info.steps_until_night > 10 and can_build and unit.get_cargo_space_left() <= 20 and is_position_resource(
                         available_resources_tiles, unit.pos) and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
                     # then it means we can at least collect 20 next turn on CD and then build
@@ -697,7 +695,7 @@ def agent(observation, configuration):
                     direction = unit.pos.direction_to(closest_empty_tile.pos)
                     move_unit_to(actions, direction, move_mapper, info,
                                  " towards closest empty (anticipating getting resources)", closest_empty_tile.pos)
-                elif game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() == 0 \
+                elif game_state_info.steps_until_night > 10 and can_build and unit.get_cargo_space_left() == 0 \
                         and closest_empty_tile is not None:
                     # find the closest empty tile it to build a city
                     direction = unit.pos.direction_to(closest_empty_tile.pos)
@@ -821,10 +819,10 @@ def transfer_all_resources(actions, info: UnitInfo, to_unit_id, msg=''):
         info.set_last_action_transfer()
 
 
-def can_build_for_resources(all_night_turns_lef, lowest_autonomy, turns_to_night, player) -> bool:
-    if turns_to_night > 20:
+def can_build_for_resources(all_night_turns_lef, lowest_autonomy, steps_until_night, player) -> bool:
+    if steps_until_night > 20:
         return True
-    elif lowest_autonomy > 12 and turns_to_night > 10:
+    elif lowest_autonomy > 12 and steps_until_night > 10:
         return True
 
     can_build = True
@@ -843,7 +841,7 @@ def can_city_live(city, all_night_turns_lef) -> bool:
 def move_unit_to(actions, direction, move_mapper: MoveHelper, info: UnitInfo, reason="", target_far_position=None):
     unit = info.unit
     next_state_pos = unit.pos.translate(direction, 1)
-    # print("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction, file=sys.stderr)
+    #print("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction, file=sys.stderr)
     if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
         # do not annotate
         print("Unit", unit.id, '- not moving "', '', '" ', reason, file=sys.stderr)
