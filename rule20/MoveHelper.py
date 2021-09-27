@@ -15,13 +15,15 @@ def get_city_id_from_pos(pos, actor):
 
 
 class MoveHelper:
-    def __init__(self, player, opponent):
+    def __init__(self, player, opponent, turn):
         """
         initialize state
         """
         self.move_mapper = {}
         self.player = player
         self.opponent = opponent
+        self.turn = turn
+        self.log_prefix = "T_{0}".format(str(self.turn))
 
     def add_position(self, pos: Position, unit: Unit):
         self.move_mapper[self.__hash_pos__(pos)] = unit
