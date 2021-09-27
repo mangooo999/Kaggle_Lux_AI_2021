@@ -1,4 +1,5 @@
 import math
+import sys
 from collections import defaultdict
 from typing import DefaultDict, List
 from lux.game_map import Cell, Position, RESOURCE_TYPES
@@ -34,6 +35,15 @@ class Cluster:
     def to_string_light(self) -> str:
         return "{0} {1} r={2} u={3} e={4}".format(self.id, self.get_centroid(), len(self.resource_cells),
                                                   len(self.units), len(self.enemy_unit))
+
+    def is_more_units_than_res(self) -> bool:
+        return len(self.units) > len(self.resource_cells)
+
+    def has_no_units_no_enemy(self) -> bool:
+        return len(self.units) ==0 and len(self.enemy_unit)==0
+
+    def distance_to(self,pos) -> int:
+        return self.get_centroid().distance_to(pos)
 
     def get_available_fuel(self) -> int:
         FUEL_CONVERSION_RATE = \
@@ -111,6 +121,7 @@ class Cluster:
         for r in self.resource_cells:
             for u in player.units:
                 if r.pos.is_adjacent(u.pos):
+                    print('XXXX', self.id, 'resource ', r.pos, 'close to unit ',u.id,u.pos, file=sys.stderr)
                     self.add_unit(u.id)
             for e in opponent.units:
                 if r.pos.is_adjacent(e.pos):

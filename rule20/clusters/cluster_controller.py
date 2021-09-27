@@ -1,7 +1,7 @@
 import sys
 from functools import cmp_to_key
 from collections import defaultdict
-from typing import List, DefaultDict
+from typing import List, DefaultDict, ValuesView
 from lux.game_map import RESOURCE_TYPES, Position, Cell
 from lux.game_objects import Unit, Player
 import maps.map_analysis as MapAnalysis
@@ -45,8 +45,15 @@ class ClusterControl:
         for i, rc in enumerate(MapAnalysis.get_resource_groups(uranium_resource_cells)):
             self.clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc,RESOURCE_TYPES.URANIUM)
 
-    def get_clusters (self)->DefaultDict[str, Cluster]:
+    def get_clusters (self)-> ValuesView[Cluster]:
         return self.clusters.values()
+
+    def get_cluster_from_centroid(self,pos:Position)-> Cluster:
+        for k in self.clusters.values():
+            if k.get_centroid() == pos:
+                return k
+
+        return None
 
     def update(self,game_state, player:Player, opponent:Player):
         for k in list(self.clusters.keys()):

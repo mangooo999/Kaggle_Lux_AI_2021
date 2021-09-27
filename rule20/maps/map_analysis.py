@@ -1,4 +1,5 @@
 import math
+import sys
 from typing import List
 from collections import defaultdict
 from functools import cmp_to_key
@@ -212,6 +213,7 @@ def get_closest_position(position, positions):
 
     for pos in positions:
         distance = position.distance_to(pos)
+        #print(' XXXX get_closest_position', pos, distance, file=sys.stderr)
         if distance < closest_distance:
             closest_distance = distance
             closest_pos = pos

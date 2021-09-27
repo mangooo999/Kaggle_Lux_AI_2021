@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Tuple, DefaultDict
 from collections import defaultdict
 
 from lux.game import Game, Missions
-from lux.game_map import Cell, Position
+from lux.game_map import Cell, Position, RESOURCE_TYPES
 from lux.constants import Constants
 from lux import annotate
 
@@ -24,7 +24,7 @@ import clusters.cluster_controller as ClusterController
 from clusters.cluster import Cluster
 import resources.resource_helper as ResourceService
 from clusters.cluster_controller import ClusterControl
-
+import maps.map_analysis as MapAnalysis
 
 # todo
 # - optimise where create worker
@@ -273,14 +273,12 @@ def agent(observation, configuration):
     if game_state.turn == 0:
         print("Agent is running!", file=sys.stderr)
     print("---------Turn number ", game_state.turn, file=sys.stderr)
+    t_prefix="T_" + str(game_state.turn)
     game_info.update(player, game_state)
 
     # The first thing we do is updating the cluster.
     # Refer to the cluster class for its attributes.
     clusters.update(game_state, player, opponent)
-
-    for k in clusters.get_clusters():
-        print("T_" + str(game_state.turn), 'cluster', k.to_string_light(), file=sys.stderr)
 
     # current number of units
     units = len(player.units)
@@ -316,12 +314,41 @@ def agent(observation, configuration):
                 unit_info[unit.id].set_unit_role_traveler(first_best_position, 1)
             elif unit_number == 2 and units == 2:
                 unit_info[unit.id].set_unit_role('expander')
-            elif game_state.turn < 25 and unit_number == game_info.at_start_resources_within3:
-                unit_info[unit.id].set_unit_role('explorer')
             # elif unit_number == 5 and units == 5:
             #    unit_info[unit.id].set_unit_role('hassler')
         else:
             unit_info[unit.id].update(unit, game_state.turn)
+
+    for cluster in clusters.get_clusters():
+        print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
+        if cluster.is_more_units_than_res():
+            print(t_prefix, 'cluster', cluster.id, ' is overcrowded, units',cluster.units, file=sys.stderr)
+
+            # find closest cluster (uncontended?)
+            next_cluster_dist = math.inf
+            next_cluster: Cluster = None
+            for next_clust in clusters.get_clusters():
+                if next_clust.id != cluster.id and next_clust.resource_type== RESOURCE_TYPES.WOOD:
+                       # and next_clust.has_no_units_no_enemy() :
+                    dist = next_clust.distance_to(cluster.get_centroid())
+                    if dist < next_cluster_dist:
+                        next_cluster_dist = dist
+                        next_cluster = next_clust
+
+            # find the closest unit of cluster to next cluster
+            closest_unit_dist = math.inf
+            closest_unit_to: Unit = None
+            if next_cluster is not None:
+                for unitid in cluster.units:
+                    unit = player.units_by_id[unitid]
+                    dist = unit.pos.distance_to(next_cluster.get_centroid())
+                    if dist < closest_unit_dist and unit:
+                        closest_unit_dist = dist
+                        closest_unit_to = unit
+
+            if closest_unit_to is not None:
+                print(t_prefix, ' repurposing', closest_unit_to.id, ' to explore ',next_cluster.id, file=sys.stderr)
+                unit_info[closest_unit_to.id].set_unit_role_explorer(next_cluster.get_centroid())
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -454,19 +481,27 @@ def agent(observation, configuration):
 
             #   EXPLORER
             if info.is_role_city_explorer():
-                print(prefix, ' is explorer', file=sys.stderr)
-                if resources_distance is not None and len(
-                        resources_distance) > 0 and game_state_info.turns_to_night > 1:
-                    # try to find the farwest resource we can find within reach before night
-                    target_pos = None
-                    for r in resources_distance:
-                        if 3 < unit.pos.distance_to(r.pos) <= (game_state_info.turns_to_night + 1) / 2:
-                            target_pos = r.pos
+                print(prefix, ' is explorer ',info.target_position, file=sys.stderr)
+                if game_state_info.turns_to_night <= 2:
+                    print(prefix, ' explorer failed as too close to night', file=sys.stderr)
+                else:
+                    # check if the target position is achievable
+                    cluster = clusters.get_cluster_from_centroid (info.target_position)
+                    if cluster is not None:
+                        target_pos, distance = MapAnalysis.get_closest_position(
+                            unit.pos,
+                            cluster.exposed_perimeter
+                        )
+                        print(prefix, ' explorer is to cluster', cluster.id, file=sys.stderr)
+                    else:
+                        target_pos = info.target_position
+                        distance = unit.pos.distance_to(info.target_position)
 
-                    if target_pos is not None:
-                        distance = unit.pos.distance_to(target_pos)
+                    if distance <= (game_state_info.turns_to_night + 1) / 2:
                         print(prefix, ' explorer will go to', target_pos, 'dist', distance, file=sys.stderr)
                         info.set_unit_role_traveler(target_pos, 2 * distance)
+                    else:
+                        print(prefix, ' dist',dist,' to ',target_pos,'not compatible with autonomy', file=sys.stderr)
 
                 if info.is_role_city_explorer():
                     print(prefix, ' failed to find resource for explorer, clearing role', file=sys.stderr)
@@ -664,8 +699,8 @@ def agent(observation, configuration):
                         direction, pos, msg, resource_type = find_best_resource(game_state, move_mapper,
                                                                                 resources_distance,
                                                                                 resource_target_by_unit, unit, prefix)
-                        if (resource_type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal()) or \
-                                (resource_type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
+                        if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
+                                (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
                             # this is a not researched yet resource, force to go there, so there is no jitter
                             distance_to_res = pos.distance_to(unit.pos)
                             print(prefix, " Found resource not yet researched:", resource_type, "dist", distance_to_res,
@@ -682,7 +717,7 @@ def agent(observation, configuration):
                 else:
                     resource_type = game_state.map.get_cell(unit.pos.x, unit.pos.y).resource.type
                     print(prefix, " Already on resources:", resource_type, file=sys.stderr)
-                    if resource_type != Constants.RESOURCE_TYPES.WOOD \
+                    if resource_type != RESOURCE_TYPES.WOOD \
                             and get_friendly_unit(player, info.last_move_before_pos) is not None and \
                             move_mapper.can_move_to_direction(unit.pos, info.last_move_direction):
                         move_unit_to(actions, info.last_move_direction, move_mapper, info, 'move a bit further')
@@ -823,15 +858,15 @@ def build_city(actions, info: UnitInfo, msg=''):
 
 def transfer_all_resources(actions, info: UnitInfo, to_unit_id):
     if info.unit.cargo.uranium > 0:
-        actions.append(info.unit.transfer(to_unit_id, Constants.RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium))
+        actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium))
         print("Unit", info.unit.id, '- transfer', info.unit.cargo.uranium, 'uranium to ', to_unit_id, file=sys.stderr)
         info.set_last_action_transfer()
     elif info.unit.cargo.coal > 0:
-        actions.append(info.unit.transfer(to_unit_id, Constants.RESOURCE_TYPES.COAL, info.unit.cargo.coal))
+        actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.COAL, info.unit.cargo.coal))
         print("Unit", info.unit.id, '- transfer', info.unit.cargo.coal, 'coal to ', to_unit_id, file=sys.stderr)
         info.set_last_action_transfer()
     elif info.unit.cargo.wood > 0:
-        actions.append(info.unit.transfer(to_unit_id, Constants.RESOURCE_TYPES.WOOD, info.unit.cargo.wood))
+        actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.WOOD, info.unit.cargo.wood))
         print("Unit", info.unit.id, '- transfer', info.unit.cargo.wood, 'wood to ', to_unit_id, file=sys.stderr)
         info.set_last_action_transfer()
 

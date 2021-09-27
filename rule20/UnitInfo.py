@@ -73,6 +73,12 @@ class UnitInfo:
             self.set_unit_role('returner', prefix)
             self.target_position = pos
 
+    def set_unit_role_explorer(self, pos: Position, prefix: str = ''):
+        if pos is not None:
+            print(self.log_prefix, 'set this unit as explorer to', pos, file=sys.stderr)
+            self.set_unit_role('explorer', prefix)
+            self.target_position = pos
+
     def set_unit_role(self, role, prefix: str = ''):
         self.role = role
         print(prefix, "Setting unit", self.id, " as ", self.role, file=sys.stderr)
