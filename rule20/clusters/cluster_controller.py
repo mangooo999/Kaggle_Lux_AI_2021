@@ -6,7 +6,7 @@ from lux.game_map import RESOURCE_TYPES, Position, Cell
 from lux.game_objects import Unit, Player
 import maps.map_analysis as MapAnalysis
 from clusters.cluster import Cluster
-import resources.resource_service as ResourceService
+import resources.resource_helper as ResourceService
 #import models.cluster_model as ClusterModel
 
 class ClusterControl:
@@ -107,9 +107,9 @@ class ClusterControl:
             for u in player.units:
                 if r.pos.is_adjacent(u.pos):
                     cluster.add_unit(u.id)
-            for u in opponent.units:
-                if r.pos.is_adjacent(u.pos):
-                    cluster.add_enemy_unit(u.id)
+            for e in opponent.units:
+                if r.pos.is_adjacent(e.pos):
+                    cluster.add_enemy_unit(e.id)
 
         return cluster
 

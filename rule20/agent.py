@@ -22,7 +22,7 @@ from lux.game_objects import CityTile, Unit, City, DIRECTIONS
 
 import clusters.cluster_controller as ClusterController
 from clusters.cluster import Cluster
-import resources.resource_service as ResourceService
+import resources.resource_helper as ResourceService
 from clusters.cluster_controller import ClusterControl
 
 # todo
@@ -65,53 +65,6 @@ def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]
             closest_dist = dist
     return closest_dirs
 
-
-def find_all_resources(game_state, player) -> (List[Cell], List[Cell], List[Cell]):
-    resource_tiles_all: List[Cell] = []
-    resource_tiles_available: List[Cell] = []
-    wood_tiles: List[Cell] = []
-    width, height = game_state.map_width, game_state.map_height
-    for y in range(height):
-        for x in range(width):
-            cell = game_state.map.get_cell(x, y)
-            if cell.has_resource():
-                resource_tiles_all.append(cell)
-                if cell.resource.type == Constants.RESOURCE_TYPES.WOOD:
-                    wood_tiles.append(cell)
-                    resource_tiles_available.append(cell)
-                if (cell.resource.type == Constants.RESOURCE_TYPES.COAL and player.researched_coal()) \
-                        or (cell.resource.type == Constants.RESOURCE_TYPES.URANIUM and player.researched_uranium()):
-                    resource_tiles_available.append(cell)
-
-    return resource_tiles_all, resource_tiles_available, wood_tiles
-
-
-# the next snippet all resources distance and return as sorted order.
-def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) -> Dict[CityTile,
-                                                                                      Tuple[int, int, DIRECTIONS]]:
-    resources_distance = {}
-    for resource_tile in resource_tiles:
-
-        dist = resource_tile.pos.distance_to(pos)
-
-        if resource_tile.resource.type == Constants.RESOURCE_TYPES.WOOD:
-            resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
-        else:
-            expected_resource_additional = (float(dist * 2.0) * float(game_info.get_research_rate(5)))
-            expected_resource_at_distance = float(game_info.reseach_points) + expected_resource_additional
-            # check if we are likely to have researched this by the time we arrive
-            if resource_tile.resource.type == Constants.RESOURCE_TYPES.COAL and \
-                    expected_resource_at_distance < 50.0:
-                continue
-            elif resource_tile.resource.type == Constants.RESOURCE_TYPES.URANIUM and \
-                    expected_resource_at_distance < 200.0:
-                continue
-            else:
-                # order by distance asc, resource asc
-                resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
-
-    resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
-    return resources_distance
 
 
 def find_closest_city_tile(pos, player) -> CityTile:
@@ -213,7 +166,7 @@ def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -
     results = {}
     for adjacent_position in empty_tiles:
         number_of_adjacent = find_number_of_adjacent_city_tile(adjacent_position, player)
-        if number_of_adjacent > 0 and is_position_adjacent_to_resource(wood_tiles, adjacent_position):
+        if number_of_adjacent > 0 and ResourceService.is_position_adjacent_to_resource(wood_tiles, adjacent_position):
             results[number_of_adjacent] = adjacent_position
             # print("- ",adjacent_position,number_of_adjacent, file=sys.stderr)
 
@@ -317,7 +270,7 @@ def agent(observation, configuration):
     units = len(player.units)
     unit_number = 0
 
-    all_resources_tiles, available_resources_tiles, wood_tiles = find_all_resources(game_state, player)
+    all_resources_tiles, available_resources_tiles, wood_tiles = ResourceService.find_all_resources(game_state, player)
     if game_state.turn == 0:
         # initial calculations
         initial_city_pos = list(player.cities.values())[0].citytiles[0].pos
@@ -477,7 +430,7 @@ def agent(observation, configuration):
         if unit.is_worker() and unit.can_act():
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
             closest_empty_tile = adjacent_empty_tile_favor_close_to_city(adjacent_empty_tiles, game_state, player)
-            resources_distance = find_resources_distance(unit.pos, player, all_resources_tiles, game_info)
+            resources_distance = ResourceService.find_resources_distance(unit.pos, player, all_resources_tiles, game_info)
 
             print(prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
@@ -509,7 +462,7 @@ def agent(observation, configuration):
                 # all action expander are based on building next turn. We don't build at last day, so skip if day before
                 if game_state_info.turns_to_night > 1:
                     if is_position_adjacent_city(player, unit.pos) and (not move_mapper.is_position_city(unit.pos)) \
-                            and is_position_adjacent_to_resource(wood_tiles, unit.pos):
+                            and ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos):
                         # if we are next to city and to wood, just stay here
                         print(prefix, ' expander we are between city and wood do not move', file=sys.stderr)
                         continue
@@ -530,9 +483,9 @@ def agent(observation, configuration):
                 time_to_dawn = 10 + game_state_info.steps_until_night
                 print(prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
                       'inCity', move_mapper.is_position_city(unit.pos), 'empty', is_cell_empty(unit.pos, game_state)
-                      , 'nearwood', is_position_adjacent_to_resource(wood_tiles, unit.pos), file=sys.stderr)
+                      , 'nearwood', ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos), file=sys.stderr)
 
-                if is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos, game_state):
+                if ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos, game_state):
                     print(prefix, ' it is night, we are in a empty cell near resources', file=sys.stderr)
                     # empty near a resource, we can stay here, but we could even better go to same near city
 
@@ -585,7 +538,7 @@ def agent(observation, configuration):
 
             if game_state_info.is_dawn():
                 print(prefix, "It's dawn", file=sys.stderr)
-                if is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos, game_state) \
+                if ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos, game_state) \
                         and 0 < unit.get_cargo_space_left() <= 21:
                     print(prefix, ' at dawn, can build next day', file=sys.stderr)
                     continue
@@ -655,7 +608,7 @@ def agent(observation, configuration):
                                 continue
 
                 if game_state_info.turns_to_night > 1 or (
-                        game_state_info.turns_to_night == 1 and is_position_adjacent_to_resource(
+                        game_state_info.turns_to_night == 1 and ResourceService.is_position_adjacent_to_resource(
                     available_resources_tiles,
                     unit.pos)):
                     build_city(actions, info, 'NOT in adjacent city')
@@ -673,7 +626,7 @@ def agent(observation, configuration):
 
             if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
                     and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
-                if not is_position_resource(available_resources_tiles, unit.pos):
+                if not ResourceService.is_position_resource(available_resources_tiles, unit.pos):
                     # find the closest resource if it exists to this unit
 
                     print(prefix, " Find resources", file=sys.stderr)
@@ -710,8 +663,9 @@ def agent(observation, configuration):
                         print(prefix, " Stay on resources", file=sys.stderr)
                     continue
             else:
-                if game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() <= 20 and is_position_resource(
-                        available_resources_tiles, unit.pos) and closest_empty_tile is not None:
+                if game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() <= 20 \
+                        and ResourceService.is_position_resource(available_resources_tiles, unit.pos) \
+                        and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
                     # then it means we can at least collect 20 next turn on CD and then build
                     # find the closest empty tile it to build a city
@@ -891,21 +845,6 @@ def is_position_adjacent_city(player, pos, do_log=False) -> bool:
                 return True
 
     return False
-
-
-def is_position_adjacent_to_resource(resource_tiles, pos) -> bool:
-    for r in resource_tiles:
-        if r.pos.is_adjacent(pos):
-            return True
-    return False
-
-
-def is_position_resource(resource_tiles, pos) -> bool:
-    for r in resource_tiles:
-        if r.pos.equals(pos):
-            return True
-    return False
-
 
 def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str) -> bool:
     direction = info.unit.pos.direction_to(pos)

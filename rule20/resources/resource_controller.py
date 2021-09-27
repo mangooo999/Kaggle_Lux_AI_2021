@@ -1,5 +1,5 @@
 import random
-import resources.resource_service as ResourceService
+import resources.resource_helper as ResourceService
 
 
 def get_resources(game_state):

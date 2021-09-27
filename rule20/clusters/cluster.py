@@ -24,7 +24,7 @@ class Cluster:
 
     def add_enemy_unit(self, unit_id: str):
         if unit_id not in self.enemy_unit:
-            self.units.append(unit_id)
+            self.enemy_unit.append(unit_id)
 
     def to_string_light(self) -> str:
         return "{0} {1} r={2} u={3} e={4}".format(self.id, self.get_centroid(), len(self.resource_cells),
