@@ -4,9 +4,11 @@ from typing import DefaultDict, List
 from lux.game_map import Cell, Position, RESOURCE_TYPES
 from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
-
+import maps.map_analysis as MapAnalysis
+import resources.resource_helper as ResourceService
 
 # from missions.mission import Mission
+from lux.game_objects import Player
 
 
 class Cluster:
@@ -59,3 +61,54 @@ class Cluster:
             return Position(round(sum_x / k), round(sum_y / k))
 
         return Position(math.inf, math.inf)
+
+    def update(self,
+                       game_state,
+                       player: Player, opponent: Player,
+                       ) :
+        '''
+        This is to update the cluster information.
+        We update resource cells because resource cells are consumed.
+        Some of its assigned units (workers) may die or leave.
+        We update how much of its perimeter is not guarded by citytile.
+
+        WARNING: Most bugs I had were caused by this function. Take care
+        if you change this.
+        '''
+        resource_cells: List[Cell] = ResourceService \
+            .get_resource_cells_by_positions(
+            game_state,
+            [cell.pos for cell in self.resource_cells]
+        )
+
+        self.resource_cells = resource_cells
+
+        alive_units = [
+            id for id in self.units if id in
+                                          [u.id for u in player.units]
+        ]
+        self.units = alive_units
+
+        perimeter: List[Position] = MapAnalysis.get_perimeter(
+            resource_cells,
+            game_state.map.width,
+            game_state.map.height
+        )
+
+        exposed_perimeter = [
+            p for p in perimeter
+            if game_state.map.get_cell_by_pos(p).citytile is None and
+               not game_state.map.get_cell_by_pos(p).has_resource()
+        ]
+        self.exposed_perimeter = exposed_perimeter
+
+        # refresh units around this cluster
+        self.units = []
+        self.enemy_unit = []
+        for r in self.resource_cells:
+            for u in player.units:
+                if r.pos.is_adjacent(u.pos):
+                    self.add_unit(u.id)
+            for e in opponent.units:
+                if r.pos.is_adjacent(e.pos):
+                    self.add_enemy_unit(e.id)

@@ -7,7 +7,7 @@ from lux.game_objects import Unit, Player
 import maps.map_analysis as MapAnalysis
 from clusters.cluster import Cluster
 import resources.resource_helper as ResourceService
-#import models.cluster_model as ClusterModel
+
 
 class ClusterControl:
     def __init__(self, game_state):
@@ -50,8 +50,7 @@ class ClusterControl:
 
     def update(self,game_state, player:Player, opponent:Player):
         for k in list(self.clusters.keys()):
-            self.clusters[k] = self.update_cluster(
-                self.clusters[k],
+            self.clusters[k].update(
                 game_state,
                 player,opponent
             )
@@ -59,59 +58,7 @@ class ClusterControl:
                 print("T_" + str(game_state.turn),"cluster",k, "terminated", file=sys.stderr)
                 del self.clusters[k]
 
-    def update_cluster(self,
-        cluster: Cluster,
-        game_state,
-        player:Player, opponent:Player,
-    ) -> Cluster:
-        '''
-        This is to update the cluster information.
-        We update resource cells because resource cells are consumed.
-        Some of its assigned units (workers) may die or leave.
-        We update how much of its perimeter is not guarded by citytile.
 
-        WARNING: Most bugs I had were caused by this function. Take care
-        if you change this.
-        '''
-        resource_cells: List[Cell] = ResourceService \
-            .get_resource_cells_by_positions(
-                game_state,
-                [cell.pos for cell in cluster.resource_cells]
-            )
-
-        cluster.resource_cells = resource_cells
-
-        alive_units = [
-            id for id in cluster.units if id in
-            [u.id for u in player.units]
-        ]
-        cluster.units = alive_units
-
-        perimeter: List[Position] = MapAnalysis.get_perimeter(
-            resource_cells,
-            game_state.map.width,
-            game_state.map.height
-        )
-
-        exposed_perimeter = [
-            p for p in perimeter
-            if game_state.map.get_cell_by_pos(p).citytile is None and
-            not game_state.map.get_cell_by_pos(p).has_resource()
-        ]
-        cluster.exposed_perimeter = exposed_perimeter
-
-        #refresh units around this cluster
-        cluster.units = []
-        cluster.enemy_unit = []
-        for r in cluster.resource_cells:
-            for u in player.units:
-                if r.pos.is_adjacent(u.pos):
-                    cluster.add_unit(u.id)
-            for e in opponent.units:
-                if r.pos.is_adjacent(e.pos):
-                    cluster.add_enemy_unit(e.id)
-
-        return cluster
 
 
     def get_units_without_clusters(self) -> List[Unit]:
