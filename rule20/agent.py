@@ -2,6 +2,7 @@ import math
 import sys
 import collections
 import random
+
 random.seed(50)
 
 from game_state_info.game_state_info import GameStateInfo
@@ -22,6 +23,7 @@ from lux.game_objects import CityTile, Unit, City, DIRECTIONS
 import clusters.cluster_controller as ClusterController
 from clusters.cluster import Cluster
 import resources.resource_service as ResourceService
+from clusters.cluster_controller import ClusterControl
 
 # todo
 # - optimise where create worker
@@ -269,7 +271,7 @@ def cargo_to_fuel(cargo) -> int:
 game_state = None
 unit_info = {}
 game_info = GameInfo()
-clusters: DefaultDict[str, Cluster] = defaultdict(Cluster)
+clusters: ClusterControl
 
 def agent(observation, configuration):
     global game_state
@@ -283,7 +285,7 @@ def agent(observation, configuration):
         game_state.id = observation.player
 
         # This is the start of the game
-        clusters = ClusterController.init_clusters(game_state)
+        clusters = ClusterControl(game_state)
     else:
         game_state._update(observation["updates"])
 
@@ -306,9 +308,9 @@ def agent(observation, configuration):
 
     # The first thing we do is updating the cluster.
     # Refer to the cluster class for its attributes.
-    ClusterController.update_clusters(clusters,game_state,player,opponent)
+    clusters.update(game_state,player,opponent)
 
-    for k in clusters.values():
+    for k in clusters.get_clusters():
         print("T_"+str(game_state.turn), 'cluster', k.to_string_light(), file=sys.stderr)
 
     # current number of units

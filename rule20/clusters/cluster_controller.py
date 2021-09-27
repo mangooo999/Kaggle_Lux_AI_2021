@@ -9,179 +9,123 @@ from clusters.cluster import Cluster
 import resources.resource_service as ResourceService
 #import models.cluster_model as ClusterModel
 
+class ClusterControl:
+    def __init__(self, game_state):
+        '''
+        This is called only once, when the game starts.
+        The cluster types are wood, coal, and uranium.
+        If two resource cells are adjacent, or diagonal to each other,
+        we assume they are in the same cluster.
+        '''
+        self.clusters: DefaultDict[str, Cluster] = defaultdict(Cluster)
 
-def init_clusters(game_state) -> DefaultDict[str, Cluster]:
-    '''
-    This is called only once, when the game starts.
-    The cluster types are wood, coal, and uranium.
-    If two resource cells are adjacent, or diagonal to each other,
-    we assume they are in the same cluster.
-    '''
-    clusters: DefaultDict[str, Cluster] = defaultdict(Cluster)
-    resource_cells = ResourceService.get_resources(game_state)
+        resource_cells = ResourceService.get_resources(game_state)
 
-    # creating wood clusters
-    wood_resource_cells = [
-        resource_tile for resource_tile in resource_cells
-        if resource_tile.resource.type == RESOURCE_TYPES.WOOD
-    ]
-    for i, rc in enumerate(MapAnalysis.get_resource_groups(wood_resource_cells)):
-        clusters[f'wood_{i}'] = Cluster(f'wood_{i}', rc,RESOURCE_TYPES.WOOD)
+        # creating wood clusters
+        wood_resource_cells = [
+            resource_tile for resource_tile in resource_cells
+            if resource_tile.resource.type == RESOURCE_TYPES.WOOD
+        ]
+        for i, rc in enumerate(MapAnalysis.get_resource_groups(wood_resource_cells)):
+            self.clusters[f'wood_{i}'] = Cluster(f'wood_{i}', rc,RESOURCE_TYPES.WOOD)
 
-    # creating coal clusters
-    coal_resource_cells = [
-        resource_tile for resource_tile in resource_cells
-        if resource_tile.resource.type == RESOURCE_TYPES.COAL
-    ]
-    for i, rc in enumerate(MapAnalysis.get_resource_groups(coal_resource_cells)):
-        clusters[f'coal_{i}'] = Cluster(f'coal_{i}', rc,RESOURCE_TYPES.COAL)
+        # creating coal clusters
+        coal_resource_cells = [
+            resource_tile for resource_tile in resource_cells
+            if resource_tile.resource.type == RESOURCE_TYPES.COAL
+        ]
+        for i, rc in enumerate(MapAnalysis.get_resource_groups(coal_resource_cells)):
+            self.clusters[f'coal_{i}'] = Cluster(f'coal_{i}', rc,RESOURCE_TYPES.COAL)
 
-    # creating uranium clusters
-    uranium_resource_cells = [
-        resource_tile for resource_tile in resource_cells
-        if resource_tile.resource.type == RESOURCE_TYPES.URANIUM
-    ]
-    for i, rc in enumerate(MapAnalysis.get_resource_groups(uranium_resource_cells)):
-        clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc,RESOURCE_TYPES.URANIUM)
+        # creating uranium clusters
+        uranium_resource_cells = [
+            resource_tile for resource_tile in resource_cells
+            if resource_tile.resource.type == RESOURCE_TYPES.URANIUM
+        ]
+        for i, rc in enumerate(MapAnalysis.get_resource_groups(uranium_resource_cells)):
+            self.clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc,RESOURCE_TYPES.URANIUM)
 
-    return clusters
+    def get_clusters (self)->DefaultDict[str, Cluster]:
+        return self.clusters.values()
 
-def update_clusters( clusters:DefaultDict[str, Cluster], game_state,player:Player, opponent:Player):
-    for k in list(clusters.keys()):
-        clusters[k] = update_cluster(
-            clusters[k],
-            game_state,
-            player,opponent
+    def update(self,game_state, player:Player, opponent:Player):
+        for k in list(self.clusters.keys()):
+            self.clusters[k] = self.update_cluster(
+                self.clusters[k],
+                game_state,
+                player,opponent
+            )
+            if len(self.clusters[k].resource_cells)==0:
+                print("T_" + str(game_state.turn),"cluster",k, "terminated", file=sys.stderr)
+                del self.clusters[k]
+
+    def update_cluster(self,
+        cluster: Cluster,
+        game_state,
+        player:Player, opponent:Player,
+    ) -> Cluster:
+        '''
+        This is to update the cluster information.
+        We update resource cells because resource cells are consumed.
+        Some of its assigned units (workers) may die or leave.
+        We update how much of its perimeter is not guarded by citytile.
+
+        WARNING: Most bugs I had were caused by this function. Take care
+        if you change this.
+        '''
+        resource_cells: List[Cell] = ResourceService \
+            .get_resource_cells_by_positions(
+                game_state,
+                [cell.pos for cell in cluster.resource_cells]
+            )
+
+        cluster.resource_cells = resource_cells
+
+        alive_units = [
+            id for id in cluster.units if id in
+            [u.id for u in player.units]
+        ]
+        cluster.units = alive_units
+
+        perimeter: List[Position] = MapAnalysis.get_perimeter(
+            resource_cells,
+            game_state.map.width,
+            game_state.map.height
         )
-        if len(clusters[k].resource_cells)==0:
-            print("T_" + str(game_state.turn),"cluster",k, "terminated", file=sys.stderr)
-            del clusters[k]
 
-def update_cluster(
-    cluster: Cluster,
-    game_state,
-    player:Player, opponent:Player,
-) -> Cluster:
-    '''
-    This is to update the cluster information.
-    We update resource cells because resource cells are consumed.
-    Some of its assigned units (workers) may die or leave.
-    We update how much of its perimeter is not guarded by citytile.
+        exposed_perimeter = [
+            p for p in perimeter
+            if game_state.map.get_cell_by_pos(p).citytile is None and
+            not game_state.map.get_cell_by_pos(p).has_resource()
+        ]
+        cluster.exposed_perimeter = exposed_perimeter
 
-    WARNING: Most bugs I had were caused by this function. Take care
-    if you change this.
-    '''
-    resource_cells: List[Cell] = ResourceService \
-        .get_resource_cells_by_positions(
-            game_state,
-            [cell.pos for cell in cluster.resource_cells]
-        )
+        #refresh units around this cluster
+        cluster.units = []
+        cluster.enemy_unit = []
+        for r in cluster.resource_cells:
+            for u in player.units:
+                if r.pos.is_adjacent(u.pos):
+                    cluster.add_unit(u.id)
+            for u in opponent.units:
+                if r.pos.is_adjacent(u.pos):
+                    cluster.add_enemy_unit(u.id)
 
-    cluster.resource_cells = resource_cells
-
-    alive_units = [
-        id for id in cluster.units if id in
-        [u.id for u in player.units]
-    ]
-    cluster.units = alive_units
-
-    perimeter: List[Position] = MapAnalysis.get_perimeter(
-        resource_cells,
-        game_state.map.width,
-        game_state.map.height
-    )
-
-    exposed_perimeter = [
-        p for p in perimeter
-        if game_state.map.get_cell_by_pos(p).citytile is None and
-        not game_state.map.get_cell_by_pos(p).has_resource()
-    ]
-    cluster.exposed_perimeter = exposed_perimeter
-
-    #refresh units around this cluster
-    cluster.units = []
-    cluster.enemy_unit = []
-    for r in cluster.resource_cells:
-        for u in player.units:
-            if r.pos.is_adjacent(u.pos):
-                cluster.add_unit(u.id)
-        for u in opponent.units:
-            if r.pos.is_adjacent(u.pos):
-                cluster.add_enemy_unit(u.id)
-
-    return cluster
+        return cluster
 
 
-def get_cluster_by_worker(worker: Unit, clusters: List[Cluster]) -> Cluster:
-    for cluster in clusters:
-        if worker.id in cluster.workers:
-            return cluster
+    def get_units_without_clusters(self) -> List[Unit]:
 
-    return None
+        units_with_clusters = []
+        for k in self.clusters:
+            units_with_clusters.extend(self.clusters[k].units)
 
+        units_without_clusters = []
+        for unit in self.units:
+            if unit.id not in units_with_clusters:
+                units_without_clusters.append(unit)
 
-def assign_worker_cluster(
-    worker: Unit,
-    clusters,
-    game_state,
-    player,
-    player_id,
-    opponent,
-    opponent_id
-):
-    clusters_to_sort = clusters.copy()
-    player = game_state.player
-
-    for key in clusters:
-        if not player.researched_coal() and 'coal' in key:
-            del clusters_to_sort[key]
-        if not player.researched_uranium() and 'uranium' in key:
-            del clusters_to_sort[key]
-
-    cluster_scores = []
-    for key in clusters_to_sort:
-        cluster_score = ClusterModel.get_cluster_score(
-            clusters_to_sort[key],
-            worker,
-            game_state,
-            player,
-            player_id,
-            opponent,
-            opponent_id,
-        )
-        cluster_scores.append({
-            'cluster': clusters_to_sort[key],
-            'score': cluster_score
-        })
-
-    def compare_final_score(c1, c2):
-        return c2['score'] - c1['score']
-
-    sorted_clusters = sorted(
-        cluster_scores, key=cmp_to_key(compare_final_score)
-    )
-
-    if len(sorted_clusters) > 0:
-        return sorted_clusters[0]['cluster']
-
-    return None
-
-
-def get_units_without_clusters(
-    units: List[Unit],
-    clusters: DefaultDict[str, Cluster]
-) -> List[Unit]:
-
-    units_with_clusters = []
-    for k in clusters:
-        units_with_clusters.extend(clusters[k].units)
-
-    units_without_clusters = []
-    for unit in units:
-        if unit.id not in units_with_clusters:
-            units_without_clusters.append(unit)
-
-    return units_without_clusters
+        return units_without_clusters
 
 
 # def get_citytiles_without_clusters(citytiles, clusters):
