@@ -30,8 +30,7 @@ import maps.map_analysis as MapAnalysis
 # todo
 # - optimise where create worker
 # do not build small city with coal and uranium when close city needs fuel
-# - optimise first move to go where most resources are within 2 cells
-# optimise first move
+# extend first move to any movement from city to resource
 # if moving to a city, remove move that move via another city?
 # turn 200 seems to be a good turn to go and conquer wood unexplored wood clusters as it seems to make till 360
 
