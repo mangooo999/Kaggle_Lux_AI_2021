@@ -7,7 +7,7 @@ random.seed(50)
 
 from game_state_info.game_state_info import GameStateInfo
 
-from typing import Optional, List, Dict, Tuple, DefaultDict
+from typing import Optional, List, Dict, Tuple, DefaultDict, OrderedDict
 from collections import defaultdict
 
 from lux.game import Game, Missions
@@ -29,7 +29,7 @@ import maps.map_analysis as MapAnalysis
 
 # todo
 # - optimise where create worker
-# - do not create units in the night
+# do not build small city with coal and uranium when close city needs fuel
 # - optimise first move to go where most resources are within 2 cells
 # optimise first move
 # if moving to a city, remove move that move via another city?
@@ -300,9 +300,17 @@ def agent(observation, configuration):
             if is_position_valid(next_pos, game_state) and not move_mapper.is_position_enemy_city(next_pos):
                 res_2 = len(get_resources_around(wood_tiles, next_pos, 1))
                 is_empty = is_cell_empty(next_pos, game_state)
-                print('Resources within 2 of', direction, '=', res_2, ';empty', is_empty, file=sys.stderr)
-                first_move[(next_pos.x, next_pos.y)] = res_2
+                has_empty_next = len(find_all_adjacent_empty_tiles(game_state, next_pos)) > 0
+                print('Resources within 2 of', direction, '=', res_2, ';empty', is_empty,
+                      ';emptyNext', has_empty_next, file=sys.stderr)
+                first_move[(int(not (is_empty or has_empty_next)),-res_2)] = next_pos
 
+        print('Not Ordered Resources within 2', first_move, file=sys.stderr)
+        if len(first_move.keys())>0:
+            result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[0]))
+            print('Ordered Resources within 2',result, file=sys.stderr)
+            first_best_position=next(iter(result.values()))
+            print('first_best_position', first_best_position, file=sys.stderr)
         # END initial calculations
 
     # Spawn of new troops and assigment of roles below
@@ -329,8 +337,8 @@ def agent(observation, configuration):
             next_cluster_dist = math.inf
             next_cluster: Cluster = None
             for next_clust in clusters.get_clusters():
-                if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD\
-                    and next_clust.has_no_units_no_enemy() :
+                if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD \
+                        and next_clust.has_no_units_no_enemy():
                     dist = next_clust.distance_to(cluster.get_centroid())
                     if dist < next_cluster_dist:
                         next_cluster_dist = dist
