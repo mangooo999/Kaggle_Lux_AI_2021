@@ -201,8 +201,13 @@ def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTi
     return city_tiles_distance
 
 
-def get_random_step() -> DIRECTIONS:
-    return random.choice(get_4_directions())
+def get_random_step(from_pos:Position, move_mapper: MoveHelper) -> DIRECTIONS:
+    directions = random.choice(get_4_directions())
+    for direction in directions:
+        if move_mapper.can_move_to_direction(from_pos, direction):
+            return direction
+    # otherwise
+    return DIRECTIONS.CENTER
 
 
 def cargo_to_string(cargo) -> str:
@@ -618,7 +623,7 @@ def agent(observation, configuration):
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
 
             if game_state_info.is_night_time():
-                enough_fuel = 200
+                enough_fuel = 500
             elif game_state_info.turns_to_night < 4:
                 enough_fuel = 300
             else:
@@ -744,7 +749,7 @@ def find_best_city(game_state,city_tile_distance, move_mapper: MoveHelper, playe
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy" + dist.__str__()
 
     if not moved:
-        direction = get_random_step()
+        direction = get_random_step(unit.pos,move_mapper)
         return direction, None, "randomly (due to city)"
 
 
@@ -756,6 +761,7 @@ def find_best_resource(game_state,move_mapper: MoveHelper, resources_distance, r
     # print(prefix, " XXX Find resources pos", resources_distance.keys(), file=sys.stderr)
     # print(prefix, " XXX Move mapper", move_mapper.move_mapper.keys(), file=sys.stderr)
 
+    # we try not to allocate x units to same resource, but we are happy to go up to y in range (x,y)
     for max_units_per_resource in range(6, 7):
         for resource, resource_dist_info in resources_distance.items():
             # print(prefix, " XXX - ", resource.pos, resource_dist_info, file=sys.stderr)
@@ -766,7 +772,7 @@ def find_best_resource(game_state,move_mapper: MoveHelper, resources_distance, r
                     if direction != DIRECTIONS.CENTER:
                         return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
 
-    direction = get_random_step()
+    direction = get_random_step(unit.pos,move_mapper)
     return direction, None, "randomly (due to resource)", ""
 
 
