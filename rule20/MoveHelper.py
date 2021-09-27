@@ -40,11 +40,11 @@ class MoveHelper:
     def can_move_to_direction(self, pos: Position, direction: DIRECTIONS) -> bool:
         return self.can_move_to_pos(pos.translate(direction, 1))
 
-    def can_move_to_pos(self, pos: Position) -> bool:
+    def can_move_to_pos(self, pos: Position, allow_clash_unit: bool = False, msg: str = '') -> bool:
         # we cannot move if somebody is already going, and it is not a city
-        if self.has_position(pos) and not self.is_position_city(pos):
+        if (not allow_clash_unit) and self.has_position(pos) and not self.is_position_city(pos):
             unit: Unit = self.move_mapper.get(self.__hash_pos__(pos))
-            print('Collision in', pos, 'with', unit.id, file=sys.stderr)
+            print(self.log_prefix + msg, 'Collision in', pos, 'with', unit.id, file=sys.stderr)
             return False
         else:
             return not self.is_position_enemy_city(pos)
@@ -57,5 +57,3 @@ class MoveHelper:
 
     def is_position_enemy_city(self, pos: Position) -> bool:
         return get_city_id_from_pos(pos, self.opponent) != ''
-
-

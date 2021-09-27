@@ -564,34 +564,25 @@ def agent(observation, configuration):
                     continue
 
             #   TRAVELER
-            if info.is_role_traveler() or info.is_role_returner():
-                print(prefix, ' is',info.role,'to', info.target_position, file=sys.stderr)
+            if info.is_role_traveler() :
+                print(prefix, ' is traveler to', info.target_position, file=sys.stderr)
                 direction = get_direction_to_quick(game_state, unit, info.target_position, move_mapper)
                 if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction):
                     move_unit_to(actions, direction, move_mapper, info, " move to traveler pos", info.target_position)
                     continue
                 else:
-                    if info.is_role_traveler():
-                        print(prefix, ' traveller cannot move', file=sys.stderr)
-                        if unit.pos.distance_to(info.target_position) <= 1:
-                            info.clean_unit_role()
-                    if info.is_role_returner():
+                    print(prefix, ' traveller cannot move', file=sys.stderr)
+                    if unit.pos.distance_to(info.target_position) <= 1:
+                        info.clean_unit_role()
 
-                        # check if anybody in the pos we want to go
-                        friend_unit = get_friendly_unit(player, unit.pos.translate(direction, 1))
-                        if friend_unit is not None \
-                                and friend_unit.get_cargo_space_left() > 100 - unit.get_cargo_space_left():
-                            print(prefix, " instead of going to city, do transfer to", friend_unit.id,
-                                  ' in ', unit.pos.translate(direction, 1), file=sys.stderr)
-                            transfer_all_resources(actions, info, friend_unit.id)
-                            if unit_info[unit.id].is_role_traveler:
-                                unit_info[unit.id].clean_unit_role()
-                        else:
-                            direction = get_random_step(unit.pos, move_mapper)
-                            move_unit_to(actions, direction, move_mapper, info,  "randomly (due to returner)")
-                            continue
+            #   RETURNER
+            if info.is_role_returner():
+                print(prefix, ' is returner to', info.target_position, file=sys.stderr)
+                direction = get_direction_to_quick(game_state, unit, info.target_position, move_mapper,True)
+                move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit,'returner')
 
-                        
+
+
             #   HASSLER
             if info.is_role_hassler():
                 print(prefix, ' is hassler', file=sys.stderr)
@@ -721,9 +712,7 @@ def agent(observation, configuration):
                     if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler():
                         print(prefix, " Goto city2", file=sys.stderr)
                         direction, pos, msg = find_best_city(game_state, city_tile_distance, move_mapper, player, unit)
-                        move_unit_to(actions, direction, move_mapper, info, msg, pos)
-                        if cargo_to_fuel(unit.cargo) >= enough_fuel:
-                            info.set_unit_role_returner(pos,prefix)
+                        move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit,'city')
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
     for unit in player.units:
@@ -748,6 +737,28 @@ def agent(observation, configuration):
     return actions
 
 
+def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit,msg):
+    if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction):
+        move_unit_to(actions, direction, move_mapper, info, " move to "+msg+" pos", info.target_position)
+        # continue
+    else:
+        # check if anybody in the pos we want to go
+        friend_unit = get_friendly_unit(player, unit.pos.translate(direction, 1))
+        if friend_unit is not None \
+                and friend_unit.get_cargo_space_left() > 100 - unit.get_cargo_space_left():
+            print(prefix, msg,"instead of going to city, do transfer to", friend_unit.id,
+                  ' in ', unit.pos.translate(direction, 1), file=sys.stderr)
+            transfer_all_resources(actions, info, friend_unit.id)
+            if unit_info[unit.id].is_role_traveler() or unit_info[unit.id].is_role_returner():
+                unit_info[unit.id].clean_unit_role()
+            if unit_info[friend_unit.id].is_role_traveler():
+                unit_info[friend_unit.id].clean_unit_role()
+        else:
+            direction = get_random_step(unit.pos, move_mapper)
+            move_unit_to(actions, direction, move_mapper, info, "randomly (due to "+msg+")")
+            # continue
+
+
 def get_friendly_unit(player, pos) -> Unit:
     for unit in player.units:
         if unit.pos.equals(pos):
@@ -765,7 +776,7 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, play
             closest_city_tile = city_tile
 
             if closest_city_tile is not None:
-                direction = get_direction_to_quick(game_state, unit, closest_city_tile.pos, move_mapper)
+                direction = get_direction_to_quick(game_state, unit, closest_city_tile.pos, move_mapper, True)
                 if direction != DIRECTIONS.CENTER:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy" + dist.__str__()
@@ -791,7 +802,7 @@ def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, 
             if resource is not None and not resource.pos.equals(unit.pos):
                 if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
                                                           [])) < max_units_per_resource:
-                    direction = get_direction_to_quick(game_state, unit, resource.pos, move_mapper)
+                    direction = get_direction_to_quick(game_state, unit, resource.pos, move_mapper, False)
                     if direction != DIRECTIONS.CENTER:
                         return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
 
@@ -908,7 +919,7 @@ def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, in
     return cities
 
 
-def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, move_mapper: MoveHelper) -> DIRECTIONS:
+def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, move_mapper: MoveHelper,allow_clash_unit: bool = False) -> DIRECTIONS:
     # below to turn smart direction on for all resources and city trip
     # return get_direction_to_smart(game_state,unit, target_pos, move_mapper)
 
@@ -922,11 +933,11 @@ def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, m
 
         # if we are trying to move on top of somebody else, skip
         # print(' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
-        if move_mapper.cannot_move_to(next_pos):
+        if move_mapper.can_move_to_pos(next_pos,allow_clash_unit,unit.id+' moving to '+direction):
+            return direction
+        else:
             # print(' XXX - skip', file=sys.stderr)
             continue
-        else:
-            return direction
 
     return DIRECTIONS.CENTER
 

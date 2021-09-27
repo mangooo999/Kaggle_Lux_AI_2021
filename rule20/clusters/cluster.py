@@ -19,6 +19,9 @@ class Cluster:
         self.enemy_unit: List[str] = []
         self.exposed_perimeter: List[Position] = []
         self.resource_type: RESOURCE_TYPES = type
+        self.closest_unit = ''
+        self.closest_unit_distance = math.inf
+        self.closest_enemy_distance = math.inf
 
     def add_unit(self, unit_id: str):
         if unit_id not in self.units:
@@ -63,9 +66,9 @@ class Cluster:
         return Position(math.inf, math.inf)
 
     def update(self,
-                       game_state,
-                       player: Player, opponent: Player,
-                       ) :
+               game_state,
+               player: Player, opponent: Player,
+               ):
         '''
         This is to update the cluster information.
         We update resource cells because resource cells are consumed.
@@ -85,7 +88,7 @@ class Cluster:
 
         alive_units = [
             id for id in self.units if id in
-                                          [u.id for u in player.units]
+                                       [u.id for u in player.units]
         ]
         self.units = alive_units
 
@@ -112,3 +115,26 @@ class Cluster:
             for e in opponent.units:
                 if r.pos.is_adjacent(e.pos):
                     self.add_enemy_unit(e.id)
+
+        # if there are no units, store the unit id and distance to closest
+        if len(self.units) == 0:
+            self.closest_unit_distance = math.inf
+            for r in self.resource_cells:
+                for u in player.units:
+                    dist = r.pos.distance_to(u.pos)
+                    if dist < self.closest_unit_distance:
+                        self.closest_unit_distance = dist
+                        self.closest_unit = u.id
+        else:
+            self.closest_unit_distance = 0
+
+        # if there are no enemy units, store the distance to closest enemy
+        if len(self.enemy_unit) == 0:
+            self.closest_enemy_distance = math.inf
+            for r in self.resource_cells:
+                for e in opponent.units:
+                    dist = r.pos.distance_to(e.pos)
+                    if dist < self.closest_enemy_distance:
+                        self.closest_enemy_distance = dist
+        else:
+            self.closest_enemy_distance = 0
