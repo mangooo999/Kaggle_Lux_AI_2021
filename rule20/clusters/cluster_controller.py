@@ -1,8 +1,9 @@
+import sys
 from functools import cmp_to_key
 from collections import defaultdict
 from typing import List, DefaultDict
 from lux.game_map import RESOURCE_TYPES, Position, Cell
-from lux.game_objects import Unit
+from lux.game_objects import Unit, Player
 import maps.map_analysis as MapAnalysis
 from clusters.cluster import Cluster
 import resources.resource_service as ResourceService
@@ -49,13 +50,25 @@ def init_clusters(game_state) -> DefaultDict[str, Cluster]:
     ):
         clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc)
 
+
+
     return clusters
 
+def update_clusters( clusters:DefaultDict[str, Cluster], game_state,player:Player, opponent:Player):
+    for k in list(clusters.keys()):
+        clusters[k] = update_cluster(
+            clusters[k],
+            game_state,
+            player,opponent
+        )
+        if len(clusters[k].resource_cells)==0:
+            print("T_" + str(game_state.turn),"cluster",k, "terminated", file=sys.stderr)
+            del clusters[k]
 
 def update_cluster(
     cluster: Cluster,
     game_state,
-    player,
+    player:Player, opponent:Player,
 ) -> Cluster:
     '''
     This is to update the cluster information.
@@ -92,6 +105,17 @@ def update_cluster(
         not game_state.map.get_cell_by_pos(p).has_resource()
     ]
     cluster.exposed_perimeter = exposed_perimeter
+
+    #refresh units around this cluster
+    cluster.units = []
+    cluster.enemy_unit = []
+    for r in cluster.resource_cells:
+        for u in player.units:
+            if r.pos.is_adjacent(u.pos):
+                cluster.add_unit(u.id)
+        for u in opponent.units:
+            if r.pos.is_adjacent(u.pos):
+                cluster.add_enemy_unit(u.id)
 
     return cluster
 

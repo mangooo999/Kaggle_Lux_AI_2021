@@ -4,7 +4,9 @@ from typing import DefaultDict, List
 from lux.game_map import Cell, Position
 from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
-#from missions.mission import Mission
+
+
+# from missions.mission import Mission
 
 
 class Cluster:
@@ -12,17 +14,20 @@ class Cluster:
         self.id: str = id
         self.resource_cells: List[Cell] = resource_cells
         self.units: List[str] = []
-        #self.missions: DefaultDict[Mission] = defaultdict(Mission)
+        self.enemy_unit: List[str] = []
         self.exposed_perimeter: List[Position] = []
 
     def add_unit(self, unit_id: str):
-        self.units.append(unit_id)
+        if unit_id not in self.units:
+            self.units.append(unit_id)
 
-    def remove_unit(self, unit_id: str):
-        try:
-            self.units.remove(unit_id)
-        except ValueError:
-            pass
+    def add_enemy_unit(self, unit_id: str):
+        if unit_id not in self.enemy_unit:
+            self.units.append(unit_id)
+
+    def to_string_light(self) -> str:
+        return "{0} {1} r={2} u={3} e={4}".format(self.id, self.get_centroid(), len(self.resource_cells),
+                                                  len(self.units), len(self.enemy_unit))
 
     def get_available_fuel(self) -> int:
         FUEL_CONVERSION_RATE = \

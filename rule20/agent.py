@@ -291,7 +291,9 @@ def agent(observation, configuration):
 
     ### AI Code goes down here! ###
     game_state_info: GameStateInfo = GameStateInfo(game_state.turn)
-    game_state.calculate_features(Missions())
+
+    # the below is very expensive and at the moment is only used to get_direction_to_smart
+    # game_state.calculate_features(Missions())
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     move_mapper = MoveHelper(player, opponent)
@@ -304,16 +306,10 @@ def agent(observation, configuration):
 
     # The first thing we do is updating the cluster.
     # Refer to the cluster class for its attributes.
-    for k in clusters:
-        clusters[k] = ClusterController.update_cluster(
-            clusters[k],
-            game_state,
-            player,
-        )
+    ClusterController.update_clusters(clusters,game_state,player,opponent)
 
     for k in clusters.values():
-        print("T_"+str(game_state.turn), 'cluster',
-              k.id, len(k.units), len(k.resource_cells),k.get_centroid(), file=sys.stderr)
+        print("T_"+str(game_state.turn), 'cluster', k.to_string_light(), file=sys.stderr)
 
     # current number of units
     units = len(player.units)
@@ -964,7 +960,7 @@ def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, m
     return DIRECTIONS.CENTER
 
 
-def get_direction_to_smart(game_state: Game, unit: Unit, target_pos: Position, move_mapper: MoveHelper) -> DIRECTIONS:
+def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Position, move_mapper: MoveHelper) -> DIRECTIONS:
     smallest_cost = [2, 2, 2, 2]
     closest_dir = DIRECTIONS.CENTER
     closest_pos = unit.pos
