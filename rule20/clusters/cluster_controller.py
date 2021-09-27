@@ -25,32 +25,24 @@ def init_clusters(game_state) -> DefaultDict[str, Cluster]:
         resource_tile for resource_tile in resource_cells
         if resource_tile.resource.type == RESOURCE_TYPES.WOOD
     ]
-    for i, rc in enumerate(
-            MapAnalysis.get_resource_groups(wood_resource_cells)
-    ):
-        clusters[f'wood_{i}'] = Cluster(f'wood_{i}', rc)
+    for i, rc in enumerate(MapAnalysis.get_resource_groups(wood_resource_cells)):
+        clusters[f'wood_{i}'] = Cluster(f'wood_{i}', rc,RESOURCE_TYPES.WOOD)
 
     # creating coal clusters
     coal_resource_cells = [
         resource_tile for resource_tile in resource_cells
         if resource_tile.resource.type == RESOURCE_TYPES.COAL
     ]
-    for i, rc in enumerate(
-            MapAnalysis.get_resource_groups(coal_resource_cells)
-    ):
-        clusters[f'coal_{i}'] = Cluster(f'coal_{i}', rc)
+    for i, rc in enumerate(MapAnalysis.get_resource_groups(coal_resource_cells)):
+        clusters[f'coal_{i}'] = Cluster(f'coal_{i}', rc,RESOURCE_TYPES.COAL)
 
     # creating uranium clusters
     uranium_resource_cells = [
         resource_tile for resource_tile in resource_cells
         if resource_tile.resource.type == RESOURCE_TYPES.URANIUM
     ]
-    for i, rc in enumerate(
-            MapAnalysis.get_resource_groups(uranium_resource_cells)
-    ):
-        clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc)
-
-
+    for i, rc in enumerate(MapAnalysis.get_resource_groups(uranium_resource_cells)):
+        clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc,RESOURCE_TYPES.URANIUM)
 
     return clusters
 

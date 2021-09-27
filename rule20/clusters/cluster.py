@@ -1,7 +1,7 @@
 import math
 from collections import defaultdict
 from typing import DefaultDict, List
-from lux.game_map import Cell, Position
+from lux.game_map import Cell, Position, RESOURCE_TYPES
 from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
 
@@ -10,12 +10,13 @@ from lux.game_constants import GAME_CONSTANTS
 
 
 class Cluster:
-    def __init__(self, id: str, resource_cells: List[Cell]):
+    def __init__(self, id: str, resource_cells: List[Cell], type: RESOURCE_TYPES):
         self.id: str = id
         self.resource_cells: List[Cell] = resource_cells
         self.units: List[str] = []
         self.enemy_unit: List[str] = []
         self.exposed_perimeter: List[Position] = []
+        self.resource_type: RESOURCE_TYPES = type
 
     def add_unit(self, unit_id: str):
         if unit_id not in self.units:

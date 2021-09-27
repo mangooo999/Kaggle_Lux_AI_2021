@@ -1,7 +1,7 @@
 @echo off
 set agent1=rule19/main.py
 set agent2=rule20/main.py
-set num_loops=10
+set num_loops=50
 SetLocal EnableDelayedExpansion
 
 
