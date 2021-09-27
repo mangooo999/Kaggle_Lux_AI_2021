@@ -19,7 +19,7 @@ class Cluster:
         self.units: List[str] = []
         self.enemy_unit: List[str] = []
         self.exposed_perimeter: List[Position] = []
-        self.resource_type: RESOURCE_TYPES = type
+        self.res_type: RESOURCE_TYPES = type
         self.closest_unit = ''
         self.closest_unit_distance = math.inf
         self.closest_enemy_distance = math.inf
@@ -39,8 +39,14 @@ class Cluster:
     def is_more_units_than_res(self) -> bool:
         return len(self.units) > len(self.resource_cells)
 
+    def has_eq_gr_units_than_res(self) -> bool:
+        return len(self.units) >= len(self.resource_cells)
+
     def has_no_units_no_enemy(self) -> bool:
         return len(self.units) ==0 and len(self.enemy_unit)==0
+
+    def num_units(self) -> int:
+        return len(self.units)
 
     def distance_to(self,pos) -> int:
         return self.get_centroid().distance_to(pos)

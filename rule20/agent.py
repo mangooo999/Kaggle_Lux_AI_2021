@@ -322,15 +322,15 @@ def agent(observation, configuration):
 
     for cluster in clusters.get_clusters():
         print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
-        if cluster.is_more_units_than_res():
-            print(t_prefix, 'cluster', cluster.id, ' is overcrowded, units',cluster.units, file=sys.stderr)
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
+            print(t_prefix, 'cluster', cluster.id, ' is overcrowded, units', cluster.units, file=sys.stderr)
 
             # find closest cluster (uncontended?)
             next_cluster_dist = math.inf
             next_cluster: Cluster = None
             for next_clust in clusters.get_clusters():
-                if next_clust.id != cluster.id and next_clust.resource_type== RESOURCE_TYPES.WOOD:
-                       # and next_clust.has_no_units_no_enemy() :
+                if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD\
+                    and next_clust.has_no_units_no_enemy() :
                     dist = next_clust.distance_to(cluster.get_centroid())
                     if dist < next_cluster_dist:
                         next_cluster_dist = dist
