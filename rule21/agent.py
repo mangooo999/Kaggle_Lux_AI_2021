@@ -35,6 +35,8 @@ import maps.map_analysis as MapAnalysis
 # if moving to a city, remove move that move via another city, we can use a similar approach to cluster and have returner pointing to a city in role, and avoid others
 # turn 200 seems to be a good turn to go and conquer wood unexplored wood clusters as it seems to make till 360
 # remove from resources guarded clusters
+# for path as a traveller  favour tiles with resources
+# for path as a resource seek favour tiles with cities
 
 ### Define helper functions
 
@@ -770,11 +772,11 @@ def agent(observation, configuration):
                     move_unit_to(actions, direction, move_mapper, info, " towards closest empty ",
                                  closest_empty_tile.pos)
                 else:
-                    print(prefix, " Goto city", file=sys.stderr)
+                    print(prefix, " Goto city; fuel=",cargo_to_fuel(unit.cargo), file=sys.stderr)
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
                     if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler():
                         print(prefix, " Goto city2", file=sys.stderr)
-                        direction, pos, msg = find_best_city(game_state, city_tile_distance, move_mapper, player, unit)
+                        direction, pos, msg = find_best_city(game_state, city_tile_distance, move_mapper, unsafe_cities, unit)
                         move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, 'city')
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
@@ -830,16 +832,15 @@ def get_friendly_unit(player, pos) -> Unit:
     return None
 
 
-def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, player, unit) -> Tuple[
+def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsafe_cities, unit) -> Tuple[
     DIRECTIONS, Optional[Position], str]:
     closest_city_tile = None
     moved = False
     for city_tile, dist in city_tile_distance.items():
         if not move_mapper.has_position(city_tile.pos):
             closest_city_tile = city_tile
-            city_id = dist[3]
             if closest_city_tile is not None:
-                direction = get_direction_to_city(game_state, unit, closest_city_tile.pos, city_id, move_mapper, True)
+                direction = get_direction_to_city(game_state, unit, closest_city_tile.pos, unsafe_cities, move_mapper, True)
                 if direction != DIRECTIONS.CENTER:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy, size" + dist.__str__()
@@ -991,7 +992,7 @@ def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, m
     return DIRECTIONS.CENTER
 
 #as get_direction_to_quick, but avoid other cities
-def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, city_id,
+def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, unsafe_cities,
                           move_mapper: MoveHelper,
                            allow_clash_unit: bool = False) -> DIRECTIONS:
     # below to turn smart direction on for all resources and city trip
@@ -1004,10 +1005,12 @@ def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, ci
     directions = directions_to(from_pos, target_pos)
     for direction in directions:
         next_pos = from_pos.translate(direction, 1)
-        if move_mapper.is_position_city(next_pos) \
-                and move_mapper.get_city_id_from_pos(next_pos, move_mapper.player) != city_id:
-            # this is a city, but not the one where we want to reach
-            continue
+        if move_mapper.is_position_city(next_pos):
+            city_on_the_way = move_mapper.get_city_id_from_pos(next_pos, move_mapper.player)
+            if city_on_the_way not in unsafe_cities:
+                # this is a safe city, but not the one where we want to reach
+                print(' XXX - skip ', direction, next_pos, 'as it goes to safe city',city_on_the_way, file=sys.stderr)
+                continue
 
         # if we are trying to move on top of somebody else, skip
         # print(' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
