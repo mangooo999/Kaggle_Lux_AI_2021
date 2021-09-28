@@ -33,6 +33,7 @@ import maps.map_analysis as MapAnalysis
 # extend first move to any movement from city to resource
 # if moving to a city, remove move that move via another city?
 # turn 200 seems to be a good turn to go and conquer wood unexplored wood clusters as it seems to make till 360
+# remove from resources guarded clusters
 
 ### Define helper functions
 
@@ -455,6 +456,7 @@ def agent(observation, configuration):
 
     can_build = can_build_for_resources(game_state_info.all_night_turns_lef, lowest_autonomy,
                                         game_state_info.turns_to_night, player)
+    can_build = True
     print(game_state.turn, 'can_build: ', can_build, file=sys.stderr)
 
     # trace the agent move
@@ -733,7 +735,7 @@ def agent(observation, configuration):
                         print(prefix, " Stay on resources", file=sys.stderr)
                     continue
             else:
-                if game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() <= 20 \
+                if game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() <= 40 \
                         and ResourceService.is_position_resource(available_resources_tiles, unit.pos) \
                         and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
