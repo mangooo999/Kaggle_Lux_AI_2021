@@ -28,10 +28,11 @@ import maps.map_analysis as MapAnalysis
 
 
 # todo
+# optimise more first move in case enemy is just adjacent (586755628)
 # - optimise where create worker
-# do not build small city with coal and uranium when close city needs fuel
+# do not build small city with coal and uranium when close city needs fuel (882001378)
 # extend first move to any movement from city to resource
-# if moving to a city, remove move that move via another city?
+# if moving to a city, remove move that move via another city, we can use a similar approach to cluster and have returner pointing to a city in role, and avoid others
 # turn 200 seems to be a good turn to go and conquer wood unexplored wood clusters as it seems to make till 360
 # remove from resources guarded clusters
 
