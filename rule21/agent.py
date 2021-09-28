@@ -186,8 +186,8 @@ def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -
 
 
 # snippet to find the all city tiles distance and sort them.
-def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int]]:
-    city_tiles_distance: Dict[CityTile, Tuple[int, int]] = {}
+def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int,int]]:
+    city_tiles_distance: Dict[CityTile, Tuple[int, int, int]] = {}
     if len(player.cities) > 0:
         closest_dist = math.inf
         # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
@@ -197,7 +197,12 @@ def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTi
                 for city_tile in city.citytiles:
                     dist = city_tile.pos.distance_to(pos)
                     # order by distance asc, autonomy desc
-                    city_tiles_distance[city_tile] = (dist, get_autonomy_turns(city))
+                    city_tiles_distance[city_tile] = (dist, get_autonomy_turns(city),-len(city.citytiles))
+    # order by
+    # - increasing distance (closest city first),
+    # - increasing autonomy (smallest autonomy first)
+    # - decreasing size (biggest cities first)
+
     city_tiles_distance = collections.OrderedDict(sorted(city_tiles_distance.items(), key=lambda x: x[1]))
     #     print(len(city_tiles_distance))
     return city_tiles_distance
@@ -453,12 +458,7 @@ def agent(observation, configuration):
                     # else:
                     # print("- - nothing", file=sys.stderr)
 
-        print("Unsafe cities", unsafe_cities, file=sys.stderr)
-
-    can_build = can_build_for_resources(game_state_info.all_night_turns_lef, lowest_autonomy,
-                                        game_state_info.turns_to_night, player)
-    can_build = True
-    print(game_state.turn, 'can_build: ', can_build, file=sys.stderr)
+    print("Unsafe cities", unsafe_cities, file=sys.stderr)
 
     # trace the agent move
     # store all unit current location on move tracker
@@ -659,6 +659,9 @@ def agent(observation, configuration):
                 continue
             #   HASSLER ENDS
 
+            # if unit cant make city tiles try to collect resource collection.
+            city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
+
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
                 if is_position_adjacent_city(player, unit.pos):
@@ -680,15 +683,30 @@ def agent(observation, configuration):
                                              " we could have build here, but we move close to city instead", next_pos)
                                 continue
 
-                if game_state_info.turns_to_night > 1 or (
-                        game_state_info.turns_to_night == 1 and ResourceService.is_position_adjacent_to_resource(
-                    available_resources_tiles,
-                    unit.pos)):
-                    build_city(actions, info, 'NOT in adjacent city')
-                    continue
+                if game_state_info.turns_to_night > 1 or \
+                        (game_state_info.turns_to_night == 1
+                        and ResourceService.is_position_adjacent_to_resource(available_resources_tiles,unit.pos)):
+                    unit_fuel=cargo_to_fuel(unit.cargo)
+                    if unit_fuel< 200:
+                        build_city(actions, info, 'NOT in adjacent city, we have not so much fuel '+str(unit_fuel))
+                        continue
+                    else:
+                        do_build=True
+                        # check if there are cities next to us that are better served with our fuel
+                        for city_tile, dist in city_tile_distance.items():
+                            distance = dist[0]
+                            autonomy = dist[1]
+                            city_size = abs(dist[2])
+                            if city_size>=5 and distance<6:
+                                do_build=False
+                                print(prefix, " we could have built, but there is a need city close", city_tile, file=sys.stderr)
+                                break
 
-            # if unit cant make city tiles try to collect resource collection.
-            city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
+                        if do_build:
+                            build_city(actions, info, 'NOT in adjacent city, we have lot of fuel, but no city needs saving')
+                            continue
+
+
 
             if game_state_info.is_night_time():
                 enough_fuel = 500
@@ -736,7 +754,7 @@ def agent(observation, configuration):
                         print(prefix, " Stay on resources", file=sys.stderr)
                     continue
             else:
-                if game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() <= 40 \
+                if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= 40 \
                         and ResourceService.is_position_resource(available_resources_tiles, unit.pos) \
                         and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
@@ -745,7 +763,7 @@ def agent(observation, configuration):
                     direction = unit.pos.direction_to(closest_empty_tile.pos)
                     move_unit_to(actions, direction, move_mapper, info,
                                  " towards closest empty (anticipating getting resources)", closest_empty_tile.pos)
-                elif game_state_info.turns_to_night > 10 and can_build and unit.get_cargo_space_left() == 0 \
+                elif game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() == 0 \
                         and closest_empty_tile is not None:
                     # find the closest empty tile it to build a city
                     direction = unit.pos.direction_to(closest_empty_tile.pos)
@@ -824,7 +842,7 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, play
                 direction = get_direction_to_quick(game_state, unit, closest_city_tile.pos, move_mapper, True)
                 if direction != DIRECTIONS.CENTER:
                     moved = True
-                    return direction, closest_city_tile.pos, " towards closest city distancing and autonomy" + dist.__str__()
+                    return direction, closest_city_tile.pos, " towards closest city distancing and autonomy, size" + dist.__str__()
 
     if not moved:
         direction = get_random_step(unit.pos, move_mapper)
@@ -879,21 +897,6 @@ def transfer_all_resources(actions, info: UnitInfo, to_unit_id):
         actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.WOOD, info.unit.cargo.wood))
         print("Unit", info.unit.id, '- transfer', info.unit.cargo.wood, 'wood to ', to_unit_id, file=sys.stderr)
         info.set_last_action_transfer()
-
-
-def can_build_for_resources(all_night_turns_lef, lowest_autonomy, turns_to_night, player) -> bool:
-    if turns_to_night > 20:
-        return True
-    elif lowest_autonomy > 12 and turns_to_night > 10:
-        return True
-
-    can_build = True
-    for city in player.cities.values():
-        city_can_live = can_city_live(city, all_night_turns_lef)
-        if not city_can_live:
-            can_build = False
-            break
-    return can_build
 
 
 def can_city_live(city, all_night_turns_lef) -> bool:
