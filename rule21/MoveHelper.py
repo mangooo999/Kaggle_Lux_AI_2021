@@ -5,13 +5,6 @@ from lux.game_objects import Player, Unit, DIRECTIONS
 from lux.game_map import Position
 
 
-def get_city_id_from_pos(pos, actor):
-    for city in actor.cities.values():
-        for city_tile in city.citytiles:
-            if city_tile.pos.equals(pos):
-                return city.cityid
-
-    return ''
 
 
 class MoveHelper:
@@ -42,7 +35,7 @@ class MoveHelper:
 
     def can_move_to_pos(self, pos: Position, allow_clash_unit: bool = False, msg: str = '') -> bool:
         # we cannot move if somebody is already going, and it is not a city
-        if (not allow_clash_unit) and self.has_position(pos) and not self.is_position_city(pos):
+        if ((not allow_clash_unit) and self.has_position(pos)) and not self.is_position_city(pos):
             unit: Unit = self.move_mapper.get(self.__hash_pos__(pos))
             print(self.log_prefix + msg, 'Collision in', pos, 'with', unit.id, file=sys.stderr)
             return False
@@ -53,7 +46,16 @@ class MoveHelper:
         return not self.can_move_to_pos(pos)
 
     def is_position_city(self, pos: Position) -> bool:
-        return get_city_id_from_pos(pos, self.player) != ''
+        return self.get_city_id_from_pos(pos, self.player) != ''
 
     def is_position_enemy_city(self, pos: Position) -> bool:
-        return get_city_id_from_pos(pos, self.opponent) != ''
+        return self.get_city_id_from_pos(pos, self.opponent) != ''
+
+    def get_city_id_from_pos(self,pos, actor):
+        for city in actor.cities.values():
+            for city_tile in city.citytiles:
+                if city_tile.pos.equals(pos):
+                    return city.cityid
+
+        return ''
+

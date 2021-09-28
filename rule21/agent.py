@@ -186,8 +186,8 @@ def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -
 
 
 # snippet to find the all city tiles distance and sort them.
-def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int,int]]:
-    city_tiles_distance: Dict[CityTile, Tuple[int, int, int]] = {}
+def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int,int,str]]:
+    city_tiles_distance: Dict[CityTile, Tuple[int, int, int,str]] = {}
     if len(player.cities) > 0:
         closest_dist = math.inf
         # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
@@ -197,7 +197,7 @@ def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTi
                 for city_tile in city.citytiles:
                     dist = city_tile.pos.distance_to(pos)
                     # order by distance asc, autonomy desc
-                    city_tiles_distance[city_tile] = (dist, get_autonomy_turns(city),-len(city.citytiles))
+                    city_tiles_distance[city_tile] = (dist, get_autonomy_turns(city),-len(city.citytiles),city.cityid)
     # order by
     # - increasing distance (closest city first),
     # - increasing autonomy (smallest autonomy first)
@@ -837,9 +837,9 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, play
     for city_tile, dist in city_tile_distance.items():
         if not move_mapper.has_position(city_tile.pos):
             closest_city_tile = city_tile
-
+            city_id = dist[3]
             if closest_city_tile is not None:
-                direction = get_direction_to_quick(game_state, unit, closest_city_tile.pos, move_mapper, True)
+                direction = get_direction_to_city(game_state, unit, closest_city_tile.pos, city_id, move_mapper, True)
                 if direction != DIRECTIONS.CENTER:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy, size" + dist.__str__()
@@ -990,6 +990,34 @@ def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, m
 
     return DIRECTIONS.CENTER
 
+#as get_direction_to_quick, but avoid other cities
+def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, city_id,
+                          move_mapper: MoveHelper,
+                           allow_clash_unit: bool = False) -> DIRECTIONS:
+    # below to turn smart direction on for all resources and city trip
+    # return get_direction_to_smart(game_state,unit, target_pos, move_mapper)
+
+    from_pos = unit.pos
+    if from_pos.equals(target_pos):
+        return DIRECTIONS.CENTER
+
+    directions = directions_to(from_pos, target_pos)
+    for direction in directions:
+        next_pos = from_pos.translate(direction, 1)
+        if move_mapper.is_position_city(next_pos) \
+                and move_mapper.get_city_id_from_pos(next_pos, move_mapper.player) != city_id:
+            # this is a city, but not the one where we want to reach
+            continue
+
+        # if we are trying to move on top of somebody else, skip
+        # print(' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
+        if move_mapper.can_move_to_pos(next_pos, allow_clash_unit, unit.id + ' moving to ' + direction):
+            return direction
+        else:
+            # print(' XXX - skip', file=sys.stderr)
+            continue
+
+    return DIRECTIONS.CENTER
 
 def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Position,
                                move_mapper: MoveHelper) -> DIRECTIONS:
