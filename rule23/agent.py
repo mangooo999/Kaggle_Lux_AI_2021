@@ -1065,7 +1065,7 @@ def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, m
         # print(t_prefix, ' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
         if move_mapper.can_move_to_pos(next_pos, allow_clash_unit, unit.id + ' moving to ' + direction):
             number_of_adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 1))
-            possible_directions[direction] = direction
+            possible_directions[-number_of_adjacent_res] = direction
         else:
             # print(' XXX - skip', file=sys.stderr)
             continue
