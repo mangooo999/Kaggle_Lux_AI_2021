@@ -20,10 +20,9 @@ from GameInfo import GameInfo
 from MoveHelper import MoveHelper
 from lux.game_objects import CityTile, Unit, City, DIRECTIONS
 
-import clusters.cluster_controller as ClusterController
-from clusters.cluster import Cluster
+from cluster.cluster import Cluster
 import resources.resource_helper as ResourceService
-from clusters.cluster_controller import ClusterControl
+from cluster.cluster_controller import ClusterControl
 import maps.map_analysis as MapAnalysis
 
 
@@ -33,8 +32,8 @@ import maps.map_analysis as MapAnalysis
 # do not build small city with coal and uranium when close city needs fuel (882001378)
 # extend first move to any movement from city to resource
 # if moving to a city, remove move that move via another city, we can use a similar approach to cluster and have returner pointing to a city in role, and avoid others
-# turn 200 seems to be a good turn to go and conquer wood unexplored wood clusters as it seems to make till 360
-# remove from resources guarded clusters
+# turn 200 seems to be a good turn to go and conquer wood unexplored wood cluster as it seems to make till 360
+# remove from resources guarded cluster
 # for path as a traveller  favour tiles with resources
 # for path as a resource seek favour tiles with cities
 
@@ -337,27 +336,25 @@ def agent(observation, configuration):
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded, units', cluster.units, file=sys.stderr)
 
             # find closest cluster (uncontended?)
-            next_cluster_dist = math.inf
-            next_cluster: Cluster = None
-            for next_clust in clusters.get_clusters():
-                if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD \
-                        and next_clust.has_no_units_no_enemy():
-                    dist = next_clust.distance_to(cluster.get_centroid())
-                    if dist < next_cluster_dist:
-                        next_cluster_dist = dist
-                        next_cluster = next_clust
+
 
             # find the closest unit of cluster to next cluster
-            closest_unit_dist = math.inf
+            closest_unit_time_dist = math.inf
             closest_unit_to: Unit = None
-            if next_cluster is not None:
-                for unitid in cluster.units:
-                    unit = player.units_by_id[unitid]
-                    distance = unit.pos.distance_to(next_cluster.get_centroid())
-                    time_distance = 2* distance + unit.cooldown
-                    if unit_info[unit.id].is_role_none() and time_distance < closest_unit_dist and unit:
-                        closest_unit_dist = time_distance
-                        closest_unit_to = unit
+            next_cluster: Cluster = None
+            for next_clust in clusters.get_clusters():
+                # we olny consider wood cluster
+                # we olny consider uncontended and empty cluster
+                if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD \
+                        and next_clust.has_no_units_no_enemy():
+                    for unitid in cluster.units:
+                        unit = player.units_by_id[unitid]
+                        distance = unit.pos.distance_to(next_clust.get_centroid())
+                        time_distance = 2* distance + unit.cooldown
+                        if unit_info[unit.id].is_role_none() and time_distance < closest_unit_time_dist and unit:
+                            closest_unit_time_dist = time_distance
+                            closest_unit_to = unit
+                            next_cluster = next_clust
 
             if closest_unit_to is not None:
                 print(t_prefix, ' repurposing', closest_unit_to.id, ' to explore ', next_cluster.id, file=sys.stderr)
@@ -497,10 +494,7 @@ def agent(observation, configuration):
                     # check if the target position is achievable
                     cluster = clusters.get_cluster_from_centroid(info.target_position)
                     if cluster is not None:
-                        target_pos, distance = MapAnalysis.get_closest_position(
-                            unit.pos,
-                            cluster.exposed_perimeter
-                        )
+                        target_pos, distance = cluster.get_closest_distance_to_perimeter(unit.pos)
                         print(prefix, ' explorer is to cluster', cluster.id, file=sys.stderr)
                     else:
                         target_pos = info.target_position

@@ -5,7 +5,7 @@ from typing import List, DefaultDict, ValuesView
 from lux.game_map import RESOURCE_TYPES, Position, Cell
 from lux.game_objects import Unit, Player
 import maps.map_analysis as MapAnalysis
-from clusters.cluster import Cluster
+from .cluster import Cluster
 import resources.resource_helper as ResourceService
 from UnitInfo import UnitInfo
 
@@ -22,7 +22,7 @@ class ClusterControl:
 
         resource_cells = ResourceService.get_resources(game_state)
 
-        # creating wood clusters
+        # creating wood cluster
         wood_resource_cells = [
             resource_tile for resource_tile in resource_cells
             if resource_tile.resource.type == RESOURCE_TYPES.WOOD
@@ -30,7 +30,7 @@ class ClusterControl:
         for i, rc in enumerate(MapAnalysis.get_resource_groups(wood_resource_cells)):
             self.clusters[f'wood_{i}'] = Cluster(f'wood_{i}', rc,RESOURCE_TYPES.WOOD)
 
-        # creating coal clusters
+        # creating coal cluster
         coal_resource_cells = [
             resource_tile for resource_tile in resource_cells
             if resource_tile.resource.type == RESOURCE_TYPES.COAL
@@ -38,7 +38,7 @@ class ClusterControl:
         for i, rc in enumerate(MapAnalysis.get_resource_groups(coal_resource_cells)):
             self.clusters[f'coal_{i}'] = Cluster(f'coal_{i}', rc,RESOURCE_TYPES.COAL)
 
-        # creating uranium clusters
+        # creating uranium cluster
         uranium_resource_cells = [
             resource_tile for resource_tile in resource_cells
             if resource_tile.resource.type == RESOURCE_TYPES.URANIUM
@@ -83,10 +83,10 @@ class ClusterControl:
         return units_without_clusters
 
 
-# def get_citytiles_without_clusters(citytiles, clusters):
+# def get_citytiles_without_clusters(citytiles, cluster):
 #     citytiles_with_cluster = []
-#     for k in clusters:
-#         citytiles_with_cluster.extend(clusters[k].citytiles)
+#     for k in cluster:
+#         citytiles_with_cluster.extend(cluster[k].citytiles)
 
 #     citytiles_without_cluster = []
 #     for citytile in citytiles:

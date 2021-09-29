@@ -82,6 +82,12 @@ class Cluster:
 
         return Position(math.inf, math.inf)
 
+    def get_closest_distance_to_perimeter(self,pos:Position) -> (Position,int):
+        return MapAnalysis.get_closest_position(
+                            pos,
+                            self.exposed_perimeter
+                        )
+
     def update(self,
                game_state,
                player: Player, opponent: Player, unit_info : DefaultDict[str, UnitInfo]

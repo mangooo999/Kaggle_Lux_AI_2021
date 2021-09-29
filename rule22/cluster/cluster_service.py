@@ -2,7 +2,7 @@ import math
 from functools import cmp_to_key
 from typing import List
 from lux.game_map import Position
-from clusters.cluster import Cluster
+from .cluster import Cluster
 
 
 def get_closest_cluster(pos: Position, clusters) -> Cluster:
