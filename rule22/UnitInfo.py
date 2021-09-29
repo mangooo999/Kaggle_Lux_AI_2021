@@ -90,10 +90,13 @@ class UnitInfo:
         self.target_position = None
         self.role_time_turn_limit = 0
 
+    def is_role_none(self):
+        return self.role == ''
+
     def is_role_city_expander(self):
         return self.role == 'expander'
 
-    def is_role_city_explorer(self):
+    def is_role_explorer(self):
         return self.role == 'explorer'
 
     def is_role_hassler(self):

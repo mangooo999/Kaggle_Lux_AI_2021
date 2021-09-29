@@ -241,7 +241,7 @@ def cargo_to_string(cargo) -> str:
     return return_value
 
 game_state = None
-unit_info = {}
+unit_info : DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo()
 clusters: ClusterControl
 
@@ -282,7 +282,7 @@ def agent(observation, configuration):
 
     # The first thing we do is updating the cluster.
     # Refer to the cluster class for its attributes.
-    clusters.update(game_state, player, opponent)
+    clusters.update(game_state, player, opponent, unit_info)
 
     # current number of units
     units = len(player.units)
@@ -353,9 +353,10 @@ def agent(observation, configuration):
             if next_cluster is not None:
                 for unitid in cluster.units:
                     unit = player.units_by_id[unitid]
-                    dist = unit.pos.distance_to(next_cluster.get_centroid())
-                    if dist < closest_unit_dist and unit:
-                        closest_unit_dist = dist
+                    distance = unit.pos.distance_to(next_cluster.get_centroid())
+                    time_distance = 2* distance + unit.cooldown
+                    if unit_info[unit.id].is_role_none() and time_distance < closest_unit_dist and unit:
+                        closest_unit_dist = time_distance
                         closest_unit_to = unit
 
             if closest_unit_to is not None:
@@ -488,7 +489,7 @@ def agent(observation, configuration):
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
 
             #   EXPLORER
-            if info.is_role_city_explorer():
+            if info.is_role_explorer():
                 print(prefix, ' is explorer ', info.target_position, file=sys.stderr)
                 if game_state_info.turns_to_night <= 2:
                     print(prefix, ' explorer failed as too close to night', file=sys.stderr)
@@ -512,7 +513,7 @@ def agent(observation, configuration):
                         print(prefix, ' dist', distance, ' to ', target_pos, 'not compatible with autonomy',
                               file=sys.stderr)
 
-                if info.is_role_city_explorer():
+                if info.is_role_explorer():
                     print(prefix, ' failed to find resource for explorer, clearing role', file=sys.stderr)
                     info.clean_unit_role()
 

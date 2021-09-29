@@ -24,7 +24,7 @@ class GameStateInfo:
         # below is probably duplicate
         self.steps_until_night = 30 - turn % 40
 
-        print("T" + str(turn), self.__str__(), file=sys.stderr)
+        print("T_" + str(turn), self.__str__(), file=sys.stderr)
 
     def is_dawn(self) -> bool:
         return self.turns_to_night == 30

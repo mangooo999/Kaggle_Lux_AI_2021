@@ -7,6 +7,7 @@ from lux.game_objects import Unit, Player
 import maps.map_analysis as MapAnalysis
 from clusters.cluster import Cluster
 import resources.resource_helper as ResourceService
+from UnitInfo import UnitInfo
 
 
 class ClusterControl:
@@ -55,11 +56,11 @@ class ClusterControl:
 
         return None
 
-    def update(self,game_state, player:Player, opponent:Player):
+    def update(self,game_state, player:Player, opponent:Player,unit_info : DefaultDict[str, UnitInfo]):
         for k in list(self.clusters.keys()):
             self.clusters[k].update(
                 game_state,
-                player,opponent
+                player,opponent,unit_info
             )
             if len(self.clusters[k].resource_cells)==0:
                 print("T_" + str(game_state.turn),"cluster",k, "terminated", file=sys.stderr)

@@ -10,6 +10,7 @@ import resources.resource_helper as ResourceService
 
 # from missions.mission import Mission
 from lux.game_objects import Player
+from UnitInfo import UnitInfo
 
 
 class Cluster:
@@ -83,7 +84,7 @@ class Cluster:
 
     def update(self,
                game_state,
-               player: Player, opponent: Player,
+               player: Player, opponent: Player, unit_info : DefaultDict[str, UnitInfo]
                ):
         '''
         This is to update the cluster information.
@@ -136,7 +137,12 @@ class Cluster:
             for u in player.units:
                 if r.pos.distance_to(u.pos)<=2:
                     #print('XXXX', self.id, 'resource ', r.pos, 'close to unit ',u.id,u.pos, file=sys.stderr)
-                    self.add_unit(u.id)
+                    # we do not add explorers as they are possibly going away
+                    if u.id in unit_info.keys() and \
+                            (unit_info[u.id].is_role_explorer() or unit_info[u.id].is_role_traveler()):
+                        continue
+                    else:
+                        self.add_unit(u.id)
             for e in opponent.units:
                 if r.pos.distance_to(e.pos)<=2:
                     self.add_enemy_unit(e.id)
