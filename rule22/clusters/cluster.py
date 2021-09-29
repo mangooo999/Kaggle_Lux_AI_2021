@@ -125,13 +125,22 @@ class Cluster:
         self.units = []
         self.enemy_unit = []
         for r in self.resource_cells:
+            # for u in player.units:
+            #     if r.pos.is_adjacent(u.pos):
+            #         #print('XXXX', self.id, 'resource ', r.pos, 'close to unit ',u.id,u.pos, file=sys.stderr)
+            #         self.add_unit(u.id)
+            # for e in opponent.units:
+            #     if r.pos.is_adjacent(e.pos):
+            #         self.add_enemy_unit(e.id)
+
             for u in player.units:
-                if r.pos.is_adjacent(u.pos):
-                    print('XXXX', self.id, 'resource ', r.pos, 'close to unit ',u.id,u.pos, file=sys.stderr)
+                if r.pos.distance_to(u.pos)<=2:
+                    #print('XXXX', self.id, 'resource ', r.pos, 'close to unit ',u.id,u.pos, file=sys.stderr)
                     self.add_unit(u.id)
             for e in opponent.units:
-                if r.pos.is_adjacent(e.pos):
+                if r.pos.distance_to(e.pos)<=2:
                     self.add_enemy_unit(e.id)
+
 
         # if there are no units, store the unit id and distance to closest
         if len(self.units) == 0:
