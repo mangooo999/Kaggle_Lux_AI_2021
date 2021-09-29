@@ -27,6 +27,8 @@ class UnitInfo:
         self.build_if_you_can = False
         self.has_done_action_this_turn = False
         self.last_move_before_pos = unit.pos
+        self.last_move_expected_pos = None
+        self.alarm = 0
         print(self.log_prefix, 'created', file=sys.stderr)
 
     def update(self, unit: Unit, current_turn):
@@ -39,6 +41,13 @@ class UnitInfo:
         #
         self.gathered_last_turn = unit.get_cargo_space_left() - self.last_free_cargo
         self.last_free_cargo = unit.get_cargo_space_left()
+
+        if self.last_move_expected_pos is not None and self.last_move_turn == current_turn-1:
+            if not unit.pos.equals(self.last_move_expected_pos):
+                self.alarm +=1
+            else:
+                self.alarm = 0
+
         if self.role_time_turn_limit > 0:
             self.role_time_turn_limit -= 1
             if self.role_time_turn_limit == 0:
@@ -51,11 +60,12 @@ class UnitInfo:
             if unit.pos.equals(self.target_position):
                 self.clean_unit_role('reached target position'+self.target_position.__str__())
 
-    def set_last_action_move(self, direction):
+    def set_last_action_move(self, direction, to_pos):
         self.last_move = 'm'
         self.last_move_direction = direction
         self.last_move_turn = self.current_turn
         self.last_move_before_pos = self.unit.pos
+        self.last_move_expected_pos = to_pos
         self.has_done_action_this_turn = True
 
     def set_last_action_build(self):
