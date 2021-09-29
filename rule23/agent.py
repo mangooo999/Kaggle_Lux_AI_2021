@@ -680,7 +680,7 @@ def agent(observation, configuration):
                     continue
 
             # ALARM, we tried too many times the same move
-            if info.alarm>=2:
+            if False and info.alarm>=2:
                 print(prefix, ' has tried too many times to go to ', info.last_move_turn, file=sys.stderr)
                 direction = get_random_step(unit.pos, move_mapper)
                 move_unit_to(actions, direction, move_mapper, info, "randomly (due to too many stuck attempts)")
