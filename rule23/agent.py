@@ -379,7 +379,8 @@ def agent(observation, configuration):
                         unit = player.units_by_id[unitid]
                         distance = unit.pos.distance_to(next_clust.get_centroid())
                         time_distance = 2 * distance + unit.cooldown
-                        if unit_info[unit.id].is_role_none() and time_distance < closest_unit_time_dist and unit:
+                        if unit_info[unit.id].is_role_none() and time_distance < closest_unit_time_dist \
+                                and unit.get_cargo_space_left() > 0:
                             closest_unit_time_dist = time_distance
                             closest_unit_to = unit
                             next_cluster = next_clust
@@ -509,6 +510,7 @@ def agent(observation, configuration):
             closest_empty_tile = adjacent_empty_tile_favor_close_to_city(adjacent_empty_tiles, game_state, player)
             resources_distance = ResourceService.find_resources_distance(unit.pos, player, all_resources_tiles,
                                                                          game_info)
+            city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
 
             print(prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
@@ -645,8 +647,16 @@ def agent(observation, configuration):
             #   RETURNER
             if info.is_role_returner():
                 print(prefix, ' is returner to', info.target_position, file=sys.stderr)
-                direction = get_direction_to_quick(game_state, unit, info.target_position, move_mapper, True)
-                move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, 'returner')
+
+                if len(unsafe_cities)==0:
+                    info.clean_unit_role()
+                else:
+                    if city_tile_distance is not None and len(city_tile_distance) > 0:
+                        print(prefix, " Returner city2", file=sys.stderr)
+                        direction, pos, msg = find_best_city(game_state, city_tile_distance, move_mapper, unsafe_cities,
+                                                             unit)
+                        move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, 'returner')
+
 
             #   HASSLER
             if info.is_role_hassler():
@@ -679,8 +689,7 @@ def agent(observation, configuration):
                 continue
             #   HASSLER ENDS
 
-            # if unit cant make city tiles try to collect resource collection.
-            city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
+
 
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
@@ -791,14 +800,17 @@ def agent(observation, configuration):
                     direction = unit.pos.direction_to(closest_empty_tile.pos)
                     move_unit_to(actions, direction, move_mapper, info, " towards closest empty ",
                                  closest_empty_tile.pos)
-                else:
+                elif not info.is_role_hassler():
                     print(prefix, " Goto city; fuel=", unit.cargo.fuel(), file=sys.stderr)
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
-                    if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler():
+                    if city_tile_distance is not None and len(city_tile_distance) > 0 :
                         print(prefix, " Goto city2", file=sys.stderr)
                         direction, pos, msg = find_best_city(game_state, city_tile_distance, move_mapper, unsafe_cities,
                                                              unit)
                         move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, 'city')
+                        if unit.cargo.fuel()>=200 and info.is_role_none():
+                            info.set_unit_role_returner(prefix)
+                        continue
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
     for unit in player.units:
@@ -828,17 +840,18 @@ def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, pref
         move_unit_to(actions, direction, move_mapper, info, " move to " + msg + " pos", info.target_position)
         # continue
     else:
-        # check if anybody in the pos we want to go
-        friend_unit = get_friendly_unit(player, unit.pos.translate(direction, 1))
-        if friend_unit is not None \
-                and friend_unit.get_cargo_space_left() > 100 - unit.get_cargo_space_left():
-            print(prefix, msg, "instead of going to city, do transfer to", friend_unit.id,
-                  ' in ', unit.pos.translate(direction, 1), file=sys.stderr)
-            transfer_all_resources(actions, info, friend_unit.id)
-            if unit_info[unit.id].is_role_traveler() or unit_info[unit.id].is_role_returner():
-                unit_info[unit.id].clean_unit_role()
-            if unit_info[friend_unit.id].is_role_traveler():
-                unit_info[friend_unit.id].clean_unit_role()
+        if unit.get_cargo_space_left()<100:
+            # check if anybody in the pos we want to go
+            friend_unit = get_friendly_unit(player, unit.pos.translate(direction, 1))
+            if friend_unit is not None:
+                if unit_info[friend_unit.id].is_role_none() or unit_info[friend_unit.id].is_role_returner() \
+                    and friend_unit.get_cargo_space_left() > 100 - unit.get_cargo_space_left():
+                    print(prefix, msg, "instead of going to city, do transfer to", friend_unit.id,
+                          ' in ', unit.pos.translate(direction, 1), file=sys.stderr)
+                    transfer_all_resources(actions, info, friend_unit.id)
+                    if unit_info[unit.id].is_role_returner():
+                        unit_info[unit.id].clean_unit_role('Transfered resources')
+                        unit_info[friend_unit.id].set_unit_role_returner(friend_unit.id)
         else:
             direction = get_random_step(unit.pos, move_mapper)
             move_unit_to(actions, direction, move_mapper, info, "randomly (due to " + msg + ")")

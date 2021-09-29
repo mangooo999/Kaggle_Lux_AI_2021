@@ -41,10 +41,14 @@ class UnitInfo:
         if self.role_time_turn_limit > 0:
             self.role_time_turn_limit -= 1
             if self.role_time_turn_limit == 0:
-                self.clean_unit_role()
+                self.clean_unit_role('time turn reached')
 
         if self.is_role_returner() and self.unit.get_cargo_space_left() == 100:
-            self.clean_unit_role()
+            self.clean_unit_role('returner has now not anymore cargo')
+
+        if self.target_position is not None:
+            if unit.pos.equals(self.target_position):
+                self.clean_unit_role('reached target position'+self.target_position.__str__())
 
     def set_last_action_move(self, direction):
         self.last_move = 'm'
@@ -67,11 +71,9 @@ class UnitInfo:
         self.target_position = pos
         self.role_time_turn_limit = number_turns
 
-    def set_unit_role_returner(self, pos: Position, prefix: str = ''):
-        if pos is not None:
-            print(self.log_prefix, 'set this unit as returner to', pos, file=sys.stderr)
-            self.set_unit_role('returner', prefix)
-            self.target_position = pos
+    def set_unit_role_returner(self, prefix: str = ''):
+        print(self.log_prefix, 'set this unit as returner', file=sys.stderr)
+        self.set_unit_role('returner', prefix)
 
     def set_unit_role_explorer(self, pos: Position, prefix: str = ''):
         if pos is not None:
@@ -83,9 +85,9 @@ class UnitInfo:
         self.role = role
         print(prefix, "Setting unit", self.id, " as ", self.role, file=sys.stderr)
 
-    def clean_unit_role(self):
+    def clean_unit_role(self, msg=''):
         if self.role != '':
-            print(self.log_prefix, 'removing role', self.role, file=sys.stderr)
+            print(self.log_prefix, 'removing role', self.role,msg, file=sys.stderr)
         self.role = ''
         self.target_position = None
         self.role_time_turn_limit = 0
