@@ -65,6 +65,9 @@ class Position:
     def __str__(self) -> str:
         return f"({self.x}, {self.y})"
 
+    def __repr__(self) -> str:
+        return f"({self.x}, {self.y})"
+
     def __iter__(self):
         for i in (self.x, self.y):
             yield i
