@@ -19,7 +19,10 @@ class Cluster:
         self.resource_cells: List[Cell] = resource_cells
         self.units: List[str] = []
         self.enemy_unit: List[str] = []
+        self.perimeter: List[Position] = []
         self.exposed_perimeter: List[Position] = []
+        self.accessable_perimeter: List[Position] = []
+        self.walkable_perimeter: List[Position] = []
         self.res_type: RESOURCE_TYPES = type
         self.closest_unit = ''
         self.closest_unit_distance = math.inf
@@ -34,8 +37,10 @@ class Cluster:
             self.enemy_unit.append(unit_id)
 
     def to_string_light(self) -> str:
-        return "{0} {1} r={2} u={3} e={4}".format(self.id, self.get_centroid(), len(self.resource_cells),
-                                                  len(self.units), len(self.enemy_unit))
+        return "{0} {1} r={2} u={3} e={4} rc={5} wl={6}".format(self.id, self.get_centroid(), len(self.resource_cells),
+                                                         len(self.units), len(self.enemy_unit),
+                                                         len(self.accessable_perimeter), len(self.walkable_perimeter))
+
 
     def is_more_units_than_res(self) -> bool:
         return len(self.units) > len(self.resource_cells)
@@ -120,13 +125,39 @@ class Cluster:
             game_state.map.width,
             game_state.map.height
         )
+        self.perimeter = perimeter
 
         exposed_perimeter = [
-            p for p in perimeter
+            p for p in self.perimeter
             if game_state.map.get_cell_by_pos(p).citytile is None and
                not game_state.map.get_cell_by_pos(p).has_resource()
         ]
         self.exposed_perimeter = exposed_perimeter
+
+        accessable_perimeter = []
+        for p in self.perimeter:
+            city_tile=game_state.map.get_cell_by_pos(p).citytile
+            if city_tile is None:
+                # no city
+                # todo maybe exclude occupied enemy tiles
+                accessable_perimeter.append(p)
+            elif MapAnalysis.get_city_id_from_pos(p, player) != '':
+                # our city
+                accessable_perimeter.append(p)
+
+        self.accessable_perimeter = accessable_perimeter
+
+        accessable_perimeter_now = []
+        for p in self.accessable_perimeter:
+            add=True
+            for e in opponent.units:
+                if p.equals(e.pos):
+                    add=False
+            if add:
+                accessable_perimeter_now.append(p)
+
+        self.walkable_perimeter = accessable_perimeter_now
+
 
         # refresh units around this cluster
         self.units = []
@@ -176,3 +207,6 @@ class Cluster:
                         self.closest_enemy_distance = dist
         else:
             self.closest_enemy_distance = 0
+
+    def is_reachable(self)->bool:
+        return len(self.accessable_perimeter) > 0

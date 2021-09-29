@@ -3,7 +3,7 @@ from typing import Tuple
 
 from lux.game_objects import Player, Unit, DIRECTIONS
 from lux.game_map import Position
-
+import maps.map_analysis as MapAnalysis
 
 
 
@@ -46,16 +46,10 @@ class MoveHelper:
         return not self.can_move_to_pos(pos)
 
     def is_position_city(self, pos: Position) -> bool:
-        return self.get_city_id_from_pos(pos, self.player) != ''
+        return MapAnalysis.get_city_id_from_pos(pos, self.player) != ''
 
     def is_position_enemy_city(self, pos: Position) -> bool:
-        return self.get_city_id_from_pos(pos, self.opponent) != ''
+        return MapAnalysis.get_city_id_from_pos(pos, self.opponent) != ''
 
-    def get_city_id_from_pos(self,pos, actor):
-        for city in actor.cities.values():
-            for city_tile in city.citytiles:
-                if city_tile.pos.equals(pos):
-                    return city.cityid
 
-        return ''
 

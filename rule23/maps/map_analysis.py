@@ -134,9 +134,9 @@ def get_resource_groups(resource_cells: List[Cell]):
 
 
 def get_perimeter(
-    cells: List[Cell],
-    width: int,
-    height: int
+        cells: List[Cell],
+        width: int,
+        height: int
 ) -> List[Position]:
     '''
     For all the given cells, this returns unique perimeter.
@@ -167,9 +167,9 @@ def get_perimeter(
 
 
 def get_full_perimeter(
-    cells: List[Cell],
-    width: int,
-    height: int
+        cells: List[Cell],
+        width: int,
+        height: int
 ) -> List[Position]:
     perimeter_dict = defaultdict()
 
@@ -207,15 +207,56 @@ def sort_cells_by_distance(pos, cells: List[Cell]):
     return sorted(cells, key=cmp_to_key(compare))
 
 
-def get_closest_position(position, positions):
+def get_closest_position(position: Position, positions: [Position]) -> (Position, int):
     closest_pos = None
     closest_distance = math.inf
 
     for pos in positions:
         distance = position.distance_to(pos)
-        #print(' XXXX get_closest_position', pos, distance, file=sys.stderr)
+        # print(' XXXX get_closest_position', pos, distance, file=sys.stderr)
         if distance < closest_distance:
             closest_distance = distance
             closest_pos = pos
 
     return closest_pos, closest_distance
+
+
+def get_closest_position_cells(position: Position, cells: [Cell]) -> (Position, int):
+    closest_pos = None
+    closest_distance = math.inf
+
+    for c in cells:
+        distance = position.distance_to(c.pos)
+        # print(' XXXX get_closest_position', pos, distance, file=sys.stderr)
+        if distance < closest_distance:
+            closest_distance = distance
+            closest_pos = c.pos
+
+    return closest_pos, closest_distance
+
+
+def get_city_id_from_pos(pos, actor):
+    for city in actor.cities.values():
+        for city_tile in city.citytiles:
+            if city_tile.pos.equals(pos):
+                return city.cityid
+
+    return ''
+
+
+def get_units_around(actor, pos: Position, max_dist) -> int:
+    num = 0
+    for unit in actor.units:
+        if pos.distance_to(unit.pos) <= max_dist:
+            num += 1
+
+    return num
+
+
+def get_resources_around(resource_tiles: List[Cell], pos: Position, max_dist) -> List[Cell]:
+    resources = []
+    for r in resource_tiles:
+        if pos.distance_to(r.pos) <= max_dist:
+            resources.append(r)
+
+    return resources

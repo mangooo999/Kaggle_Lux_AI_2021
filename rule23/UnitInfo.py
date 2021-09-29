@@ -24,6 +24,7 @@ class UnitInfo:
         self.log_prefix = 'Unit_info ' + self.id
         self.target_position = None
         self.role_time_turn_limit = 0
+        self.build_if_you_can = False
         self.has_done_action_this_turn = False
         self.last_move_before_pos = unit.pos
         print(self.log_prefix, 'created', file=sys.stderr)
@@ -65,9 +66,9 @@ class UnitInfo:
         self.last_move = 't'
         self.has_done_action_this_turn = True
 
-    def set_unit_role_traveler(self, pos: Position, number_turns, prefix=''):
+    def set_unit_role_traveler(self, pos: Position, number_turns):
         print(self.log_prefix, 'set this unit as traveler to', pos, " for number_turns", number_turns, file=sys.stderr)
-        self.set_unit_role('traveler', prefix)
+        self.set_unit_role('traveler', self.log_prefix)
         self.target_position = pos
         self.role_time_turn_limit = number_turns
 
@@ -90,6 +91,7 @@ class UnitInfo:
             print(self.log_prefix, 'removing role', self.role,msg, file=sys.stderr)
         self.role = ''
         self.target_position = None
+        self.build_if_you_can = False
         self.role_time_turn_limit = 0
 
     def is_role_none(self):
@@ -109,3 +111,6 @@ class UnitInfo:
 
     def is_role_returner(self):
         return self.role == 'returner'
+
+    def set_build_if_you_can(self):
+        self.build_if_you_can = True

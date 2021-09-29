@@ -79,6 +79,9 @@ class CityTile:
         """
         return "bc {} {}".format(self.pos.x, self.pos.y)
 
+    def __repr__(self) -> str:
+        return "ct {}".format(self.pos.__repr__())
+
 
 class Cargo:
     def __init__(self):
