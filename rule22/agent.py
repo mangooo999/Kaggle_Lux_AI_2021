@@ -240,11 +240,6 @@ def cargo_to_string(cargo) -> str:
 
     return return_value
 
-
-def cargo_to_fuel(cargo) -> int:
-    return cargo.wood + cargo.coal * 10 + cargo.uranium * 40
-
-
 game_state = None
 unit_info = {}
 game_info = GameInfo()
@@ -476,7 +471,7 @@ def agent(observation, configuration):
         prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
 
         print(prefix, ";pos", unit.pos, 'CD=', unit.cooldown, cargo_to_string(unit.cargo), 'fuel=',
-              cargo_to_fuel(unit.cargo), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role,
+              unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role,
               file=sys.stderr)
         if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(
                 player.units) == 1):
@@ -576,7 +571,7 @@ def agent(observation, configuration):
                             and try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
                         continue
 
-                if game_state_info.is_night_time() and cargo_to_fuel(unit.cargo) > 0:
+                if game_state_info.is_night_time() and unit.cargo.fuel() > 0:
                     # if we have resources, next to a city that will die in this night,
                     # and we have enough resources to save it, then move
                     cities = adjacent_cities(player, unit.pos)
@@ -688,7 +683,7 @@ def agent(observation, configuration):
                 if game_state_info.turns_to_night > 1 or \
                         (game_state_info.turns_to_night == 1
                         and ResourceService.is_position_adjacent_to_resource(available_resources_tiles,unit.pos)):
-                    unit_fuel=cargo_to_fuel(unit.cargo)
+                    unit_fuel=unit.cargo.fuel()
                     if unit_fuel< 200:
                         build_city(actions, info, 'NOT in adjacent city, we have not so much fuel '+str(unit_fuel))
                         continue
@@ -718,13 +713,15 @@ def agent(observation, configuration):
                 enough_fuel = 400
 
             if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
-                    and (cargo_to_fuel(unit.cargo) < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
+                    and (unit.cargo.fuel() < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
                 if not ResourceService.is_position_resource(available_resources_tiles, unit.pos):
                     # find the closest resource if it exists to this unit
 
                     print(prefix, " Find resources", file=sys.stderr)
 
                     if resources_distance is not None and len(resources_distance) > 0:
+
+
                         # create a move action to the direction of the closest resource tile and add to our actions list
                         direction, pos, msg, resource_type = find_best_resource(game_state, move_mapper,
                                                                                 resources_distance,
@@ -772,7 +769,7 @@ def agent(observation, configuration):
                     move_unit_to(actions, direction, move_mapper, info, " towards closest empty ",
                                  closest_empty_tile.pos)
                 else:
-                    print(prefix, " Goto city; fuel=",cargo_to_fuel(unit.cargo), file=sys.stderr)
+                    print(prefix, " Goto city; fuel=",unit.cargo.fuel(), file=sys.stderr)
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
                     if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler():
                         print(prefix, " Goto city2", file=sys.stderr)

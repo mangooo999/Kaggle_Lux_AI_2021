@@ -89,6 +89,9 @@ class Cargo:
     def __str__(self) -> str:
         return f"Cargo | Wood: {self.wood}, Coal: {self.coal}, Uranium: {self.uranium}"
 
+    def fuel(self) -> int:
+        return self.wood + self.coal * 10 + self.uranium * 40
+
 
 class Unit:
     def __init__(self, teamid, u_type, unitid, x, y, cooldown, wood, coal, uranium):
