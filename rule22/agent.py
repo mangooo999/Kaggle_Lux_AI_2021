@@ -41,10 +41,35 @@ import maps.map_analysis as MapAnalysis
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
 
+def get_next3_directions(without_direction: DIRECTIONS) -> [DIRECTIONS]:
+    directions: [DIRECTIONS] = get_4_directions()
+    directions.remove(without_direction)
+    return directions
+
 
 def get_4_directions() -> [DIRECTIONS]:
     return [DIRECTIONS.SOUTH, DIRECTIONS.NORTH, DIRECTIONS.WEST, DIRECTIONS.EAST]
 
+
+def get_4_positions(pos: Position, game_state) -> collections.Iterable[Position]:
+    positions = []
+    for direction in get_4_directions():
+        next_pos = pos.translate(direction, 1)
+        if is_position_valid(next_pos, game_state):
+            positions.append(next_pos)
+
+    return positions
+
+def get_12_positions(pos: Position, game_state) -> collections.Iterable[Position]:
+    positions = []
+    for x in range(pos.x-2,pos.x+2):
+        for y in range(pos.y - 2, pos.y + 3):
+            next_pos = Position(x, y)
+            if 0<pos.distance_to(next_pos)<=2:
+                if is_position_valid(next_pos, game_state):
+                    positions.append(next_pos)
+
+    return positions
 
 def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]:
     """
@@ -108,6 +133,10 @@ def is_cell_empty(pos, game_state) -> bool:
     # print("- ", pos, 'empty',result, file=sys.stderr)
     return result
 
+def is_cell_empty_or_empty_next(pos, game_state) -> (bool,bool):
+    is_empty = is_cell_empty(pos, game_state)
+    has_empty_next = len(find_all_adjacent_empty_tiles(game_state, pos)) > 0
+    return is_empty,has_empty_next
 
 # snippet to find the all city tiles distance and sort them.
 def find_number_of_adjacent_city_tile(pos, player) -> int:
@@ -187,8 +216,8 @@ def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -
 
 
 # snippet to find the all city tiles distance and sort them.
-def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int,int,str]]:
-    city_tiles_distance: Dict[CityTile, Tuple[int, int, int,str]] = {}
+def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int, int, str]]:
+    city_tiles_distance: Dict[CityTile, Tuple[int, int, int, str]] = {}
     if len(player.cities) > 0:
         closest_dist = math.inf
         # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
@@ -198,7 +227,7 @@ def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTi
                 for city_tile in city.citytiles:
                     dist = city_tile.pos.distance_to(pos)
                     # order by distance asc, autonomy desc
-                    city_tiles_distance[city_tile] = (dist, get_autonomy_turns(city),-len(city.citytiles),city.cityid)
+                    city_tiles_distance[city_tile] = (dist, get_autonomy_turns(city), -len(city.citytiles), city.cityid)
     # order by
     # - increasing distance (closest city first),
     # - increasing autonomy (smallest autonomy first)
@@ -239,8 +268,9 @@ def cargo_to_string(cargo) -> str:
 
     return return_value
 
+
 game_state = None
-unit_info : DefaultDict[str, UnitInfo] = {}
+unit_info: DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo()
 clusters: ClusterControl
 
@@ -297,21 +327,20 @@ def agent(observation, configuration):
 
         first_best_position = None
         first_move = {}
-        for direction in get_4_directions():
-            next_pos = initial_city_pos.translate(direction, 1)
-            if is_position_valid(next_pos, game_state) and not move_mapper.is_position_enemy_city(next_pos):
+        for next_pos in get_12_positions(initial_city_pos,game_state):
+            if not move_mapper.is_position_enemy_city(next_pos):
                 res_2 = len(get_resources_around(wood_tiles, next_pos, 1))
-                is_empty = is_cell_empty(next_pos, game_state)
-                has_empty_next = len(find_all_adjacent_empty_tiles(game_state, next_pos)) > 0
-                print('Resources within 2 of', direction, '=', res_2, ';empty', is_empty,
+                is_empty, has_empty_next = is_cell_empty_or_empty_next(next_pos, game_state)
+                print('Resources within 2 of', res_2, ';empty', is_empty,
                       ';emptyNext', has_empty_next, file=sys.stderr)
-                first_move[(int(not (is_empty or has_empty_next)),-res_2)] = next_pos
+                potential_ok = (is_empty or has_empty_next) and res_2>0
+                first_move[(int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2)] = next_pos
 
         print('Not Ordered Resources within 2', first_move, file=sys.stderr)
-        if len(first_move.keys())>0:
+        if len(first_move.keys()) > 0:
             result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[0]))
-            print('Ordered Resources within 2',result, file=sys.stderr)
-            first_best_position=next(iter(result.values()))
+            print('Ordered Resources within 2', result, file=sys.stderr)
+            first_best_position = next(iter(result.values()))
             print('first_best_position', first_best_position, file=sys.stderr)
         # END initial calculations
 
@@ -322,7 +351,7 @@ def agent(observation, configuration):
             # new unit
             unit_info[unit.id] = UnitInfo(unit)
             if game_state.turn == 0 and first_best_position is not None:
-                unit_info[unit.id].set_unit_role_traveler(first_best_position, 1)
+                unit_info[unit.id].set_unit_role_traveler(first_best_position, 4)
             elif unit_number == 2 and units == 2:
                 unit_info[unit.id].set_unit_role('expander')
             # elif unit_number == 5 and units == 5:
@@ -337,7 +366,6 @@ def agent(observation, configuration):
 
             # find closest cluster (uncontended?)
 
-
             # find the closest unit of cluster to next cluster
             closest_unit_time_dist = math.inf
             closest_unit_to: Unit = None
@@ -350,7 +378,7 @@ def agent(observation, configuration):
                     for unitid in cluster.units:
                         unit = player.units_by_id[unitid]
                         distance = unit.pos.distance_to(next_clust.get_centroid())
-                        time_distance = 2* distance + unit.cooldown
+                        time_distance = 2 * distance + unit.cooldown
                         if unit_info[unit.id].is_role_none() and time_distance < closest_unit_time_dist and unit:
                             closest_unit_time_dist = time_distance
                             closest_unit_to = unit
@@ -677,28 +705,29 @@ def agent(observation, configuration):
 
                 if game_state_info.turns_to_night > 1 or \
                         (game_state_info.turns_to_night == 1
-                        and ResourceService.is_position_adjacent_to_resource(available_resources_tiles,unit.pos)):
-                    unit_fuel=unit.cargo.fuel()
-                    if unit_fuel< 200:
-                        build_city(actions, info, 'NOT in adjacent city, we have not so much fuel '+str(unit_fuel))
+                         and ResourceService.is_position_adjacent_to_resource(available_resources_tiles, unit.pos)):
+                    unit_fuel = unit.cargo.fuel()
+                    if unit_fuel < 200:
+                        build_city(actions, info, 'NOT in adjacent city, we have not so much fuel ' + str(unit_fuel))
                         continue
                     else:
-                        do_build=True
+                        do_build = True
                         # check if there are cities next to us that are better served with our fuel
                         for city_tile, dist in city_tile_distance.items():
                             distance = dist[0]
                             autonomy = dist[1]
                             city_size = abs(dist[2])
-                            if city_size>=5 and distance<6:
-                                do_build=False
+                            if city_size >= 5 and distance < 6:
+                                do_build = False
                                 break
 
                         if do_build:
-                            build_city(actions, info, 'NOT in adjacent city, we have lot of fuel, but no city needs saving')
+                            build_city(actions, info,
+                                       'NOT in adjacent city, we have lot of fuel, but no city needs saving')
                             continue
                         else:
                             print(prefix, " we could have built NOT in adjacent city, but there is a need city close"
-                                  , city_tile.cityid,file=sys.stderr)
+                                  , city_tile.cityid, file=sys.stderr)
 
             if game_state_info.is_night_time():
                 enough_fuel = 500
@@ -715,7 +744,6 @@ def agent(observation, configuration):
                     print(prefix, " Find resources", file=sys.stderr)
 
                     if resources_distance is not None and len(resources_distance) > 0:
-
 
                         # create a move action to the direction of the closest resource tile and add to our actions list
                         direction, pos, msg, resource_type = find_best_resource(game_state, move_mapper,
@@ -764,11 +792,12 @@ def agent(observation, configuration):
                     move_unit_to(actions, direction, move_mapper, info, " towards closest empty ",
                                  closest_empty_tile.pos)
                 else:
-                    print(prefix, " Goto city; fuel=",unit.cargo.fuel(), file=sys.stderr)
+                    print(prefix, " Goto city; fuel=", unit.cargo.fuel(), file=sys.stderr)
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
                     if city_tile_distance is not None and len(city_tile_distance) > 0 and not info.is_role_hassler():
                         print(prefix, " Goto city2", file=sys.stderr)
-                        direction, pos, msg = find_best_city(game_state, city_tile_distance, move_mapper, unsafe_cities, unit)
+                        direction, pos, msg = find_best_city(game_state, city_tile_distance, move_mapper, unsafe_cities,
+                                                             unit)
                         move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, 'city')
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
@@ -832,7 +861,8 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsa
         if not move_mapper.has_position(city_tile.pos):
             closest_city_tile = city_tile
             if closest_city_tile is not None:
-                direction = get_direction_to_city(game_state, unit, closest_city_tile.pos, unsafe_cities, move_mapper, True)
+                direction = get_direction_to_city(game_state, unit, closest_city_tile.pos, unsafe_cities, move_mapper,
+                                                  True)
                 if direction != DIRECTIONS.CENTER:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy, size" + dist.__str__()
@@ -983,10 +1013,11 @@ def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, m
 
     return DIRECTIONS.CENTER
 
-#as get_direction_to_quick, but avoid other cities
+
+# as get_direction_to_quick, but avoid other cities
 def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, unsafe_cities,
                           move_mapper: MoveHelper,
-                           allow_clash_unit: bool = False) -> DIRECTIONS:
+                          allow_clash_unit: bool = False) -> DIRECTIONS:
     # below to turn smart direction on for all resources and city trip
     # return get_direction_to_smart(game_state,unit, target_pos, move_mapper)
 
@@ -1001,7 +1032,7 @@ def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, un
             city_on_the_way = move_mapper.get_city_id_from_pos(next_pos, move_mapper.player)
             if city_on_the_way not in unsafe_cities:
                 # this is a safe city, but not the one where we want to reach
-                print(' XXX - skip ', direction, next_pos, 'as it goes to safe city',city_on_the_way, file=sys.stderr)
+                print(' XXX - skip ', direction, next_pos, 'as it goes to safe city', city_on_the_way, file=sys.stderr)
                 continue
 
         # if we are trying to move on top of somebody else, skip
@@ -1013,6 +1044,7 @@ def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, un
             continue
 
     return DIRECTIONS.CENTER
+
 
 def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Position,
                                move_mapper: MoveHelper) -> DIRECTIONS:
