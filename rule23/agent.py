@@ -174,7 +174,7 @@ def is_position_valid(position, game_state) -> bool:
                 or position.x >= game_state.map_width or position.y >= game_state.map_height)
 
 
-def adjacent_empty_tile_favor_close_to_city(empty_tyles, game_state, player) -> Optional[Cell]:
+def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, player,resource_tiles) -> Optional[Cell]:
     if len(empty_tyles) == 0:
         return None
     elif len(empty_tyles) == 1:
@@ -182,14 +182,20 @@ def adjacent_empty_tile_favor_close_to_city(empty_tyles, game_state, player) -> 
     else:
         # print("Trying to solve which empty one is close to most cities tiles", file=sys.stderr)
         results = {}
+        # print("XXXX1 adjacent_empty_tile_favor_close_to_city empty_tyles" , empty_tyles, file=sys.stderr)
+
         for adjacent_position in empty_tyles:
-            number_of_adjacent = find_number_of_adjacent_city_tile(adjacent_position, player)
-            results[number_of_adjacent] = adjacent_position
-            # print("- ",adjacent_position,number_of_adjacent, file=sys.stderr)
+            number_of_adjacent_city = find_number_of_adjacent_city_tile(adjacent_position, player)
+            number_of_adjacent_res = len(get_resources_around(resource_tiles,adjacent_position,1))
+            results[(-number_of_adjacent_city,-number_of_adjacent_res)] = adjacent_position
+        #     print("- XXXX1b",adjacent_position,number_of_adjacent_city,number_of_adjacent_res, file=sys.stderr)
+        # print("XXXX2 adjacent_empty_tile_favor_close_to_city", results, file=sys.stderr)
         results = dict(sorted(results.items()))
         # ordered by number of tiles, so we take last element
-        # print("results", results, file=sys.stderr)
-        result = list(results.values())[-1]
+        results = collections.OrderedDict(sorted(results.items(), key=lambda x: x[0]))
+        # print("XXXX3 adjacent_empty_tile_favor_close_to_city", results, file=sys.stderr)
+        result = next(iter(results.values()))
+
         # print("Return", result, file=sys.stderr)
         return game_state.map.get_cell_by_pos(result)
 
@@ -507,7 +513,8 @@ def agent(observation, configuration):
 
         if unit.is_worker() and unit.can_act():
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
-            closest_empty_tile = adjacent_empty_tile_favor_close_to_city(adjacent_empty_tiles, game_state, player)
+            closest_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(adjacent_empty_tiles, game_state,
+                                                                                 player,available_resources_tiles)
             resources_distance = ResourceService.find_resources_distance(unit.pos, player, all_resources_tiles,
                                                                          game_info)
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
@@ -956,7 +963,7 @@ def move_unit_to(actions, direction, move_mapper: MoveHelper, info: UnitInfo, re
         actions.append(unit.move(direction))
         move_mapper.add_position(next_state_pos, unit)
         info.set_last_action_move(direction)
-        print(move_mapper.log_prefix, unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
+        print(move_mapper.log_prefix+unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
               , str(target_far_position or ''), file=sys.stderr)
 
 
@@ -1045,7 +1052,7 @@ def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, un
             city_on_the_way = move_mapper.get_city_id_from_pos(next_pos, move_mapper.player)
             if city_on_the_way not in unsafe_cities:
                 # this is a safe city, but not the one where we want to reach
-                print(' XXX - skip ', direction, next_pos, 'as it goes to safe city', city_on_the_way, file=sys.stderr)
+                # print(' XXX - skip ', direction, next_pos, 'as it goes to safe city', city_on_the_way, file=sys.stderr)
                 continue
 
         # if we are trying to move on top of somebody else, skip
