@@ -701,14 +701,14 @@ def agent(observation, configuration):
                             city_size = abs(dist[2])
                             if city_size>=5 and distance<6:
                                 do_build=False
-                                print(prefix, " we could have built, but there is a need city close", city_tile, file=sys.stderr)
                                 break
 
                         if do_build:
                             build_city(actions, info, 'NOT in adjacent city, we have lot of fuel, but no city needs saving')
                             continue
-
-
+                        else:
+                            print(prefix, " we could have built NOT in adjacent city, but there is a need city close"
+                                  , city_tile.cityid,file=sys.stderr)
 
             if game_state_info.is_night_time():
                 enough_fuel = 500
