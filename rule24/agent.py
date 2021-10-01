@@ -1152,6 +1152,8 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
 
 
 def check_penalise_directions(directions, info: UnitInfo):
+    return
+
     if info.alarm > 0 and directions.__len__() > 1 and info.last_move_direction is not None:
         print(info.unit.id, 'penalising direction', info.last_move_direction, 'as last collided', directions,
               file=sys.stderr)
