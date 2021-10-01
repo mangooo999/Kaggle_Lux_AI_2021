@@ -395,9 +395,16 @@ def agent(observation, configuration):
 
     for cluster in clusters.get_clusters():
         print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
+        search_new_cluster:bool = False
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
-            print(t_prefix, 'cluster', cluster.id, ' is overcrowded, units', cluster.units, file=sys.stderr)
+            print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
+            search_new_cluster=True
 
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
+            print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
+            search_new_cluster=True
+
+        if search_new_cluster:
             # find closest cluster (uncontended?)
 
             # find the closest unit of cluster to next cluster
