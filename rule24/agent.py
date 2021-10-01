@@ -700,13 +700,13 @@ def agent(observation, configuration):
                         continue
 
                 if in_city:
-                    if True or near_resource:
+                    if near_resource:
                         print(u_prefix, ' it is night, we are in city, next resource, do not move', file=sys.stderr)
                     else:
                         # not near resource
                         print(u_prefix, ' it is night, we are in city, not next resource, do not move', file=sys.stderr)
                         for pos in adjacent_next_to_resources.keys():
-                            if move_mapper.can_move_to_pos(pos):
+                            if move_mapper.can_move_to_pos(pos) and not move_mapper.has_position(pos):
                                 direction = unit.pos.direction_to(pos)
                                 move_unit_to(actions, direction, move_mapper, info, "night, next to resource")
                                 break
