@@ -12,6 +12,9 @@ class Position:
         self.x = x
         self.y = y
 
+    def __hash__(self):
+        return self.x*100+self.y
+
     def __sub__(self, pos: 'Position') -> int:
         return abs(pos.x - self.x) + abs(pos.y - self.y)
 
@@ -63,7 +66,7 @@ class Position:
         return closest_dir
 
     def __str__(self) -> str:
-        return f"({self.x}, {self.y})"
+        return f"P({self.x}, {self.y})"
 
     def __repr__(self) -> str:
         return f"Pos({self.x},{self.y})"

@@ -343,15 +343,16 @@ def agent(observation, configuration):
         first_best_position = None
         first_move = {}
 
-        possible_positions= get_12_positions(initial_city_pos, game_state)
-        for next_pos in possible_positions:
-            if not move_mapper.is_position_enemy_city(next_pos):
-                res_2 = len(MapAnalysis.get_resources_around(wood_tiles, next_pos, 1))
-                is_empty, has_empty_next = is_cell_empty_or_empty_next(next_pos, game_state)
-                print(t_prefix, 'Resources within 2 of', res_2, ';empty', is_empty,
-                      ';emptyNext', has_empty_next, file=sys.stderr)
-                potential_ok = (is_empty or has_empty_next) and res_2 > 0
-                first_move[(int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2)] = next_pos
+        possible_positions = get_12_positions(initial_city_pos, game_state)
+        result = get_walkable_that_are_near_resources(t_prefix, move_mapper, possible_positions, wood_tiles)
+
+        for next_pos,res_2 in result.items():
+            print(t_prefix,next_pos,res_2, file=sys.stderr)
+            is_empty, has_empty_next = is_cell_empty_or_empty_next(next_pos, game_state)
+            print(t_prefix, 'Resources within 2 of', res_2, ';empty', is_empty,
+                  ';emptyNext', has_empty_next, file=sys.stderr)
+            potential_ok = (is_empty or has_empty_next)
+            first_move[(int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2)] = next_pos
 
         print(t_prefix, 'Not Ordered Resources within 2', first_move, file=sys.stderr)
         if len(first_move.keys()) > 0:
@@ -924,6 +925,24 @@ def agent(observation, configuration):
     #    print("XXXX resources map ",game_info.turn,i,len(j), file=sys.stderr)
 
     return actions
+
+
+def get_walkable_that_are_near_resources(t_prefix, move_mapper, possible_positions, resources):
+    possible_moves = {}
+
+    for next_pos in possible_positions:
+        # print(t_prefix, 'XXXX',next_pos,file=sys.stderr)
+        if not move_mapper.is_position_enemy_city(next_pos):
+            res_2 = len(MapAnalysis.get_resources_around(resources, next_pos, 1))
+            # print(t_prefix, 'YYYY', next_pos,res_2, file=sys.stderr)
+            if res_2>0:
+                possible_moves[next_pos] = res_2
+    # print(t_prefix, 'XXXX Not Ordered Resources within 2', possible_moves, file=sys.stderr)
+    if len(possible_moves.keys()) > 0:
+        possible_moves = dict(collections.OrderedDict(sorted(possible_moves.items(), key=lambda x: x[1], reverse=True)))
+        # print(t_prefix, 'XXXX Ordered Resources within 2', possible_moves, file=sys.stderr)
+
+    return possible_moves
 
 
 def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, msg):
