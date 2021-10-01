@@ -541,15 +541,15 @@ def agent(observation, configuration):
 
     for unit in player.units:
         info: UnitInfo = unit_info[unit.id]
-        prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
+        u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
 
-        print(prefix, ";pos", unit.pos, 'CD=', unit.cooldown, cargo_to_string(unit.cargo), 'fuel=',
+        print(u_prefix, ";pos", unit.pos, 'CD=', unit.cooldown, cargo_to_string(unit.cargo), 'fuel=',
               unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role,
               file=sys.stderr)
         if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(
                 player.units) == 1):
-            print(prefix, ' NEEDS to become an expander', file=sys.stderr)
-            info.set_unit_role('expander', prefix)
+            print(u_prefix, ' NEEDS to become an expander', file=sys.stderr)
+            info.set_unit_role('expander', u_prefix)
 
         if unit.is_worker() and unit.can_act():
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
@@ -559,45 +559,45 @@ def agent(observation, configuration):
                                                                          game_info)
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
 
-            print(prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
+            print(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
 
             #   EXPLORER
             if info.is_role_explorer():
-                print(prefix, ' is explorer ', info.target_position, file=sys.stderr)
+                print(u_prefix, ' is explorer ', info.target_position, file=sys.stderr)
                 if game_state_info.turns_to_night <= 2:
-                    print(prefix, ' explorer failed as too close to night', file=sys.stderr)
+                    print(u_prefix, ' explorer failed as too close to night', file=sys.stderr)
                 else:
                     # check if the target position is achievable
                     cluster = clusters.get_cluster_from_centroid(info.target_position)
                     if cluster is not None:
                         target_pos, distance = cluster.get_closest_distance_to_perimeter(unit.pos)
-                        print(prefix, ' explorer is to cluster', cluster.id, file=sys.stderr)
+                        print(u_prefix, ' explorer is to cluster', cluster.id, file=sys.stderr)
                     else:
                         target_pos = info.target_position
                         distance = unit.pos.distance_to(info.target_position)
 
                     if distance <= (game_state_info.turns_to_night + 1) / 2:
-                        print(prefix, ' explorer will go to', target_pos, 'dist', distance, file=sys.stderr)
+                        print(u_prefix, ' explorer will go to', target_pos, 'dist', distance, file=sys.stderr)
                         info.set_unit_role_traveler(target_pos, 2 * distance)
                     else:
-                        print(prefix, ' dist', distance, ' to ', target_pos, 'not compatible with autonomy',
+                        print(u_prefix, ' dist', distance, ' to ', target_pos, 'not compatible with autonomy',
                               file=sys.stderr)
 
                 if info.is_role_explorer():
-                    print(prefix, ' failed to find resource for explorer, clearing role', file=sys.stderr)
+                    print(u_prefix, ' failed to find resource for explorer, clearing role', file=sys.stderr)
                     info.clean_unit_role()
 
             #   EXPANDER
             if info.is_role_city_expander() and unit.get_cargo_space_left() > 0:
-                print(prefix, ' is expander', file=sys.stderr)
+                print(u_prefix, ' is expander', file=sys.stderr)
 
                 # all action expander are based on building next turn. We don't build at last day, so skip if day before
                 if game_state_info.turns_to_night > 1:
                     if is_position_adjacent_city(player, unit.pos) and (not move_mapper.is_position_city(unit.pos)) \
                             and ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos):
                         # if we are next to city and to wood, just stay here
-                        print(prefix, ' expander we are between city and wood do not move', file=sys.stderr)
+                        print(u_prefix, ' expander we are between city and wood do not move', file=sys.stderr)
                         continue
 
                     # if we have the possibility of going in a tile that is like the  above
@@ -614,14 +614,14 @@ def agent(observation, configuration):
             if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
                 # time_to_dawn differs from game_state_info.turns_to_dawn as it could be even 11 on turn before night
                 time_to_dawn = 10 + game_state_info.steps_until_night
-                print(prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
+                print(u_prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
                       'inCity', move_mapper.is_position_city(unit.pos), 'empty', is_cell_empty(unit.pos, game_state)
                       , 'nearwood', ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos),
                       file=sys.stderr)
 
                 if ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos,
                                                                                                             game_state):
-                    print(prefix, ' it is night, we are in a empty cell near resources', file=sys.stderr)
+                    print(u_prefix, ' it is night, we are in a empty cell near resources', file=sys.stderr)
                     # empty near a resource, we can stay here, but we could even better go to same near city
 
                     # if we have the possibility of going in a tile that is like the  above
@@ -631,7 +631,7 @@ def agent(observation, configuration):
                             and try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
                         continue
                     else:
-                        print(prefix, ' it is night, we will stay here', file=sys.stderr)
+                        print(u_prefix, ' it is night, we will stay here', file=sys.stderr)
                         continue
 
                 # if we have the possibility of going in a tile that is like the above,
@@ -654,43 +654,43 @@ def agent(observation, configuration):
                         for city, city_payload in cities.items():
                             autonomy = city_payload[1]
                             if autonomy < time_to_dawn:
-                                print(prefix, 'night, city in danger', city.cityid, 'sz/aut/dir', city_payload,
+                                print(u_prefix, 'night, city in danger', city.cityid, 'sz/aut/dir', city_payload,
                                       file=sys.stderr)
                                 is_any_city_in_danger = True
                                 break
 
                         if is_any_city_in_danger:
                             # todo maybe we should choose a city that we can save by moving there?
-                            print(prefix, 'try to save city', city.cityid, city_payload, file=sys.stderr)
+                            print(u_prefix, 'try to save city', city.cityid, city_payload, file=sys.stderr)
                             move_unit_to(actions, city_payload[2], move_mapper, info, " try to save a city")
                             continue
 
                 if move_mapper.is_position_city(unit.pos):
-                    print(prefix, ' it is night, we are in city, do not move', file=sys.stderr)
+                    print(u_prefix, ' it is night, we are in city, do not move', file=sys.stderr)
                     continue
 
             # DAWN
 
             if game_state_info.is_dawn():
-                print(prefix, "It's dawn", file=sys.stderr)
+                print(u_prefix, "It's dawn", file=sys.stderr)
                 if ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos) \
                         and is_cell_empty(unit.pos,game_state) \
                         and 0 < unit.get_cargo_space_left() <= 21:
-                    print(prefix, ' at dawn, can build next day', file=sys.stderr)
+                    print(u_prefix, ' at dawn, can build next day', file=sys.stderr)
                     continue
 
             # ALARM, we tried too many times the same move
             if info.alarm>=4:
-                print(prefix, ' has tried too many times to go to ', info.last_move_direction, file=sys.stderr)
+                print(u_prefix, ' has tried too many times to go to ', info.last_move_direction, file=sys.stderr)
                 direction = get_random_step(unit.pos, move_mapper)
                 move_unit_to(actions, direction, move_mapper, info, "randomly, too many try to "+info.last_move_direction)
                 continue
 
             #   TRAVELER
             if info.is_role_traveler():
-                print(prefix, ' is traveler to', info.target_position, file=sys.stderr)
+                print(u_prefix, ' is traveler to', info.target_position, file=sys.stderr)
                 if unit.can_build(game_state.map) and info.build_if_you_can:
-                    print(prefix, ' traveler build', file=sys.stderr)
+                    print(u_prefix, ' traveler build', file=sys.stderr)
                     build_city(actions, info, 'traveler build')
                     continue
 
@@ -699,36 +699,36 @@ def agent(observation, configuration):
                     move_unit_to(actions, direction, move_mapper, info, " move to traveler pos", info.target_position)
                     continue
                 else:
-                    print(prefix, ' traveller cannot move', file=sys.stderr)
+                    print(u_prefix, ' traveller cannot move', file=sys.stderr)
                     if unit.pos.distance_to(info.target_position) <= 1:
                         info.clean_unit_role()
 
             #   RETURNER
             if info.is_role_returner():
-                print(prefix, ' is returner to', info.target_position, file=sys.stderr)
+                print(u_prefix, ' is returner to', info.target_position, file=sys.stderr)
 
                 if len(unsafe_cities) == 0:
                     info.clean_unit_role()
                 else:
                     if city_tile_distance is not None and len(city_tile_distance) > 0:
-                        print(prefix, " Returner city2", file=sys.stderr)
+                        print(u_prefix, " Returner city2", file=sys.stderr)
                         direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance, move_mapper,
                                                                             unsafe_cities,info)
-                        move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit,
+                        move_unit_to_or_transfer(actions, direction, info, move_mapper, player, u_prefix, unit,
                                                  'returner')
 
             #   HASSLER
             if info.is_role_hassler():
-                print(prefix, ' is hassler', file=sys.stderr)
+                print(u_prefix, ' is hassler', file=sys.stderr)
                 if is_position_adjacent_city(opponent, unit.pos):
-                    print(prefix, ' hassler arrived to enemy', file=sys.stderr)
+                    print(u_prefix, ' hassler arrived to enemy', file=sys.stderr)
                     if unit.can_build(game_state.map):
                         build_city(actions, info, 'hassler build next to city, and done!')
                         info.clean_unit_role()
                         continue
                     elif unit.get_cargo_space_left() == 0 and closest_empty_tile is not None:
 
-                        print(prefix, " hassler full and close to empty, trying to move and build",
+                        print(u_prefix, " hassler full and close to empty, trying to move and build",
                               closest_empty_tile.pos, file=sys.stderr)
                         direction = unit.pos.direction_to(closest_empty_tile.pos)
                         next_pos = unit.pos.translate(direction, 1)
@@ -756,13 +756,13 @@ def agent(observation, configuration):
                 else:
                     # if we can move to a tile where we are adjacent, do and it and build there
                     if closest_empty_tile is not None:
-                        print(prefix, " check if adjacent empty is more interesting", closest_empty_tile.pos,
+                        print(u_prefix, " check if adjacent empty is more interesting", closest_empty_tile.pos,
                               file=sys.stderr)
                         direction = unit.pos.direction_to(closest_empty_tile.pos)
                         next_pos = unit.pos.translate(direction, 1)
                         # if nobody is already moving there
                         if not move_mapper.has_position(next_pos):
-                            print(prefix, " and nobody is moving here", file=sys.stderr)
+                            print(u_prefix, " and nobody is moving here", file=sys.stderr)
                             # and if next pos is actually adjacent
                             if is_position_adjacent_city(player, next_pos):
                                 move_unit_to(actions, direction, move_mapper, info,
@@ -791,7 +791,7 @@ def agent(observation, configuration):
                                        'NOT in adjacent city, we have lot of fuel, but no city needs saving')
                             continue
                         else:
-                            print(prefix, " we could have built NOT in adjacent city, but there is a need city close"
+                            print(u_prefix, " we could have built NOT in adjacent city, but there is a need city close"
                                   , city_tile.cityid, file=sys.stderr)
 
             if game_state_info.is_night_time():
@@ -806,19 +806,19 @@ def agent(observation, configuration):
                 if not ResourceService.is_position_resource(available_resources_tiles, unit.pos):
                     # find the closest resource if it exists to this unit
 
-                    print(prefix, " Find resources", file=sys.stderr)
+                    print(u_prefix, " Find resources", file=sys.stderr)
 
                     if resources_distance is not None and len(resources_distance) > 0:
 
                         # create a move action to the direction of the closest resource tile and add to our actions list
                         direction, better_cluster_pos, msg, resource_type = \
                             find_best_resource(game_state, move_mapper,resources_distance,resource_target_by_unit,
-                                                info,available_resources_tiles, prefix)
+                                                info,available_resources_tiles, u_prefix)
                         if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                                 (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
                             # this is a not researched yet resource, force to go there, so there is no jitter
                             distance_to_res = better_cluster_pos.distance_to(unit.pos)
-                            print(prefix, " Found resource not yet researched:", resource_type, "dist", distance_to_res,
+                            print(u_prefix, " Found resource not yet researched:", resource_type, "dist", distance_to_res,
                                   file=sys.stderr)
                             info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res)
 
@@ -829,17 +829,17 @@ def agent(observation, configuration):
                         move_unit_to(actions, direction, move_mapper, info, msg, better_cluster_pos)
                         continue
                     else:
-                        print(prefix, " resources_distance invalid (or empty?)", file=sys.stderr)
+                        print(u_prefix, " resources_distance invalid (or empty?)", file=sys.stderr)
                 else:
                     resource_type = game_state.map.get_cell(unit.pos.x, unit.pos.y).resource.type
-                    print(prefix, " Already on resources:", resource_type, file=sys.stderr)
+                    print(u_prefix, " Already on resources:", resource_type, file=sys.stderr)
                     if resource_type != RESOURCE_TYPES.WOOD \
                             and get_friendly_unit(player, info.last_move_before_pos) is not None and \
                             move_mapper.can_move_to_direction(unit.pos, info.last_move_direction):
                         move_unit_to(actions, info.last_move_direction, move_mapper, info, 'move a bit further')
                     else:
                         resource_target_by_unit.setdefault((unit.pos.x, unit.pos.y), []).append(unit.id)
-                        print(prefix, " Stay on resources", file=sys.stderr)
+                        print(u_prefix, " Stay on resources", file=sys.stderr)
                     continue
             else:
                 if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= 40 \
@@ -858,29 +858,29 @@ def agent(observation, configuration):
                     move_unit_to(actions, direction, move_mapper, info, " towards closest empty ",
                                  closest_empty_tile.pos)
                 elif not info.is_role_hassler():
-                    print(prefix, " Goto city; fuel=", unit.cargo.fuel(), file=sys.stderr)
+                    print(u_prefix, " Goto city; fuel=", unit.cargo.fuel(), file=sys.stderr)
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
                     if city_tile_distance is not None and len(city_tile_distance) > 0:
-                        print(prefix, " Goto city2", file=sys.stderr)
+                        print(u_prefix, " Goto city2", file=sys.stderr)
                         direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance, move_mapper,
                                                                             unsafe_cities,info)
-                        move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, 'city')
+                        move_unit_to_or_transfer(actions, direction, info, move_mapper, player, u_prefix, unit, 'city')
                         if unit.cargo.fuel() >= 200 and info.is_role_none():
-                            info.set_unit_role_returner(prefix)
+                            info.set_unit_role_returner(u_prefix)
                         continue
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
     for unit in player.units:
         info: UnitInfo = unit_info[unit.id]
-        prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
+        u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
         # print(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn,file=sys.stderr)
         if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
-            print(prefix, " this unit has not worked", file=sys.stderr)
+            print(u_prefix, " this unit has not worked", file=sys.stderr)
             if unit.cargo.coal > 0 or unit.cargo.uranium > 0:
                 # check if anybody in the pos where we come from
                 friend_unit = get_friendly_unit(player, info.last_move_before_pos)
                 if friend_unit is not None:
-                    print(prefix, " Do transfer to", friend_unit.id, ' in ', info.last_move_before_pos,
+                    print(u_prefix, " Do transfer to", friend_unit.id, ' in ', info.last_move_before_pos,
                           file=sys.stderr)
                     transfer_all_resources(actions, info, friend_unit.id)
                     if unit_info[unit.id].is_role_traveler:
