@@ -342,7 +342,9 @@ def agent(observation, configuration):
 
         first_best_position = None
         first_move = {}
-        for next_pos in get_12_positions(initial_city_pos, game_state):
+
+        possible_positions= get_12_positions(initial_city_pos, game_state)
+        for next_pos in possible_positions:
             if not move_mapper.is_position_enemy_city(next_pos):
                 res_2 = len(MapAnalysis.get_resources_around(wood_tiles, next_pos, 1))
                 is_empty, has_empty_next = is_cell_empty_or_empty_next(next_pos, game_state)
@@ -460,8 +462,14 @@ def agent(observation, configuration):
                 if city_tile.cooldown <= 1:
                     available_city_actions_now_and_next += 1
 
-    # todo move print in  game_state_info class
-    print(game_state.turn, 'resources', len(available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
+    if game_state.turn == 360:
+        print(t_prefix, "END Cities", number_city_tiles, 'units', len(player.units), file=sys.stderr)
+    else:
+        print(t_prefix, "Cities", number_city_tiles,'units', len(player.units),file=sys.stderr)
+
+
+    # todo move print in game_state_info class
+    print(t_prefix, 'resources', len(available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
           'research', player.research_points, ' avail city points', available_city_actions, file=sys.stderr)
 
     if (not player.researched_uranium()) and player.research_points + available_city_actions >= 200:
@@ -554,19 +562,24 @@ def agent(observation, configuration):
               unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role,
               file=sys.stderr)
 
-        # shortcuts
-        in_city = move_mapper.is_position_city(unit.pos)
-        in_empty = is_cell_empty(unit.pos,game_state)
-        in_resource = ResourceService.is_position_resource(available_resources_tiles, unit.pos)
-
-        near_wood = ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos)
-        near_resource = ResourceService.is_position_adjacent_to_resource(available_resources_tiles, unit.pos)
-
-        if (in_city and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(player.units) == 1):
+        if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1
+                and len(player.units) == 1):
             print(u_prefix, ' NEEDS to become an expander', file=sys.stderr)
             info.set_unit_role('expander', u_prefix)
 
         if unit.is_worker() and unit.can_act():
+            # SHORTCUTS
+            # in SHORTCUTS
+            in_city = move_mapper.is_position_city(unit.pos)
+            in_empty = is_cell_empty(unit.pos, game_state)
+            in_resource = ResourceService.is_position_resource(available_resources_tiles, unit.pos)
+
+            # near SHORTCUTS
+            near_wood = ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos)
+            near_resource = ResourceService.is_position_adjacent_to_resource(available_resources_tiles, unit.pos)
+            near_city = is_position_adjacent_city(player, unit.pos)
+
+            # adjacent SHORTCUTS
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
             closest_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(adjacent_empty_tiles, game_state,
                                                                                  player, available_resources_tiles)
@@ -609,7 +622,7 @@ def agent(observation, configuration):
 
                 # all action expander are based on building next turn. We don't build at last day, so skip if day before
                 if game_state_info.turns_to_night > 1:
-                    if is_position_adjacent_city(player, unit.pos) and (not in_city) \
+                    if near_city and (not in_city) \
                             and near_wood:
                         # if we are next to city and to wood, just stay here
                         print(u_prefix, ' expander we are between city and wood do not move', file=sys.stderr)
@@ -683,7 +696,12 @@ def agent(observation, configuration):
                         continue
 
                 if in_city:
-                    print(u_prefix, ' it is night, we are in city, do not move', file=sys.stderr)
+                    if near_resource:
+                        print(u_prefix, ' it is night, we are in city, next resource, do not move', file=sys.stderr)
+                    else:
+                        # not near resource
+                        print(u_prefix, ' it is night, we are in city, not next resource, do not move', file=sys.stderr)
+
                     continue
 
             # DAWN
@@ -767,7 +785,7 @@ def agent(observation, configuration):
 
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
-                if is_position_adjacent_city(player, unit.pos):
+                if near_city:
                     build_city(actions, info, 'in adjacent city!')
                     continue
                 else:
