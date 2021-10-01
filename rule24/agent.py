@@ -553,8 +553,16 @@ def agent(observation, configuration):
         print(u_prefix, ";pos", unit.pos, 'CD=', unit.cooldown, cargo_to_string(unit.cargo), 'fuel=',
               unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role,
               file=sys.stderr)
-        if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(
-                player.units) == 1):
+
+        # shortcuts
+        in_city = move_mapper.is_position_city(unit.pos)
+        in_empty = is_cell_empty(unit.pos,game_state)
+        in_resource = ResourceService.is_position_resource(available_resources_tiles, unit.pos)
+
+        near_wood = ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos)
+        near_resource = ResourceService.is_position_adjacent_to_resource(available_resources_tiles, unit.pos)
+
+        if (in_city and 2 < game_state.turn < 15 and number_city_tiles == 1 and len(player.units) == 1):
             print(u_prefix, ' NEEDS to become an expander', file=sys.stderr)
             info.set_unit_role('expander', u_prefix)
 
@@ -601,8 +609,8 @@ def agent(observation, configuration):
 
                 # all action expander are based on building next turn. We don't build at last day, so skip if day before
                 if game_state_info.turns_to_night > 1:
-                    if is_position_adjacent_city(player, unit.pos) and (not move_mapper.is_position_city(unit.pos)) \
-                            and ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos):
+                    if is_position_adjacent_city(player, unit.pos) and (not in_city) \
+                            and near_wood:
                         # if we are next to city and to wood, just stay here
                         print(u_prefix, ' expander we are between city and wood do not move', file=sys.stderr)
                         continue
@@ -621,36 +629,14 @@ def agent(observation, configuration):
             if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
                 # time_to_dawn differs from game_state_info.turns_to_dawn as it could be even 11 on turn before night
                 time_to_dawn = 10 + game_state_info.steps_until_night
+
                 print(u_prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
-                      'inCity', move_mapper.is_position_city(unit.pos), 'empty', is_cell_empty(unit.pos, game_state)
-                      , 'nearwood', ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos),
+                      'inCity:', in_city, 'empty:', is_cell_empty(unit.pos, game_state)
+                      , 'nearwood:', near_wood,
                       file=sys.stderr)
 
-                if ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos) and is_cell_empty(unit.pos,
-                                                                                                            game_state):
-                    print(u_prefix, ' it is night, we are in a empty cell near resources', file=sys.stderr)
-                    # empty near a resource, we can stay here, but we could even better go to same near city
-
-                    # if we have the possibility of going in a tile that is like the  above
-                    best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles, wood_tiles,
-                                                                    game_state, player)
-                    if best_night_spot is not None \
-                            and try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
-                        continue
-                    else:
-                        print(u_prefix, ' it is night, we will stay here', file=sys.stderr)
-                        continue
-
-                # if we have the possibility of going in a tile that is like the above,
-                # go id not in a city, or if you are in a city, go just last 1 days of night (so we gather and covered)
-                if (not move_mapper.is_position_city(unit.pos)) or time_to_dawn <= 1:
-                    best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles, wood_tiles,
-                                                                    game_state, player)
-                    if best_night_spot is not None \
-                            and try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
-                        continue
-
-                if game_state_info.is_night_time() and unit.cargo.fuel() > 0:
+                # search for adjacent cities in danger
+                if game_state_info.is_night_time() and unit.cargo.fuel() > 0 and not in_city:
                     # if we have resources, next to a city that will die in this night,
                     # and we have enough resources to save it, then move
                     cities = adjacent_cities(player, unit.pos)
@@ -672,7 +658,31 @@ def agent(observation, configuration):
                             move_unit_to(actions, city_payload[2], move_mapper, info, " try to save a city")
                             continue
 
-                if move_mapper.is_position_city(unit.pos):
+                if near_wood and is_cell_empty(unit.pos,
+                                                                                                            game_state):
+                    print(u_prefix, ' it is night, we are in a empty cell near resources', file=sys.stderr)
+                    # empty near a resource, we can stay here, but we could even better go to same near city
+
+                    # if we have the possibility of going in a tile that is empty_tile_near_wood_and_city, then go
+                    best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles, wood_tiles,
+                                                                    game_state, player)
+                    if best_night_spot is not None \
+                            and try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
+                        continue
+                    else:
+                        print(u_prefix, ' it is night, we will stay here', file=sys.stderr)
+                        continue
+
+                # if we have the possibility of going in a tile that is empty_tile_near_wood_and_city
+                # go if not in a city, or if you are in a city, go just last 1 days of night (so we gather and covered)
+                if (not in_city) or time_to_dawn <= 1:
+                    best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles, wood_tiles,
+                                                                    game_state, player)
+                    if best_night_spot is not None \
+                            and try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
+                        continue
+
+                if in_city:
                     print(u_prefix, ' it is night, we are in city, do not move', file=sys.stderr)
                     continue
 
@@ -680,8 +690,8 @@ def agent(observation, configuration):
 
             if game_state_info.is_dawn():
                 print(u_prefix, "It's dawn", file=sys.stderr)
-                if ResourceService.is_position_adjacent_to_resource(wood_tiles, unit.pos) \
-                        and is_cell_empty(unit.pos,game_state) \
+                if near_wood \
+                        and in_empty \
                         and 0 < unit.get_cargo_space_left() <= 21:
                     print(u_prefix, ' at dawn, can build next day', file=sys.stderr)
                     continue
@@ -777,8 +787,7 @@ def agent(observation, configuration):
                                 continue
 
                 if game_state_info.turns_to_night > 1 or \
-                        (game_state_info.turns_to_night == 1
-                         and ResourceService.is_position_adjacent_to_resource(available_resources_tiles, unit.pos)):
+                        (game_state_info.turns_to_night == 1 and near_resource):
                     unit_fuel = unit.cargo.fuel()
                     if unit_fuel < 200:
                         build_city(actions, info, 'NOT in adjacent city, we have not so much fuel ' + str(unit_fuel))
@@ -810,7 +819,7 @@ def agent(observation, configuration):
 
             if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
                     and (unit.cargo.fuel() < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
-                if not ResourceService.is_position_resource(available_resources_tiles, unit.pos):
+                if not in_resource:
                     # find the closest resource if it exists to this unit
 
                     print(u_prefix, " Find resources", file=sys.stderr)
@@ -850,7 +859,7 @@ def agent(observation, configuration):
                     continue
             else:
                 if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= 40 \
-                        and ResourceService.is_position_resource(available_resources_tiles, unit.pos) \
+                        and in_resource \
                         and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
                     # then it means we can at least collect 20 next turn on CD and then build
