@@ -680,10 +680,10 @@ def agent(observation, configuration):
                     continue
 
             # ALARM, we tried too many times the same move
-            if False and info.alarm>=2:
-                print(prefix, ' has tried too many times to go to ', info.last_move_turn, file=sys.stderr)
+            if info.alarm>=4:
+                print(prefix, ' has tried too many times to go to ', info.last_move_direction, file=sys.stderr)
                 direction = get_random_step(unit.pos, move_mapper)
-                move_unit_to(actions, direction, move_mapper, info, "randomly (due to too many stuck attempts)")
+                move_unit_to(actions, direction, move_mapper, info, "randomly, too many try to "+info.last_move_direction)
                 continue
 
             #   TRAVELER
@@ -694,7 +694,7 @@ def agent(observation, configuration):
                     build_city(actions, info, 'traveler build')
                     continue
 
-                direction = get_direction_to_quick(game_state, unit, info.target_position, move_mapper, available_resources_tiles)
+                direction = get_direction_to_quick(game_state, info, info.target_position, move_mapper, available_resources_tiles)
                 if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction):
                     move_unit_to(actions, direction, move_mapper, info, " move to traveler pos", info.target_position)
                     continue
@@ -713,8 +713,7 @@ def agent(observation, configuration):
                     if city_tile_distance is not None and len(city_tile_distance) > 0:
                         print(prefix, " Returner city2", file=sys.stderr)
                         direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance, move_mapper,
-                                                                            unsafe_cities,
-                                                                            unit)
+                                                                            unsafe_cities,info)
                         move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit,
                                                  'returner')
 
@@ -814,7 +813,7 @@ def agent(observation, configuration):
                         # create a move action to the direction of the closest resource tile and add to our actions list
                         direction, better_cluster_pos, msg, resource_type = \
                             find_best_resource(game_state, move_mapper,resources_distance,resource_target_by_unit,
-                                                unit,available_resources_tiles, prefix)
+                                                info,available_resources_tiles, prefix)
                         if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                                 (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
                             # this is a not researched yet resource, force to go there, so there is no jitter
@@ -864,8 +863,7 @@ def agent(observation, configuration):
                     if city_tile_distance is not None and len(city_tile_distance) > 0:
                         print(prefix, " Goto city2", file=sys.stderr)
                         direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance, move_mapper,
-                                                                            unsafe_cities,
-                                                                            unit)
+                                                                            unsafe_cities,info)
                         move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, 'city')
                         if unit.cargo.fuel() >= 200 and info.is_role_none():
                             info.set_unit_role_returner(prefix)
@@ -925,15 +923,16 @@ def get_friendly_unit(player, pos) -> Unit:
     return None
 
 
-def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsafe_cities, unit) -> Tuple[
+def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsafe_cities, info:UnitInfo) -> Tuple[
     DIRECTIONS, Optional[Position], str]:
-    closest_city_tile = None
+    unit = info.unit
+
     moved = False
     for city_tile, dist in city_tile_distance.items():
         if not move_mapper.has_position(city_tile.pos):
             closest_city_tile = city_tile
             if closest_city_tile is not None:
-                direction = get_direction_to_city(game_state, unit, closest_city_tile.pos, unsafe_cities, move_mapper,
+                direction = get_direction_to_city(game_state, info, closest_city_tile.pos, unsafe_cities, move_mapper,
                                                   True)
                 if direction != DIRECTIONS.CENTER:
                     moved = True
@@ -945,9 +944,11 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsa
         return direction, None, "randomly (due to city)"
 
 
-def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, resource_target_by_unit, unit,
+def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, resource_target_by_unit, info,
                        resources, prefix ) -> \
         Tuple[DIRECTIONS, Optional[Position], str, str]:
+
+    unit = info.unit
     closest_resource_tile, c_dist = None, None
     moved = False
     # print(prefix, " XXX Find resources dis", resources_distance.values(), file=sys.stderr)
@@ -961,7 +962,7 @@ def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, 
             if resource is not None and not resource.pos.equals(unit.pos):
                 if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
                                                           [])) < max_units_per_resource:
-                    direction = get_direction_to_quick(game_state, unit, resource.pos, move_mapper, resources,False)
+                    direction = get_direction_to_quick(game_state, info, resource.pos, move_mapper, resources,False)
                     if direction != DIRECTIONS.CENTER:
                         return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
 
@@ -1054,17 +1055,21 @@ def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, in
     return cities
 
 
-def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, move_mapper: MoveHelper,resource_tiles,
-                           allow_clash_unit: bool = False) -> DIRECTIONS:
+def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Position, move_mapper: MoveHelper,
+                           resource_tiles, allow_clash_unit: bool = False) -> DIRECTIONS:
     # below to turn smart direction on for all resources and city trip
     # return get_direction_to_smart(game_state,unit, target_pos, move_mapper)
 
+    unit: Unit = info.unit
     from_pos = unit.pos
     if from_pos.equals(target_pos):
         return DIRECTIONS.CENTER
 
     directions = directions_to(from_pos, target_pos)
     possible_directions = {}
+
+    check_penalise_directions(directions, info)
+
     for direction in directions:
         next_pos = from_pos.translate(direction, 1)
 
@@ -1084,18 +1089,31 @@ def get_direction_to_quick(game_state: Game, unit: Unit, target_pos: Position, m
     else:
         return next(iter(possible_directions.values()))
 
+
+def check_penalise_directions(directions, info: UnitInfo):
+    if info.alarm > 0 and directions.__len__() > 1 and info.last_move_direction is not None:
+        print(info.unit.id, 'penalising direction', info.last_move_direction, 'as last collided', directions,
+              file=sys.stderr)
+        if info.last_move_direction in directions:
+            # move the previous collided direction to the end of list
+            directions.append(directions.pop(directions.index(info.last_move_direction)))
+
+
 # as get_direction_to_quick, but avoid other cities
-def get_direction_to_city(game_state: Game, unit: Unit, target_pos: Position, unsafe_cities,
+def get_direction_to_city(game_state: Game, info: UnitInfo, target_pos: Position, unsafe_cities,
                           move_mapper: MoveHelper,
                           allow_clash_unit: bool = False) -> DIRECTIONS:
     # below to turn smart direction on for all resources and city trip
     # return get_direction_to_smart(game_state,unit, target_pos, move_mapper)
-
+    unit = info.unit
     from_pos = unit.pos
     if from_pos.equals(target_pos):
         return DIRECTIONS.CENTER
 
     directions = directions_to(from_pos, target_pos)
+
+    check_penalise_directions(directions, info)
+
     for direction in directions:
         next_pos = from_pos.translate(direction, 1)
         if move_mapper.is_position_city(next_pos):
