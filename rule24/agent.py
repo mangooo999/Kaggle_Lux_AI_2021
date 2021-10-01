@@ -155,7 +155,7 @@ def find_number_of_adjacent_city_tile(pos, player) -> int:
 
 def find_all_adjacent_empty_tiles(game_state, pos) -> List[Position]:
     adjacent_positions = [Position(pos.x, pos.y + 1), Position(pos.x - 1, pos.y), Position(pos.x, pos.y - 1),
-                          Position(pos.x + 1, pos.y)];
+                          Position(pos.x + 1, pos.y)]
     empty_tiles = []
     for adjacent_position in adjacent_positions:
         if not is_position_valid(adjacent_position, game_state):
@@ -587,6 +587,9 @@ def agent(observation, configuration):
             resources_distance = ResourceService.find_resources_distance(unit.pos, player, all_resources_tiles,
                                                                          game_info)
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
+            adjacent_next_to_resources = get_walkable_that_are_near_resources(t_prefix, move_mapper,
+                                                                              get_4_positions(unit.pos, game_state),
+                                                                              available_resources_tiles)
 
             print(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
@@ -697,12 +700,16 @@ def agent(observation, configuration):
                         continue
 
                 if in_city:
-                    if near_resource:
+                    if True or near_resource:
                         print(u_prefix, ' it is night, we are in city, next resource, do not move', file=sys.stderr)
                     else:
                         # not near resource
                         print(u_prefix, ' it is night, we are in city, not next resource, do not move', file=sys.stderr)
-
+                        for pos in adjacent_next_to_resources.keys():
+                            if move_mapper.can_move_to_pos(pos):
+                                direction = unit.pos.direction_to(pos)
+                                move_unit_to(actions, direction, move_mapper, info, "night, next to resource")
+                                break
                     continue
 
             # DAWN
