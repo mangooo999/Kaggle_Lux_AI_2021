@@ -32,10 +32,11 @@ import maps.map_analysis as MapAnalysis
 # - optimise where create worker
 # extend first move logic to any movement from city to resource
 # if moving to a city, remove move that move via another city, we can use a similar approach to cluster and have returner pointing to a city in role, and avoid others
-# turn 200 seems to be a good turn to go and conquer wood unexplored wood cluster as it seems to make till 360
+# turn 200 seems to be a good turn to go and conquer unexplored wood cluster as it seems to make till 360
 # remove from resources guarded cluster
 # for path as a traveller favour tiles with resources
 # for path as a resource seek favour tiles with cities
+# try to build the city in the right direction (that is in the direction of other resources rather than towards the hedges) 308000419  https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27481418
 # we seem to have a very week logic if numerous units in the same area are without a cluster at the same time, we need to reuse here the logic we use in cluster move
 ### Define helper functions
 
