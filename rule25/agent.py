@@ -27,7 +27,6 @@ import maps.map_analysis as MapAnalysis
 
 
 # todo
-# spawning in city that has no units around logic doesnt work 247838753, 972094108
 # there are map in which there is a consistent advantage in building only one house and then go to the next cluster with unit 1 (1099709)
 # optimise more first move in case enemy is just adjacent (586755628)
 # - optimise where create worker
@@ -146,15 +145,20 @@ def is_cell_empty_or_empty_next(pos, game_state) -> (bool, bool):
     return is_empty, has_empty_next
 
 
-# snippet to find the all city tiles distance and sort them.
-def find_number_of_adjacent_city_tile(pos, player) -> int:
-    number = 0
+# snippet to find the all city tiles, cities distance and sort them.
+def find_number_of_adjacent_city_tile(pos, player) -> (int,int):
+    numbers_tiles = 0
+    numbers_cities = 0
     for city in player.cities.values():
+        is_city_near = False
         for citytiles in city.citytiles:
             if citytiles.pos.is_adjacent(pos):
-                number = number + 1
+                numbers_tiles += 1
+                is_city_near = True
+        if is_city_near:
+            numbers_cities += 1
 
-    return number
+    return numbers_tiles,numbers_cities
 
 
 def find_all_adjacent_empty_tiles(game_state, pos) -> List[Position]:
@@ -182,27 +186,28 @@ def is_position_valid(position, game_state) -> bool:
                 or position.x >= game_state.map_width or position.y >= game_state.map_height)
 
 
-def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, player, resource_tiles) -> Optional[Cell]:
+def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, player, resource_tiles, prefix) -> Optional[Cell]:
     if len(empty_tyles) == 0:
         return None
     elif len(empty_tyles) == 1:
         return game_state.map.get_cell_by_pos(empty_tyles[0])
     else:
-        # print("Trying to solve which empty one is close to most cities tiles", file=sys.stderr)
+        # print(prefix,"Trying to solve which empty one is close to most cities tiles", file=sys.stderr)
         results = {}
-        # print("XXXX1 adjacent_empty_tile_favor_close_to_city empty_tyles" , empty_tyles, file=sys.stderr)
+        # print(prefix,"XXXX1 adjacent_empty_tile_favor_close_to_city empty_tyles" , empty_tyles, file=sys.stderr)
 
         for adjacent_position in empty_tyles:
-            number_of_adjacent_city = find_number_of_adjacent_city_tile(adjacent_position, player)
-            number_of_adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
-            results[(-number_of_adjacent_city, -number_of_adjacent_res)] = adjacent_position
-        #     print("- XXXX1b",adjacent_position,number_of_adjacent_city,number_of_adjacent_res, file=sys.stderr)
-        # print("XXXX2 adjacent_empty_tile_favor_close_to_city", results, file=sys.stderr)
-        results = dict(sorted(results.items()))
+            adjacent_city_tiles,adjacent_city = find_number_of_adjacent_city_tile(adjacent_position, player)
+            adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
+            adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
+            results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
+            # print(prefix,"- XXXX1b",adjacent_position,results[adjacent_position], file=sys.stderr)
+
+        # print(prefix,"XXXX2 adjacent_empty_tile_favor_close_to_city", results, file=sys.stderr)
         # ordered by number of tiles, so we take last element
-        results = collections.OrderedDict(sorted(results.items(), key=lambda x: x[0]))
-        # print("XXXX3 adjacent_empty_tile_favor_close_to_city", results, file=sys.stderr)
-        result = next(iter(results.values()))
+        results = dict(collections.OrderedDict(sorted(results.items(), key=lambda x: x[1], reverse=True)))
+        # print(prefix,"XXXX3 adjacent_empty_tile_favor_close_to_city", results, file=sys.stderr)
+        result = next(iter(results.keys()))
 
         # print("Return", result, file=sys.stderr)
         return game_state.map.get_cell_by_pos(result)
@@ -211,7 +216,7 @@ def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, pla
 def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -> Optional[Cell]:
     results = {}
     for adjacent_position in empty_tiles:
-        number_of_adjacent = find_number_of_adjacent_city_tile(adjacent_position, player)
+        number_of_adjacent , cities = find_number_of_adjacent_city_tile(adjacent_position, player)
         if number_of_adjacent > 0 and ResourceService.is_position_adjacent_to_resource(wood_tiles, adjacent_position):
             results[number_of_adjacent] = adjacent_position
             # print("- ",adjacent_position,number_of_adjacent, file=sys.stderr)
@@ -597,14 +602,13 @@ def agent(observation, configuration):
 
             # adjacent SHORTCUTS
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
-            closest_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(adjacent_empty_tiles, game_state,
-                                                                                 player, available_resources_tiles)
-            resources_distance = ResourceService.find_resources_distance(unit.pos, player, all_resources_tiles,
-                                                                         game_info)
+            closest_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(
+                adjacent_empty_tiles, game_state,player, available_resources_tiles,u_prefix)
+            resources_distance = ResourceService.find_resources_distance(
+                unit.pos, player, all_resources_tiles,game_info)
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
-            adjacent_next_to_resources = get_walkable_that_are_near_resources(t_prefix, move_mapper,
-                                                                              get_4_positions(unit.pos, game_state),
-                                                                              available_resources_tiles)
+            adjacent_next_to_resources = get_walkable_that_are_near_resources(
+                u_prefix, move_mapper,get_4_positions(unit.pos, game_state),available_resources_tiles)
 
             print(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
@@ -900,8 +904,7 @@ def agent(observation, configuration):
                     continue
             else:
                 if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= 40 \
-                        and in_resource \
-                        and closest_empty_tile is not None:
+                        and in_resource and closest_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
                     # then it means we can at least collect 20 next turn on CD and then build
                     # find the closest empty tile it to build a city
