@@ -27,6 +27,7 @@ import maps.map_analysis as MapAnalysis
 
 
 # todo
+# spawning in city that has no units around logic doesnt work 247838753, 972094108
 # there are map in which there is a consistent advantage in building only one house and then go to the next cluster with unit 1 (1099709)
 # optimise more first move in case enemy is just adjacent (586755628)
 # - optimise where create worker
@@ -38,6 +39,8 @@ import maps.map_analysis as MapAnalysis
 # for path as a resource seek favour tiles with cities
 # try to build the city in the right direction (that is in the direction of other resources rather than towards the hedges) 308000419  https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27481418
 # we seem to have a very week logic if numerous units in the same area are without a cluster at the same time, we need to reuse here the logic we use in cluster move
+# we seem to go to un-researched resources too early https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27483344
+# if there are good clusters at more than 15 resources away, stock up and travel far
 ### Define helper functions
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
@@ -397,6 +400,7 @@ def agent(observation, configuration):
         else:
             unit_info[unit.id].update(unit, game_state.turn)
 
+    # clusters management
     for cluster in clusters.get_clusters():
         print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
         search_new_cluster:bool = False
@@ -447,6 +451,7 @@ def agent(observation, configuration):
     do_research_points = 0
     number_city_tiles = 0
 
+    # set unsafe cities, record how many available city actions we have
     if len(cities) > 0:
         for city in cities:
             will_live = get_autonomy_turns(city) >= game_state_info.all_night_turns_lef
@@ -456,7 +461,7 @@ def agent(observation, configuration):
                     len(city.citytiles),
                     (game_state_info.all_night_turns_lef - get_autonomy_turns(city)) * city.get_light_upkeep())
 
-            # record how many research points we have now
+            # record how many available city actions we have now
             for city_tile in city.citytiles[::-1]:
                 number_city_tiles = number_city_tiles + 1
                 if city_tile.can_act():
@@ -464,6 +469,7 @@ def agent(observation, configuration):
                 if city_tile.cooldown <= 1:
                     available_city_actions_now_and_next += 1
 
+    # logging
     if game_state.turn == 360:
         print(t_prefix, "END Cities", number_city_tiles, 'units', len(player.units), file=sys.stderr)
     else:
