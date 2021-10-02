@@ -545,11 +545,19 @@ def agent(observation, configuration):
             for city_tile in city.citytiles[::-1]:
                 # print(t_prefix, "- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
+                    if game_state.turn<20:
+                        # we are turn<20, we need to prioritise spawning in the right city rather than research
+                        # if we have resources around here, but no units, do not research
+                        near_resource = ResourceService.is_position_adjacent_to_resource(available_resources_tiles, city_tile.pos)
+                        near_units = len(get_friendly_unit_around_pos(player, city_tile.pos, 2))
+                        if near_resource and near_units==0:
+                            print(t_prefix, "- this city tile could do research, but better to wait till it can create a worker", file=sys.stderr)
+                            continue
+                        # else:
+                        # print(t_prefix, "- - nothing", file=sys.stderr)
                     if game_info.still_can_do_reseach():
                         # let's do research
                         game_info.do_research(actions, city_tile, str(city_tile.pos) + " research")
-                    # else:
-                    # print(t_prefix, "- - nothing", file=sys.stderr)
 
     print(t_prefix, "Unsafe cities", unsafe_cities, file=sys.stderr)
 
@@ -883,7 +891,7 @@ def agent(observation, configuration):
                     resource_type = game_state.map.get_cell(unit.pos.x, unit.pos.y).resource.type
                     print(u_prefix, " Already on resources:", resource_type, file=sys.stderr)
                     if resource_type != RESOURCE_TYPES.WOOD \
-                            and get_friendly_unit(player, info.last_move_before_pos) is not None and \
+                            and get_friendly_unit_in_pos(player, info.last_move_before_pos) is not None and \
                             move_mapper.can_move_to_direction(unit.pos, info.last_move_direction):
                         move_unit_to(actions, info.last_move_direction, move_mapper, info, 'move a bit further')
                     else:
@@ -927,7 +935,7 @@ def agent(observation, configuration):
             print(u_prefix, " this unit has not worked", file=sys.stderr)
             if unit.cargo.coal > 0 or unit.cargo.uranium > 0:
                 # check if anybody in the pos where we come from
-                friend_unit = get_friendly_unit(player, info.last_move_before_pos)
+                friend_unit = get_friendly_unit_in_pos(player, info.last_move_before_pos)
                 if friend_unit is not None:
                     print(u_prefix, " Do transfer to", friend_unit.id, ' in ', info.last_move_before_pos,
                           file=sys.stderr)
@@ -966,7 +974,7 @@ def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, pref
     else:
         if unit.get_cargo_space_left() < 100:
             # check if anybody in the pos we want to go
-            friend_unit = get_friendly_unit(player, unit.pos.translate(direction, 1))
+            friend_unit = get_friendly_unit_in_pos(player, unit.pos.translate(direction, 1))
             if friend_unit is not None:
                 if unit_info[friend_unit.id].is_role_none() or unit_info[friend_unit.id].is_role_returner() \
                         and friend_unit.get_cargo_space_left() > 100 - unit.get_cargo_space_left():
@@ -982,13 +990,20 @@ def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, pref
             # continue
 
 
-def get_friendly_unit(player, pos) -> Unit:
+def get_friendly_unit_in_pos(player, pos) -> Unit:
     for unit in player.units:
         if unit.pos.equals(pos):
             return unit
 
     return None
 
+def get_friendly_unit_around_pos(player, pos, distance) -> [Unit]:
+    units :[Unit]= []
+    for unit in player.units:
+        if unit.pos.distance_to(pos)<=distance:
+            units.append(unit)
+
+    return units
 
 def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsafe_cities, info:UnitInfo) -> Tuple[
     DIRECTIONS, Optional[Position], str]:
