@@ -27,6 +27,12 @@ import maps.map_analysis as MapAnalysis
 
 
 # todo
+# create worker after researched evrything? https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27515124
+# avoid initially (use time to night?) to bring too much resources to city, try to build first 665769394 https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27514151
+# fix logic of early rush, we seem to rush too early
+# extend isolated city logic from <20 turn to < 28
+# if you are stuck near resources, near a lot of enemy, do not backoff, either stay near resource or move to resource, or build!!! -> 259 433371401 https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27510931
+# could try to extend city towards resources coal see turn 23-> 489695875
 # there are map in which there is a consistent advantage in building only one house and then go to the next cluster with unit 1 (1099709)
 # optimise more first move in case enemy is just adjacent (586755628)
 # - optimise where create worker
@@ -199,8 +205,10 @@ def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, pla
         for adjacent_position in empty_tyles:
             adjacent_city_tiles,adjacent_city = find_number_of_adjacent_city_tile(adjacent_position, player)
             adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
-            adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
-            results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
+            #adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
+            # results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
+            results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res)
+
             # print(prefix,"- XXXX1b",adjacent_position,results[adjacent_position], file=sys.stderr)
 
         # print(prefix,"XXXX2 adjacent_empty_tile_favor_close_to_city", results, file=sys.stderr)
@@ -602,7 +610,7 @@ def agent(observation, configuration):
 
             # adjacent SHORTCUTS
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
-            closest_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(
+            best_adjacent_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(
                 adjacent_empty_tiles, game_state,player, available_resources_tiles,u_prefix)
             resources_distance = ResourceService.find_resources_distance(
                 unit.pos, player, all_resources_tiles,game_info)
@@ -611,7 +619,7 @@ def agent(observation, configuration):
                 u_prefix, move_mapper,get_4_positions(unit.pos, game_state),available_resources_tiles)
 
             print(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
-                  'favoured', closest_empty_tile.pos if closest_empty_tile else '', file=sys.stderr)
+                  'favoured', best_adjacent_empty_tile.pos if best_adjacent_empty_tile else '', file=sys.stderr)
 
             #   EXPLORER
             if info.is_role_explorer():
@@ -788,11 +796,11 @@ def agent(observation, configuration):
                         build_city(actions, info, 'hassler build next to city, and done!')
                         info.clean_unit_role()
                         continue
-                    elif unit.get_cargo_space_left() == 0 and closest_empty_tile is not None:
+                    elif unit.get_cargo_space_left() == 0 and best_adjacent_empty_tile is not None:
 
                         print(u_prefix, " hassler full and close to empty, trying to move and build",
-                              closest_empty_tile.pos, file=sys.stderr)
-                        direction = unit.pos.direction_to(closest_empty_tile.pos)
+                              best_adjacent_empty_tile.pos, file=sys.stderr)
+                        direction = unit.pos.direction_to(best_adjacent_empty_tile.pos)
                         next_pos = unit.pos.translate(direction, 1)
                         move_unit_to(actions, direction, move_mapper, info,
                                      " move to build nearby enemy",
@@ -817,10 +825,10 @@ def agent(observation, configuration):
                     continue
                 else:
                     # if we can move to a tile where we are adjacent, do and it and build there
-                    if closest_empty_tile is not None:
-                        print(u_prefix, " check if adjacent empty is more interesting", closest_empty_tile.pos,
+                    if best_adjacent_empty_tile is not None:
+                        print(u_prefix, " check if adjacent empty is more interesting", best_adjacent_empty_tile.pos,
                               file=sys.stderr)
-                        direction = unit.pos.direction_to(closest_empty_tile.pos)
+                        direction = unit.pos.direction_to(best_adjacent_empty_tile.pos)
                         next_pos = unit.pos.translate(direction, 1)
                         # if nobody is already moving there
                         if not move_mapper.has_position(next_pos):
@@ -904,19 +912,19 @@ def agent(observation, configuration):
                     continue
             else:
                 if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= 40 \
-                        and in_resource and closest_empty_tile is not None:
+                        and in_resource and best_adjacent_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
                     # then it means we can at least collect 20 next turn on CD and then build
                     # find the closest empty tile it to build a city
-                    direction = unit.pos.direction_to(closest_empty_tile.pos)
+                    direction = unit.pos.direction_to(best_adjacent_empty_tile.pos)
                     move_unit_to(actions, direction, move_mapper, info,
-                                 " towards closest empty (anticipating getting resources)", closest_empty_tile.pos)
+                                 " towards closest empty (anticipating getting resources)", best_adjacent_empty_tile.pos)
                 elif game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() == 0 \
-                        and closest_empty_tile is not None:
+                        and best_adjacent_empty_tile is not None:
                     # find the closest empty tile it to build a city
-                    direction = unit.pos.direction_to(closest_empty_tile.pos)
+                    direction = unit.pos.direction_to(best_adjacent_empty_tile.pos)
                     move_unit_to(actions, direction, move_mapper, info, " towards closest empty ",
-                                 closest_empty_tile.pos)
+                                 best_adjacent_empty_tile.pos)
                 elif not info.is_role_hassler():
                     print(u_prefix, " Goto city; fuel=", unit.cargo.fuel(), file=sys.stderr)
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
