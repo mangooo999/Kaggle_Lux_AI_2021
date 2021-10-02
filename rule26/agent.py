@@ -29,7 +29,7 @@ import maps.map_analysis as MapAnalysis
 # todo
 # create worker after researched evrything? https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27515124
 # avoid initially (use time to night?) to bring too much resources to city, try to build first 665769394 https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27514151
-# fix logic of early rush, we seem to rush too early
+# fix logic of early rush to non researched resource, we seem to rush too early
 # extend isolated city logic from <20 turn to < 28
 # if you are stuck near resources, near a lot of enemy, do not backoff, either stay near resource or move to resource, or build!!! -> 259 433371401 https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27510931
 # could try to extend city towards resources coal see turn 23-> 489695875
@@ -558,8 +558,8 @@ def agent(observation, configuration):
             for city_tile in city.citytiles[::-1]:
                 # print(t_prefix, "- C tile ", city_tile.pos, " CD=", city_tile.cooldown, file=sys.stderr)
                 if city_tile.can_act():
-                    if game_state.turn<20:
-                        # we are turn<20, we need to prioritise spawning in the right city rather than research
+                    if game_state.turn<30: # TODO maybe this should be based on how close is the unit to build
+                        # we are turn<30, we need to prioritise spawning in the right city rather than research
                         # if we have resources around here, but no units, do not research
                         near_resource = ResourceService.is_position_adjacent_to_resource(available_resources_tiles, city_tile.pos)
                         near_units = len(get_friendly_unit_around_pos(player, city_tile.pos, 2))
@@ -1053,8 +1053,7 @@ def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, 
         for resource, resource_dist_info in resources_distance.items():
             # print(prefix, " XXX - ", resource.pos, resource_dist_info, file=sys.stderr)
             if resource is not None and not resource.pos.equals(unit.pos):
-                if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
-                                                          [])) < max_units_per_resource:
+                if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),[])) < max_units_per_resource:
                     direction = get_direction_to_quick(game_state, info, resource.pos, move_mapper, resources,False)
                     if direction != DIRECTIONS.CENTER:
                         return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
