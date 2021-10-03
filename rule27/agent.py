@@ -845,7 +845,6 @@ def agent(observation, configuration):
                 if near_city:
                     moved = False
 
-                    here_adjacent_city_tiles, here_adjacent_city = find_number_of_adjacent_city_tile(unit.pos, player)
                     # this is an excellent spot, but is there even a better one, one that join two different cities?
                     if game_state_info.turns_to_night > 2:
                         # only if we have then time to build after 2 turns cooldown
@@ -980,11 +979,13 @@ def agent(observation, configuration):
                     # we are full mostly with woods, we should try to build
                     for next_pos in get_4_positions(unit.pos, game_state):
                         # print(t_prefix, 'XXXX',next_pos,file=sys.stderr)
-                        if move_mapper.can_move_to_pos(next_pos):
+                        if move_mapper.can_move_to_pos(next_pos) and not move_mapper.is_position_city(next_pos):
                             is_empty, has_empty_next = is_cell_empty_or_empty_next(next_pos, game_state)
                             potential_ok = (is_empty or has_empty_next)
                             # todo find the best, not only a possible one
-                            move_unit_to_pos(actions, move_mapper, info, " towards closest next-best-empty ", next_pos)
+                            if potential_ok:
+                                move_unit_to_pos(actions, move_mapper, info, " towards closest next-best-empty ", next_pos)
+                                break
 
                 elif not info.is_role_hassler():
                     print(u_prefix, " Goto city; fuel=", unit.cargo.fuel(), file=sys.stderr)
@@ -1031,10 +1032,20 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, pos
         is_empty, has_empty_next = is_cell_empty_or_empty_next(next_pos, game_state)
         print(t_prefix, 'Resources within 2 of', res_2, ';empty', is_empty,
               ';emptyNext', has_empty_next, file=sys.stderr)
-        potential_ok = (is_empty or has_empty_next)
+
         res_4 = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 4))
-        #first_move[next_pos] = (int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2, -res_4)
-        first_move[next_pos] = (int(not potential_ok), -res_2, -res_4)
+        dist = initial_city_pos.distance_to(next_pos)
+
+        if dist == 1 and is_empty and res_2==3:
+            score = 1 # best as we can build in 2
+        elif dist == 1 and is_empty and res_2 == 3:
+            score = 2  # second best as we can build in 3
+        elif is_empty or has_empty_next:
+            score = 3  # everything that is either empty or
+        else:
+            score = 9
+
+        first_move[next_pos] = (score,dist, -res_2, -res_4)
     print(t_prefix, 'Not Ordered Resources within 2', first_move, file=sys.stderr)
     if len(first_move.keys()) > 0:
         result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[1]))
