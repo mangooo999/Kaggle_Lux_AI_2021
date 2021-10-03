@@ -398,40 +398,55 @@ def agent(observation, configuration):
     # clusters management
     for cluster in clusters.get_clusters():
         print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
-        search_new_cluster:bool = False
+
+        # find the closest unit of cluster to next cluster
+        closest_uncontested_dist = math.inf
+        closest_uncontested_unit: Unit = None
+        closest_uncontested_cluster: Cluster = None
+
+        for next_clust in clusters.get_clusters():
+            # we olny consider wood cluster
+            # we olny consider uncontended and empty cluster
+            if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD \
+                    and next_clust.has_no_units_no_enemy():
+                for unitid in cluster.units:
+                    unit = player.units_by_id[unitid]
+                    if unit.get_cargo_space_left() == 0:
+                        # do not consider units that can build
+                        continue
+
+                    # the distance to reach it
+                    r_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, next_clust.resource_cells)
+                    # the time in turns to reach it
+                    time_distance = 2 * distance + unit.cooldown
+
+                    if time_distance > game_state_info.steps_until_night:
+                        # unreachable before night
+                        continue
+
+                    if unit_info[unit.id].is_role_none() and time_distance < closest_uncontested_dist:
+                        closest_uncontested_dist = time_distance
+                        closest_uncontested_unit = unit
+                        closest_uncontested_cluster = next_clust
+
+        is_cluster_overcrowded:bool = False
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
-            search_new_cluster=True
+            is_cluster_overcrowded=True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
-            search_new_cluster=True
+            is_cluster_overcrowded=True
 
-        if search_new_cluster:
+    
+        if is_cluster_overcrowded:
             # find closest cluster (uncontended?)
+            if closest_uncontested_unit is not None:
+                print(t_prefix, ' repurposing', closest_uncontested_unit.id, ' to explore ', closest_uncontested_cluster.id, file=sys.stderr)
+                unit_info[closest_uncontested_unit.id].set_unit_role_explorer(closest_uncontested_cluster.get_centroid())
 
-            # find the closest unit of cluster to next cluster
-            closest_unit_time_dist = math.inf
-            closest_unit_to: Unit = None
-            next_cluster: Cluster = None
-            for next_clust in clusters.get_clusters():
-                # we olny consider wood cluster
-                # we olny consider uncontended and empty cluster
-                if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD \
-                        and next_clust.has_no_units_no_enemy():
-                    for unitid in cluster.units:
-                        unit = player.units_by_id[unitid]
-                        r_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, next_clust.resource_cells)
-                        time_distance = 2 * distance + unit.cooldown
-                        if unit_info[unit.id].is_role_none() and time_distance < closest_unit_time_dist \
-                                and unit.get_cargo_space_left() > 0:
-                            closest_unit_time_dist = time_distance
-                            closest_unit_to = unit
-                            next_cluster = next_clust
 
-            if closest_unit_to is not None:
-                print(t_prefix, ' repurposing', closest_unit_to.id, ' to explore ', next_cluster.id, file=sys.stderr)
-                unit_info[closest_unit_to.id].set_unit_role_explorer(next_cluster.get_centroid())
+
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -468,7 +483,7 @@ def agent(observation, configuration):
     if game_state.turn == 360:
         print(t_prefix, "END Cities", number_city_tiles, 'units', len(player.units), file=sys.stderr)
     else:
-        print(t_prefix, "Cities", number_city_tiles,'units', len(player.units),file=sys.stderr)
+        print(t_prefix, "INT Cities", number_city_tiles,'units', len(player.units),file=sys.stderr)
 
 
     # todo move print in game_state_info class
