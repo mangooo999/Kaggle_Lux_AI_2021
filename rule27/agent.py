@@ -438,7 +438,16 @@ def agent(observation, configuration):
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
             is_cluster_overcrowded=True
 
-    
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_uncontested_dist<4:
+            print(t_prefix, 'There is a very near uncontested cluster',closest_uncontested_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', closest_uncontested_dist, file=sys.stderr)
+            is_cluster_overcrowded = True
+
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_uncontested_dist < 4:
+            print(t_prefix, 'There is a very near uncontested cluster', closest_uncontested_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', closest_uncontested_dist, file=sys.stderr)
+            is_cluster_overcrowded = True
+
         if is_cluster_overcrowded:
             # find closest cluster (uncontended?)
             if closest_uncontested_unit is not None:
