@@ -2,6 +2,7 @@ import math
 import sys
 import collections
 import random
+import time
 
 random.seed(50)
 
@@ -299,11 +300,13 @@ game_state = None
 unit_info: DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo()
 clusters: ClusterControl
+start_time = 0
 
 
 def agent(observation, configuration):
     global game_state
     global clusters
+    global start_time
 
     ### Do not edit ###
     if observation["step"] == 0:
@@ -314,6 +317,8 @@ def agent(observation, configuration):
 
         # This is the start of the game
         clusters = ClusterControl(game_state)
+        start_time = time.time()
+
     else:
         game_state._update(observation["updates"])
 
@@ -466,9 +471,9 @@ def agent(observation, configuration):
 
     # logging
     if game_state.turn == 360:
-        print(t_prefix, "END Cities", number_city_tiles, 'units', len(player.units), file=sys.stderr)
+        print(t_prefix, "END C=", number_city_tiles, 'u=', len(player.units), 't=',str(time.time() - start_time), file=sys.stderr)
     else:
-        print(t_prefix, "Cities", number_city_tiles,'units', len(player.units),file=sys.stderr)
+        print(t_prefix, "INT Cities", number_city_tiles,'units', len(player.units),file=sys.stderr)
 
 
     # todo move print in game_state_info class
