@@ -206,9 +206,9 @@ Optional[Cell]:
         for adjacent_position in empty_tyles:
             adjacent_city_tiles, adjacent_city = find_number_of_adjacent_city_tile(adjacent_position, player)
             adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
-            adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 3))
-            results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
-            #results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res)
+            adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
+            # results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
+            results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res)
 
             # print(prefix,"- XXXX1b",adjacent_position,results[adjacent_position], file=sys.stderr)
 
@@ -426,14 +426,8 @@ def agent(observation, configuration):
 
                     # the distance to reach it
                     r_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, next_clust.resource_cells)
-                    # the time in turns to reach it
-                    time_distance = 2 * distance + unit.cooldown
 
-                    if time_distance > game_state_info.steps_until_night:
-                        # unreachable before night
-                        continue
-
-                    if unit_info[unit.id].is_role_none() and time_distance < closest_uncontested_dist:
+                    if unit_info[unit.id].is_role_none() and distance < closest_uncontested_dist:
                         closest_uncontested_dist = distance
                         closest_uncontested_unit = unit
                         closest_uncontested_cluster = next_clust
@@ -458,12 +452,22 @@ def agent(observation, configuration):
             is_cluster_overcrowded = True
 
         if is_cluster_overcrowded:
+
             # find closest cluster (uncontended?)
             if closest_uncontested_unit is not None:
-                print(t_prefix, ' repurposing', closest_uncontested_unit.id, ' to explore ',
-                      closest_uncontested_cluster.id, file=sys.stderr)
-                unit_info[closest_uncontested_unit.id].set_unit_role_explorer(
-                    closest_uncontested_cluster.get_centroid())
+                # the time in turns to reach it
+                time_distance = 2 * (closest_uncontested_dist-1) + closest_uncontested_unit.cooldown
+
+                if time_distance > game_state_info.steps_until_night:
+                    # unreachable before night
+                    print(t_prefix,  closest_uncontested_cluster.id,'is unreachble at a time distance ',
+                          time_distance,'with turns to night',game_state_info.steps_until_night,
+                          closest_uncontested_unit.pos, closest_uncontested_pos, file=sys.stderr)
+                else:
+                    print(t_prefix, ' repurposing', closest_uncontested_unit.id, ' to explore ',
+                          closest_uncontested_cluster.id, closest_uncontested_cluster.get_centroid(), file=sys.stderr)
+                    unit_info[closest_uncontested_unit.id].set_unit_role_explorer(
+                        closest_uncontested_cluster.get_centroid())
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -1029,7 +1033,8 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, pos
               ';emptyNext', has_empty_next, file=sys.stderr)
         potential_ok = (is_empty or has_empty_next)
         res_4 = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 4))
-        first_move[next_pos] = (int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2, -res_4)
+        #first_move[next_pos] = (int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2, -res_4)
+        first_move[next_pos] = (int(not potential_ok), -res_2, -res_4)
     print(t_prefix, 'Not Ordered Resources within 2', first_move, file=sys.stderr)
     if len(first_move.keys()) > 0:
         result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[1]))
