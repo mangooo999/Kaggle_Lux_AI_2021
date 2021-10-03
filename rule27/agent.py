@@ -442,25 +442,25 @@ def agent(observation, configuration):
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
             is_cluster_overcrowded = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 5:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
             is_cluster_overcrowded = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_uncontested_dist < 4:
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_uncontested_dist < 5:
             print(t_prefix, 'There is a very near uncontested cluster', closest_uncontested_cluster.id,
                   'next to this cluster', cluster.id, 'at dist ', closest_uncontested_dist, file=sys.stderr)
             is_cluster_overcrowded = True
 
         if is_cluster_overcrowded:
 
-            # find closest cluster (uncontended?)
+            # find closest cluster (uncontested?)
             if closest_uncontested_unit is not None:
                 # the time in turns to reach it
                 time_distance = 2 * (closest_uncontested_dist-1) + closest_uncontested_unit.cooldown
 
                 if time_distance > game_state_info.steps_until_night:
                     # unreachable before night
-                    print(t_prefix,  closest_uncontested_cluster.id,'is unreachble at a time distance ',
+                    print(t_prefix,  closest_uncontested_cluster.id,'is unreachable at a time distance ',
                           time_distance,'with turns to night',game_state_info.steps_until_night,
                           closest_uncontested_unit.pos, closest_uncontested_pos, file=sys.stderr)
                 else:
