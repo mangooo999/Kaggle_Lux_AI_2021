@@ -400,6 +400,7 @@ def agent(observation, configuration):
         else:
             unit_info[unit.id].update(unit, game_state.turn)
 
+    function_start_time = time.time()
     # clusters management
     for cluster in clusters.get_clusters():
         print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
@@ -463,7 +464,8 @@ def agent(observation, configuration):
                 unit_info[closest_uncontested_unit.id].set_unit_role_explorer(closest_uncontested_cluster.get_centroid())
 
 
-
+    ms = "{:10.2f}".format(1000.*(time.time() - function_start_time) )
+    print("T_" + str(game_state.turn), "cluster man refresh performance", ms, file=sys.stderr)
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])

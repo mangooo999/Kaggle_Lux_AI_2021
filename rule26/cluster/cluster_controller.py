@@ -1,5 +1,6 @@
 import sys
-from functools import cmp_to_key
+import time
+
 from collections import defaultdict
 from typing import List, DefaultDict, ValuesView
 from lux.game_map import RESOURCE_TYPES, Position, Cell
@@ -57,6 +58,7 @@ class ClusterControl:
         return None
 
     def update(self,game_state, player:Player, opponent:Player,unit_info : DefaultDict[str, UnitInfo]):
+        function_start_time = time.time()
         for k in list(self.clusters.keys()):
             self.clusters[k].update(
                 game_state,
@@ -68,6 +70,8 @@ class ClusterControl:
 
 
 
+        ms = "{:10.2f}".format(1000.*(time.time() - function_start_time) )
+        print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
 
     def get_units_without_clusters(self) -> List[Unit]:
 

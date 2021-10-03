@@ -1,6 +1,7 @@
 import math
 import sys
-from functools import cmp_to_key
+import time
+
 from collections import defaultdict
 from typing import List, DefaultDict, ValuesView
 from lux.game_map import RESOURCE_TYPES, Position, Cell
@@ -29,7 +30,7 @@ class ClusterControl:
             if resource_tile.resource.type == RESOURCE_TYPES.WOOD
         ]
         for i, rc in enumerate(MapAnalysis.get_resource_groups(wood_resource_cells)):
-            self.clusters[f'wood_{i}'] = Cluster(f'wood_{i}', rc,RESOURCE_TYPES.WOOD)
+            self.clusters[f'wood_{i}'] = Cluster(f'wood_{i}', rc, RESOURCE_TYPES.WOOD)
 
         # creating coal cluster
         coal_resource_cells = [
@@ -37,7 +38,7 @@ class ClusterControl:
             if resource_tile.resource.type == RESOURCE_TYPES.COAL
         ]
         for i, rc in enumerate(MapAnalysis.get_resource_groups(coal_resource_cells)):
-            self.clusters[f'coal_{i}'] = Cluster(f'coal_{i}', rc,RESOURCE_TYPES.COAL)
+            self.clusters[f'coal_{i}'] = Cluster(f'coal_{i}', rc, RESOURCE_TYPES.COAL)
 
         # creating uranium cluster
         uranium_resource_cells = [
@@ -45,28 +46,29 @@ class ClusterControl:
             if resource_tile.resource.type == RESOURCE_TYPES.URANIUM
         ]
         for i, rc in enumerate(MapAnalysis.get_resource_groups(uranium_resource_cells)):
-            self.clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc,RESOURCE_TYPES.URANIUM)
+            self.clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc, RESOURCE_TYPES.URANIUM)
 
-    def get_clusters (self)-> ValuesView[Cluster]:
+    def get_clusters(self) -> ValuesView[Cluster]:
         return self.clusters.values()
 
-    def get_cluster_from_centroid(self,pos:Position)-> Cluster:
+    def get_cluster_from_centroid(self, pos: Position) -> Cluster:
         for k in self.clusters.values():
             if k.get_centroid() == pos:
                 return k
 
         return None
 
-    def update(self,game_state, player:Player, opponent:Player,unit_info : DefaultDict[str, UnitInfo]):
+    def update(self, game_state, player: Player, opponent: Player, unit_info: DefaultDict[str, UnitInfo]):
 
-        #update cell distribution
+        function_start_time = time.time()
+        # update cell distribution
         for k in list(self.clusters.keys()):
             self.clusters[k].update(
                 game_state,
-                player,opponent,unit_info
+                player, opponent, unit_info
             )
-            if len(self.clusters[k].resource_cells)==0:
-                print("T_" + str(game_state.turn),"cluster",k, "terminated", file=sys.stderr)
+            if len(self.clusters[k].resource_cells) == 0:
+                print("T_" + str(game_state.turn), "cluster", k, "terminated", file=sys.stderr)
                 del self.clusters[k]
 
         # attribute friendly unit to the closer cluster
@@ -81,7 +83,6 @@ class ClusterControl:
             if u.id in unit_info.keys():
                 if unit_info[u.id].is_role_explorer() or unit_info[u.id].is_role_traveler():
                     continue
-
 
             closest_cluster_distance = math.inf
             closest_cluster = None
@@ -100,7 +101,8 @@ class ClusterControl:
             for k in list(self.clusters.keys()):
                 self.clusters[k].update_closest(player, opponent)
 
-
+        ms = "{:10.2f}".format(1000.*(time.time() - function_start_time) )
+        print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
 
     def get_units_without_clusters(self) -> List[Unit]:
 
@@ -114,7 +116,6 @@ class ClusterControl:
                 units_without_clusters.append(unit)
 
         return units_without_clusters
-
 
 # def get_citytiles_without_clusters(citytiles, cluster):
 #     citytiles_with_cluster = []
