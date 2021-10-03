@@ -206,9 +206,9 @@ Optional[Cell]:
         for adjacent_position in empty_tyles:
             adjacent_city_tiles, adjacent_city = find_number_of_adjacent_city_tile(adjacent_position, player)
             adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
-            # adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
-            # results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
-            results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res)
+            adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 3))
+            results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
+            #results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res)
 
             # print(prefix,"- XXXX1b",adjacent_position,results[adjacent_position], file=sys.stderr)
 
@@ -835,7 +835,7 @@ def agent(observation, configuration):
 
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
-                if adjacent_enemies>0:
+                if adjacent_enemies>0 and unit.cargo.fuel()<150:
                     build_city(actions, info, u_prefix, 'because we are close to enemy')
                     continue
                 if near_city:
@@ -905,6 +905,10 @@ def agent(observation, configuration):
 
             # IF WE CANNOT BUILD, or we could and have decided not to
 
+            if in_empty and near_city and near_wood:
+                # stay here, so we can build
+                print(u_prefix, " empty, near city, near wood, stay here", file=sys.stderr)
+                continue
 
             if game_state_info.is_night_time():
                 enough_fuel = 500
@@ -1024,12 +1028,13 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, pos
         print(t_prefix, 'Resources within 2 of', res_2, ';empty', is_empty,
               ';emptyNext', has_empty_next, file=sys.stderr)
         potential_ok = (is_empty or has_empty_next)
-        first_move[(int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2)] = next_pos
+        res_4 = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 4))
+        first_move[next_pos] = (int(not potential_ok), initial_city_pos.distance_to(next_pos), -res_2, -res_4)
     print(t_prefix, 'Not Ordered Resources within 2', first_move, file=sys.stderr)
     if len(first_move.keys()) > 0:
-        result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[0]))
+        result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[1]))
         print(t_prefix, 'Ordered Resources within 2', result, file=sys.stderr)
-        first_best_position = next(iter(result.values()))
+        first_best_position = next(iter(result.keys()))
         print(t_prefix, 'first_best_position', first_best_position, file=sys.stderr)
     return first_best_position
 
