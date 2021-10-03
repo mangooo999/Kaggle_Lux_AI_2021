@@ -114,12 +114,6 @@ class Cluster:
 
         self.resource_cells = resource_cells
 
-        alive_units = [
-            id for id in self.units if id in
-                                       [u.id for u in player.units]
-        ]
-        self.units = alive_units
-
         perimeter: List[Position] = MapAnalysis.get_perimeter(
             resource_cells,
             game_state.map.width,
@@ -158,28 +152,15 @@ class Cluster:
 
         self.walkable_perimeter = accessable_perimeter_now
 
+    def update_closest(self,player: Player, opponent: Player):
 
         # refresh units around this cluster
-        self.units = []
+
         self.enemy_unit = []
         for r in self.resource_cells:
-            # for u in player.units:
-            #     if r.pos.is_adjacent(u.pos):
-            #         #print('XXXX', self.id, 'resource ', r.pos, 'close to unit ',u.id,u.pos, file=sys.stderr)
-            #         self.add_unit(u.id)
-            # for e in opponent.units:
-            #     if r.pos.is_adjacent(e.pos):
-            #         self.add_enemy_unit(e.id)
+            #friendly units are added in the controller
 
-            for u in player.units:
-                if r.pos.distance_to(u.pos)<=2:
-                    #print('XXXX', self.id, 'resource ', r.pos, 'close to unit ',u.id,u.pos, file=sys.stderr)
-                    # we do not add explorers as they are possibly going away
-                    if u.id in unit_info.keys() and \
-                            (unit_info[u.id].is_role_explorer() or unit_info[u.id].is_role_traveler()):
-                        continue
-                    else:
-                        self.add_unit(u.id)
+            # add enemy units if they are closer than 2 from any resource cell
             for e in opponent.units:
                 if r.pos.distance_to(e.pos)<=2:
                     self.add_enemy_unit(e.id)

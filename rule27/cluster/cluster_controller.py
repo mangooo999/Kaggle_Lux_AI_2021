@@ -1,3 +1,4 @@
+import math
 import sys
 from functools import cmp_to_key
 from collections import defaultdict
@@ -57,6 +58,8 @@ class ClusterControl:
         return None
 
     def update(self,game_state, player:Player, opponent:Player,unit_info : DefaultDict[str, UnitInfo]):
+
+        #update cell distribution
         for k in list(self.clusters.keys()):
             self.clusters[k].update(
                 game_state,
@@ -66,6 +69,36 @@ class ClusterControl:
                 print("T_" + str(game_state.turn),"cluster",k, "terminated", file=sys.stderr)
                 del self.clusters[k]
 
+        # attribute friendly unit to the closer cluster
+
+        # first clear them up
+        for k in list(self.clusters.keys()):
+            self.clusters[k].units = []
+
+        for u in player.units:
+            # at the moment we do not add explorer that move from one cluster to another,
+            # todo, really we should take them in account in the cluster they are traveling
+            if u.id in unit_info.keys():
+                if unit_info[u.id].is_role_explorer() or unit_info[u.id].is_role_traveler():
+                    continue
+
+
+            closest_cluster_distance = math.inf
+            closest_cluster = None
+
+            for k in list(self.clusters.values()):
+                dist = u.pos.distance_to(k.get_centroid())
+                if dist < closest_cluster_distance:
+                    closest_cluster_distance = dist
+                    closest_cluster = k
+
+            # if we found one
+            if closest_cluster is not None:
+                closest_cluster.add_unit(u.id)
+
+            # update closest unit and enemy
+            for k in list(self.clusters.keys()):
+                self.clusters[k].update_closest(player, opponent)
 
 
 
