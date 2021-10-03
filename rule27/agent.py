@@ -875,7 +875,7 @@ def agent(observation, configuration):
                         for city_tile, dist in city_tile_distance.items():
                             distance = dist[0]
                             city_size = abs(dist[2])
-                            if city_size >= 5 and distance < max(6,game_state_info.turns_to_night/2):
+                            if city_size >= 5 and distance < 6:
                                 do_build = False
                                 break
 
