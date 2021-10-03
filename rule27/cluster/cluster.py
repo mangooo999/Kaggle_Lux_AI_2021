@@ -164,8 +164,12 @@ class Cluster:
             # add enemy units if they are closer than 2 from any resource cell
             for e in opponent.units:
                 dist = r.pos.distance_to(e.pos)
+
+                # store the closest anyway
                 if dist < self.closest_enemy_distance:
                     self.closest_enemy_distance = dist
+
+                # incrememnt the counter for enemy within 2 of range
                 if dist<=2:
                     self.add_enemy_unit(e.id)
 
