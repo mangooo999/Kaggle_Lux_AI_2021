@@ -157,16 +157,21 @@ class Cluster:
         # refresh units around this cluster
 
         self.enemy_unit = []
+        self.closest_enemy_distance = math.inf
         for r in self.resource_cells:
             #friendly units are added in the controller
 
             # add enemy units if they are closer than 2 from any resource cell
             for e in opponent.units:
-                if r.pos.distance_to(e.pos)<=2:
+                dist = r.pos.distance_to(e.pos)
+                if dist < self.closest_enemy_distance:
+                    self.closest_enemy_distance = dist
+                if dist<=2:
                     self.add_enemy_unit(e.id)
 
 
         # if there are no units, store the unit id and distance to closest
+        self.closest_unit = ''
         if len(self.units) == 0:
             self.closest_unit_distance = math.inf
             for r in self.resource_cells:
@@ -178,16 +183,6 @@ class Cluster:
         else:
             self.closest_unit_distance = 0
 
-        # if there are no enemy units, store the distance to closest enemy
-        if len(self.enemy_unit) == 0:
-            self.closest_enemy_distance = math.inf
-            for r in self.resource_cells:
-                for e in opponent.units:
-                    dist = r.pos.distance_to(e.pos)
-                    if dist < self.closest_enemy_distance:
-                        self.closest_enemy_distance = dist
-        else:
-            self.closest_enemy_distance = 0
 
     def is_reachable(self)->bool:
         return len(self.accessable_perimeter) > 0
