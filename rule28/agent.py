@@ -4,13 +4,13 @@ import collections
 import random
 import time
 
-from numpy.random._generator import Sequence
+
 
 random.seed(50)
 
 from game_state_info.game_state_info import GameStateInfo
 
-from typing import Optional, List, Dict, Tuple, DefaultDict, OrderedDict
+from typing import Optional, List, Dict, Tuple, DefaultDict, OrderedDict, Sequence
 from collections import defaultdict
 
 from lux.game import Game, Missions
