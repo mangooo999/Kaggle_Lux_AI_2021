@@ -376,11 +376,10 @@ def agent(observation, configuration):
             if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_no_units_no_enemy():
                 r_pos, r_distance = MapAnalysis.get_closest_position_cells(initial_city_pos, cluster.resource_cells)
                 res = cluster.resource_cells.__len__()
-                if float(res) > 1.7 * float(len(initial_cluster.resource_cells)) and r_distance < 14:
-                    if r_distance < distance:
-                        print(t_prefix, 'There is a better cluster', cluster.to_string_light(), file=sys.stderr)
-                        better_cluster_pos = r_pos
-                        distance = r_distance
+                if res > 2 * len(initial_cluster.resource_cells) and r_distance < 12 and r_distance < distance:
+                    print(t_prefix, 'There seems to be a better cluster', cluster.to_string_light(), file=sys.stderr)
+                    better_cluster_pos = r_pos
+                    distance = r_distance
 
         if better_cluster_pos is not None:
             good_pos_around_city = better_cluster_pos
@@ -464,13 +463,23 @@ def agent(observation, configuration):
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
             is_cluster_overcrowded = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
-            print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and target_dist < 4:
+            print(t_prefix, 'There is a very near uncontested cluster <4', target_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
             is_cluster_overcrowded = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and target_dist < 4:
-            print(t_prefix, 'There is a very near uncontested cluster', target_cluster.id,
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 2 and target_dist < 6:
+            print(t_prefix, 'There is a very near uncontested cluster <6', target_cluster.id,
                   'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
+            is_cluster_overcrowded = True
+
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 3 and target_dist < 7:
+            print(t_prefix, 'There is a very near uncontested cluster <7', target_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
+            is_cluster_overcrowded = True
+
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
+            print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
             is_cluster_overcrowded = True
 
         if is_cluster_overcrowded:
