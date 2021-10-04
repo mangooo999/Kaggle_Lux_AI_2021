@@ -58,7 +58,7 @@ class ClusterControl:
         return None
 
     def update(self,game_state, player:Player, opponent:Player,unit_info : DefaultDict[str, UnitInfo]):
-        function_start_time = time.time()
+        function_start_time = time.process_time()
         for k in list(self.clusters.keys()):
             self.clusters[k].update(
                 game_state,
@@ -70,7 +70,7 @@ class ClusterControl:
 
 
 
-        ms = "{:10.2f}".format(1000.*(time.time() - function_start_time) )
+        ms = "{:10.2f}".format(1000.*(time.process_time() - function_start_time) )
         print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
 
     def get_units_without_clusters(self) -> List[Unit]:

@@ -1,6 +1,6 @@
 @echo off
-set agent1=rule21/main.py
-set agent2=rule22/main.py
+set agent1=rule27a/main.py
+set agent2=rule27b/main.py
 set num_loops=100
 SetLocal EnableDelayedExpansion
 
