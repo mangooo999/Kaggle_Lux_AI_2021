@@ -4,6 +4,8 @@ import collections
 import random
 import time
 
+from numpy.random._generator import Sequence
+
 random.seed(50)
 
 from game_state_info.game_state_info import GameStateInfo
@@ -404,16 +406,12 @@ def agent(observation, configuration):
             unit_info[unit.id].update(unit, game_state.turn)
 
     # clusters management
+    clust_analyses :dict[str, Sequence[Tuple]] = {}
     for cluster in clusters.get_clusters():
         print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
+        clust_analyses[cluster.id] = []
         if len(cluster.units) == 0:
             continue
-
-        # find the closest unit of cluster to next cluster
-        closest_uncontested_dist = math.inf
-        closest_uncontested_unit: Unit = None
-        closest_uncontested_cluster: Cluster = None
-        closest_uncontested_pos: Position = None
 
         for next_clust in clusters.get_clusters():
             # we olny consider wood cluster
@@ -422,22 +420,44 @@ def agent(observation, configuration):
                     and next_clust.has_no_units_no_enemy():
                 for unitid in cluster.units:
                     unit = player.units_by_id[unitid]
+
+                    info = None
+                    if unitid in unit_info:
+                        info = unit_info[unitid]
+
                     if unit.get_cargo_space_left() == 0:
                         # do not consider units that can build
                         continue
 
                     # the distance to reach it
                     r_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, next_clust.resource_cells)
+                    if info is not None:
+                        score = int(not info.is_role_none()) # predilict role none
+                    else:
+                        score = 9
 
-                    if unit_info[unit.id].is_role_none() and distance < closest_uncontested_dist:
-                        closest_uncontested_dist = distance
-                        closest_uncontested_unit = unit
-                        closest_uncontested_cluster = next_clust
-                        closest_uncontested_pos = r_pos
+                    clust_analyses[cluster.id].append(
+                        (distance,
+                        unit,
+                        next_clust,
+                        r_pos,
+                        score))
 
-        # if closest_uncontested_unit is not None:
-        #     print(t_prefix, 'XXXXXXXXXXXXX', cluster.id, 'cluster un=', cluster.num_units(),' next dist',closest_uncontested_dist,
-        #           closest_uncontested_cluster.id, closest_uncontested_pos, closest_uncontested_unit.id, file=sys.stderr)
+        # sort on distance
+        clust_analyses[cluster.id].sort(key=lambda x: (x[0], x[4])) #sort on distance, score
+
+    for cluster in clusters.get_clusters():
+        if len(clust_analyses[cluster.id]) == 0:
+            continue
+        #else:
+
+        # first element of sequence associated to this cluster analyses
+        closest_cluster = next(iter(clust_analyses[cluster.id]), None)
+        # find the closest unit of cluster to next cluster
+        target_dist: int = closest_cluster[0]
+        target_unit: Unit = closest_cluster[1]
+        target_cluster: Cluster = closest_cluster[2]
+        target_pos: Position = closest_cluster[3]
 
         is_cluster_overcrowded: bool = False
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
@@ -448,28 +468,29 @@ def agent(observation, configuration):
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
             is_cluster_overcrowded = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_uncontested_dist < 4:
-            print(t_prefix, 'There is a very near uncontested cluster', closest_uncontested_cluster.id,
-                  'next to this cluster', cluster.id, 'at dist ', closest_uncontested_dist, file=sys.stderr)
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and target_dist < 4:
+            print(t_prefix, 'There is a very near uncontested cluster', target_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
             is_cluster_overcrowded = True
 
         if is_cluster_overcrowded:
 
-            # find closest cluster (uncontended?)
-            if closest_uncontested_unit is not None:
-                # the time in turns to reach it
-                time_distance = 2 * (closest_uncontested_dist-1) + closest_uncontested_unit.cooldown
-
-                if time_distance > game_state_info.steps_until_night:
-                    # unreachable before night
-                    print(t_prefix,  closest_uncontested_cluster.id,'is unreachble at a time distance ',
-                          time_distance,'with turns to night',game_state_info.steps_until_night,
-                          closest_uncontested_unit.pos, closest_uncontested_pos, file=sys.stderr)
-                else:
-                    print(t_prefix, ' repurposing', closest_uncontested_unit.id, ' to explore ',
-                          closest_uncontested_cluster.id, closest_uncontested_cluster.get_centroid(), file=sys.stderr)
-                    unit_info[closest_uncontested_unit.id].set_unit_role_explorer(
-                        closest_uncontested_cluster.get_centroid())
+            # the time in turns to reach it
+            time_distance = 2 * (target_dist - 1) + target_unit.cooldown
+            # print(t_prefix, "XXX",target_cluster.id,
+            #       'dist',target_dist,
+            #       'time dist ',time_distance, 'with turns to night', game_state_info.steps_until_night,
+            #       target_unit.pos, target_pos, file=sys.stderr)
+            if time_distance > game_state_info.steps_until_night:
+                # unreachable before night
+                print(t_prefix, target_cluster.id, 'is unreachble at a time distance ',
+                      time_distance, 'with turns to night', game_state_info.steps_until_night,
+                      target_unit.pos, target_pos, file=sys.stderr)
+            else:
+                print(t_prefix, ' repurposing', target_unit.id, ' to explore ',
+                      target_cluster.id, target_cluster.get_centroid(), file=sys.stderr)
+                unit_info[target_unit.id].set_unit_role_explorer(
+                    target_cluster.get_centroid())
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
