@@ -37,7 +37,8 @@ class Cluster:
             self.enemy_unit.append(unit_id)
 
     def to_string_light(self) -> str:
-        return "{0} {1} r={2} u={3} e={4} rc={5} wl={6}".format(self.id, self.get_centroid(), len(self.resource_cells),
+        return "{0} {1} r={2} f={3} u={4} e={5} rc={6} wl={7} ".format(self.id, self.get_centroid(), len(self.resource_cells),
+                                                         self.get_available_fuel(),
                                                          len(self.units), len(self.enemy_unit),
                                                          len(self.accessable_perimeter), len(self.walkable_perimeter))
 
@@ -47,6 +48,9 @@ class Cluster:
 
     def has_eq_gr_units_than_res(self) -> bool:
         return len(self.units) >= len(self.resource_cells)
+
+    def has_eq_gr_units_than_fuel(self) -> bool:
+        return len(self.units) >= self.get_available_fuel()/500.
 
     def has_no_units_no_enemy(self) -> bool:
         return len(self.units) ==0 and len(self.enemy_unit)==0

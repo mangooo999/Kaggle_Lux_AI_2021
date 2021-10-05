@@ -452,57 +452,91 @@ def agent(observation, configuration):
             continue
         #else:
 
-        # first element of sequence associated to this cluster analyses
+        # first element of sequence associated to this cluster analyses is the closest cluster
         closest_cluster = next(iter(clust_analyses[cluster.id]), None)
         # find the closest unit of cluster to next cluster
-        target_dist: int = closest_cluster[0]
-        target_unit: Unit = closest_cluster[1]
-        target_cluster: Cluster = closest_cluster[2]
-        target_pos: Position = closest_cluster[3]
+        closest_cluster_dist: int = closest_cluster[0]
+        closest_cluster_unit: Unit = closest_cluster[1]
+        closest_cluster_cluster: Cluster = closest_cluster[2]
+        closest_cluster_pos: Position = closest_cluster[3]
 
-        try_move_units_cluster: bool = False
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
+        bigger_cluster = None
+        bigger_cluster_unit: Unit = None
+        for k in clust_analyses[cluster.id]:
+            bigger_cluster_dist: int = k[0]
+            bigger_cluster_unit: Unit = k[1]
+            next_cluster: Cluster = k[2]
+
+            time_distance = 2 * (bigger_cluster_dist - 1) + bigger_cluster_unit.cooldown
+            if time_distance > game_state_info.steps_until_night:
+                break
+            elif next_cluster.get_available_fuel()>cluster.get_available_fuel():
+                bigger_cluster=next_cluster
+                break
+
+        move_to_closest_cluster: bool = False
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_fuel() and cluster.num_units() > 1:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
-            try_move_units_cluster = True
+            move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and target_dist < 4:
-            print(t_prefix, 'There is a very near uncontested cluster <4', target_cluster.id,
-                  'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
-            try_move_units_cluster = True
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_dist < 4:
+            print(t_prefix, 'There is a very near uncontested cluster <4', closest_cluster_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist, file=sys.stderr)
+            move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 2 and target_dist < 6:
-            print(t_prefix, 'There is a very near uncontested cluster <6', target_cluster.id,
-                  'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
-            try_move_units_cluster = True
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 2 and closest_cluster_dist < 6:
+            print(t_prefix, 'There is a very near uncontested cluster <6', closest_cluster_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist, file=sys.stderr)
+            move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 3 and target_dist < 7:
-            print(t_prefix, 'There is a very near uncontested cluster <7', target_cluster.id,
-                  'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
-            try_move_units_cluster = True
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 3 and closest_cluster_dist < 7:
+            print(t_prefix, 'There is a very near uncontested cluster <7', closest_cluster_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist, file=sys.stderr)
+            move_to_closest_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
-            try_move_units_cluster = True
+            move_to_closest_cluster = True
 
-        if try_move_units_cluster:
-            print(t_prefix, target_cluster.id, 'try_move_units_cluster', file=sys.stderr)
+        if move_to_closest_cluster:
+            print(t_prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id, file=sys.stderr)
 
             # the time in turns to reach it
-            time_distance = 2 * (target_dist - 1) + target_unit.cooldown
+            time_distance = 2 * (closest_cluster_dist - 1) + closest_cluster_unit.cooldown
             # print(t_prefix, "XXX",target_cluster.id,
             #       'dist',target_dist,
             #       'time dist ',time_distance, 'with turns to night', game_state_info.steps_until_night,
             #       target_unit.pos, target_pos, file=sys.stderr)
             if time_distance > game_state_info.steps_until_night:
                 # unreachable before night
-                print(t_prefix, target_cluster.id, 'is unreachble at a time distance ',
+                print(t_prefix, closest_cluster_cluster.id, 'is unreachble at a time distance ',
                       time_distance, 'with turns to night', game_state_info.steps_until_night,
-                      target_unit.pos, target_pos, file=sys.stderr)
+                      closest_cluster_unit.pos, closest_cluster_pos, file=sys.stderr)
             else:
-                print(t_prefix, ' repurposing', target_unit.id, ' to explore ',
-                      target_cluster.id, target_cluster.get_centroid(), file=sys.stderr)
-                unit_info[target_unit.id].set_unit_role_explorer(
-                    target_cluster.get_centroid())
+                print(t_prefix, ' repurposing', closest_cluster_unit.id, ' to explore closest_cluster',
+                      closest_cluster_cluster.id, closest_cluster_cluster.get_centroid(), file=sys.stderr)
+                unit_info[closest_cluster_unit.id].set_unit_role_explorer(
+                    closest_cluster_cluster.get_centroid())
+
+        else:
+            move_to_bigger_cluster: bool = False
+            if bigger_cluster is not None:
+
+                if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 3:
+                    print(t_prefix, 'cluster', cluster.id, ' bigger_cluster u>3, u=', cluster.units, file=sys.stderr)
+                    move_to_bigger_cluster = True
+
+                if move_to_bigger_cluster:
+                    print(t_prefix, ' repurposing', bigger_cluster_unit.id, ' to explore bigger_cluster',
+                          bigger_cluster.id, bigger_cluster.get_centroid(), file=sys.stderr)
+                    unit_info[bigger_cluster_unit.id].set_unit_role_explorer(
+                        bigger_cluster.get_centroid())
+
+
+
+
+
+
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
