@@ -416,6 +416,7 @@ def agent(observation, configuration):
         for next_clust in clusters.get_clusters():
             # we olny consider cluster minable in 6 turns
             is_minable= is_resource_minable(player,next_clust.res_type,6,game_info.get_research_rate(5))
+            # print(t_prefix,'XXXXX',next_clust.id,next_clust.res_type,is_minable, file=sys.stderr)
             # we olny consider uncontended and empty cluster
             if next_clust.id != cluster.id and is_minable and next_clust.has_no_units_no_enemy():
                 for unitid in cluster.units:
@@ -665,14 +666,19 @@ def agent(observation, configuration):
 
             # adjacent SHORTCUTS
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
-            adjacent_enemies = get_units_number_around_pos(opponent,unit.pos,1)
             best_adjacent_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(
                 adjacent_empty_tiles, game_state, player, available_resources_tiles, u_prefix)
-            resources_distance = ResourceService.find_resources_distance(
+            resources_distance,adjacent_resources = ResourceService.find_resources_distance(
                 unit.pos, player, all_resources_tiles, game_info)
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
             adjacent_next_to_resources = get_walkable_that_are_near_resources(
                 u_prefix, move_mapper, get_4_positions(unit.pos, game_state), available_resources_tiles)
+            adjacent_units = get_units_around_pos(player, unit.pos,1)
+
+            #enemy SHORTCUTS
+            num_adjacent_enemy_unit = get_units_number_around_pos(opponent, unit.pos, 1)
+            num_hostiles_within2 = get_units_and_city_number_around_pos(opponent,unit.pos,2)
+            is_in_highly_hostile_area = num_hostiles_within2 > 5
 
             print(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', best_adjacent_empty_tile.pos if best_adjacent_empty_tile else '', file=sys.stderr)
@@ -704,7 +710,7 @@ def agent(observation, configuration):
                     info.clean_unit_role()
 
             #   EXPANDER
-            if info.is_role_city_expander() and unit.get_cargo_space_left() > 0 and adjacent_enemies==0:
+            if info.is_role_city_expander() and unit.get_cargo_space_left() > 0 and num_adjacent_enemy_unit==0:
                 print(u_prefix, ' is expander', file=sys.stderr)
 
                 # all action expander are based on building next turn. We don't build at last day, so skip if day before
@@ -873,7 +879,7 @@ def agent(observation, configuration):
 
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
-                if adjacent_enemies>0 and unit.cargo.fuel()<150:
+                if (num_adjacent_enemy_unit>0 or is_in_highly_hostile_area) and unit.cargo.fuel()<150:
                     build_city(actions, info, u_prefix, 'because we are close to enemy')
                     continue
                 if near_city:
@@ -946,6 +952,42 @@ def agent(observation, configuration):
                 # stay here, so we can build
                 print(u_prefix, " empty, near city, near wood, stay here", file=sys.stderr)
                 continue
+
+            if is_in_highly_hostile_area:
+                done=False
+                print(u_prefix, "hostile area;nearW=",near_wood,"inRes=",in_resource,'inEmp=',in_empty, file=sys.stderr)
+                #we are in wood in a highly hostile area, rule for building already implemented,
+                # here we try try to penetrate and not backoff
+                if near_wood and in_empty:
+                    print(u_prefix, "hostile area, empty, near wood, stay here, so we can build", file=sys.stderr)
+                    continue
+                if near_wood and not in_resource:
+                    #only try to move near wood
+                    for r in adjacent_resources:
+                        if move_mapper.can_move_to_pos(r.pos):
+                            move_unit_to_pos(actions, move_mapper, info, 'hostile area, from near to res',r.pos)
+                            done=True
+                            break
+                if in_resource:
+                    print(u_prefix, "hostile area, in resource", file=sys.stderr)
+                    for friend in adjacent_units:
+                        if is_cell_empty(friend.pos,game_state) and friend.get_cargo_space_left()>0:
+                            #pass the cargo on
+                            transfer_all_resources(actions,info,friend.id)
+                            done = True
+                            break
+
+                    if not done:
+                        # if we didn't pass to somebody in empty, see if there is something empty
+                        for empty in find_all_adjacent_empty_tiles(game_state,unit.pos):
+                            if move_mapper.can_move_to_pos(empty):
+                                move_unit_to_pos(actions, move_mapper, info, 'hostile area, from res to near', empty)
+                                done = True
+                                break
+
+                if done:
+                    continue
+
 
             if game_state_info.is_night_time():
                 enough_fuel = 500

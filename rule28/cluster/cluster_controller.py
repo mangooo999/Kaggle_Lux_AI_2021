@@ -90,8 +90,8 @@ class ClusterControl:
 
             for k in list(self.clusters.values()):
                 if k.res_type == RESOURCE_TYPES.WOOD or \
-                        (k.res_type  == RESOURCE_TYPES.COAL and player.researched_coal()) or \
-                        (k.res_type  == RESOURCE_TYPES.URANIUM and player.researched_uranium()):
+                        (k.res_type == RESOURCE_TYPES.COAL and player.researched_coal()) or \
+                        (k.res_type == RESOURCE_TYPES.URANIUM and player.researched_uranium()):
 
                     dist = u.pos.distance_to(k.get_centroid())
                     if dist < closest_cluster_distance:
