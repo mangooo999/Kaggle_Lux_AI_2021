@@ -360,6 +360,7 @@ def agent(observation, configuration):
         for cluster in clusters.get_clusters():
             if len(cluster.units) > 0:
                 initial_cluster = cluster
+                print(t_prefix, "initial cluster",initial_cluster.to_string_light(),file=sys.stderr)
 
         x3: list = MapAnalysis.get_resources_around(available_resources_tiles, initial_city_pos, 3)
         game_info.at_start_resources_within3 = len(x3)
@@ -413,10 +414,10 @@ def agent(observation, configuration):
             continue
 
         for next_clust in clusters.get_clusters():
-            # we olny consider wood cluster
+            # we olny consider cluster minable in 6 turns
+            is_minable= is_resource_minable(player,next_clust.res_type,6,game_info.get_research_rate(5))
             # we olny consider uncontended and empty cluster
-            if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD \
-                    and next_clust.has_no_units_no_enemy():
+            if next_clust.id != cluster.id and is_minable and next_clust.has_no_units_no_enemy():
                 for unitid in cluster.units:
                     unit = player.units_by_id[unitid]
 
@@ -458,31 +459,32 @@ def agent(observation, configuration):
         target_cluster: Cluster = closest_cluster[2]
         target_pos: Position = closest_cluster[3]
 
-        is_cluster_overcrowded: bool = False
+        try_move_units_cluster: bool = False
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
-            is_cluster_overcrowded = True
+            try_move_units_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and target_dist < 4:
             print(t_prefix, 'There is a very near uncontested cluster <4', target_cluster.id,
                   'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
-            is_cluster_overcrowded = True
+            try_move_units_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 2 and target_dist < 6:
             print(t_prefix, 'There is a very near uncontested cluster <6', target_cluster.id,
                   'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
-            is_cluster_overcrowded = True
+            try_move_units_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 3 and target_dist < 7:
             print(t_prefix, 'There is a very near uncontested cluster <7', target_cluster.id,
                   'next to this cluster', cluster.id, 'at dist ', target_dist, file=sys.stderr)
-            is_cluster_overcrowded = True
+            try_move_units_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
-            is_cluster_overcrowded = True
+            try_move_units_cluster = True
 
-        if is_cluster_overcrowded:
+        if try_move_units_cluster:
+            print(t_prefix, target_cluster.id, 'try_move_units_cluster', file=sys.stderr)
 
             # the time in turns to reach it
             time_distance = 2 * (target_dist - 1) + target_unit.cooldown
@@ -1128,6 +1130,19 @@ def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, pref
             # continue
 
 
+def get_units_and_city_number_around_pos(actor, pos: Position, distance=1) -> int:
+    results = 0
+    for city in actor.cities.values():
+        for city_tile in city.citytiles:
+            if city_tile.pos.distance_to(pos) <= distance:
+                results+=1
+
+    for unit in actor.units:
+        if unit.pos.distance_to(pos) <= distance:
+            results+=1
+
+    return results
+
 def get_unit_in_pos(actor, pos) -> Unit:
     for unit in actor.units:
         if unit.pos.equals(pos):
@@ -1272,13 +1287,12 @@ def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str
 
 
 # return dist of cities, autonomy
-def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, int, DIRECTIONS]}:
+def adjacent_cities(player, pos: Position, dist=1) -> {City, Tuple[int, int, DIRECTIONS]}:
     cities = {}
     for city in player.cities.values():
         for city_tile in city.citytiles:
-            if city_tile.pos.is_adjacent(pos):
-                if do_log:
-                    print(pos, "adjacent_cities", city_tile.pos, file=sys.stderr)
+            if city_tile.pos.distance_to(pos) <= dist:
+                # print(pos, "adjacent_cities", city_tile.pos, file=sys.stderr)
                 cities[city] = (len(city.citytiles), get_autonomy_turns(city), directions_to(pos, city_tile.pos)[0])
 
     return cities
@@ -1364,6 +1378,11 @@ def get_direction_to_city(game_state: Game, info: UnitInfo, target_pos: Position
 
     return DIRECTIONS.CENTER
 
+def is_resource_minable(actor, resource_type:str, research_rate=0., in_future_turns=0)-> bool:
+    expected_additional_research = int (research_rate * in_future_turns)
+    return (resource_type == RESOURCE_TYPES.WOOD) or \
+            (resource_type == RESOURCE_TYPES.COAL and actor.research_points + expected_additional_research >= 50 ) or \
+            (resource_type == RESOURCE_TYPES.URANIUM and actor.research_points + expected_additional_research >= 200)
 
 def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Position,
                                move_mapper: MoveHelper) -> DIRECTIONS:
