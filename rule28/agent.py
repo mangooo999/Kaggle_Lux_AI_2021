@@ -1385,7 +1385,7 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
         return DIRECTIONS.CENTER
 
     directions = directions_to(from_pos, target_pos)
-    possible_directions = {}
+    possible_directions = []
 
     check_penalise_directions(directions, info)
 
@@ -1395,18 +1395,40 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
         # if we are trying to move on top of somebody else, skip
         # print(t_prefix, ' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
         if move_mapper.can_move_to_pos(next_pos, allow_clash_unit, unit.id + ' moving to ' + direction):
+            # calculate how many resources there are to gather while walking, and predilect those if you have no cargo
             number_of_adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 1))
-            possible_directions[-number_of_adjacent_res] = direction
+            is_empty = is_cell_empty(next_pos,game_state)
+            near_resources = ResourceService.is_position_adjacent_to_resource(resource_tiles, next_pos)
+            is_city = move_mapper.is_position_city(next_pos)
+            possible_directions.append(
+                (direction, # 0
+                 -number_of_adjacent_res, # 1
+                 -int(is_empty), # 2
+                 -int(is_empty and near_resources), # 3
+                 -int(is_city) # 4
+                      ))
         else:
             # print(' XXX - skip', file=sys.stderr)
             continue
 
-    possible_directions = collections.OrderedDict(sorted(possible_directions.items(), key=lambda x: x[0]))
+    if info.unit.get_cargo_space_left() == 0:
+        #if we do not have cargo, predilect empty tiles
+        possible_directions.sort(key=lambda x: (x[2])) # sort by it is empty
+    elif info.unit.get_cargo_space_left() <= 20:
+        #if we have 20 only left, moving in an empty near resouces, would just do great
+        possible_directions.sort(key=lambda x: (x[3]))  # sort by it is empty and near resources
+    elif info.unit.get_cargo_space_left() == 100:
+        # no cargo, whatsover favour cities to travel faster, then more resources
+        possible_directions.sort(key=lambda x: (x[4],x[1]))  # sort by it is empty and near resources
+    else:
+        #in any other case (20<cargo<100), just go where more resorces
+        possible_directions.sort(key=lambda x: (x[1]))
 
-    if len(possible_directions.values()) == 0:
+
+    if len(possible_directions) == 0:
         return DIRECTIONS.CENTER
     else:
-        return next(iter(possible_directions.values()))
+        return next(iter(possible_directions))[0]
 
 
 def check_penalise_directions(directions, info: UnitInfo):
