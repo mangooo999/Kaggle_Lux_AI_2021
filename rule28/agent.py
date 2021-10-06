@@ -49,6 +49,7 @@ import maps.map_analysis as MapAnalysis
 # we seem to have a very week logic if numerous units in the same area are without a cluster at the same time, we need to reuse here the logic we use in cluster move
 # we seem to go to un-researched resources too early https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27483344
 # if there are good clusters at more than 15 resources away, stock up and travel far
+
 ### Define helper functions
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
@@ -415,10 +416,12 @@ def agent(observation, configuration):
 
         for next_clust in clusters.get_clusters():
             # we olny consider cluster minable in 6 turns
+
             is_minable= is_resource_minable(player,next_clust.res_type,6,game_info.get_research_rate(5))
             # print(t_prefix,'XXXXX',next_clust.id,next_clust.res_type,is_minable, file=sys.stderr)
             # we olny consider uncontended and empty cluster
-            if next_clust.id != cluster.id and is_minable and next_clust.has_no_units_no_enemy():
+            if next_clust.id != cluster.id and is_minable \
+                    and next_clust.has_no_units_no_enemy():
                 for unitid in cluster.units:
                     unit = player.units_by_id[unitid]
 
@@ -432,6 +435,13 @@ def agent(observation, configuration):
 
                     # the distance to reach it
                     r_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, next_clust.resource_cells)
+                    time_distance = 2 * (distance - 1) + unit.cooldown
+
+                    # TODO we could try to add here the resources if we are sure it doesn't pass from a city
+                    # # we only consider reachable clusters before the night
+                    if time_distance > game_state_info.steps_until_night:
+                        continue
+
                     if info is not None:
                         score = int(not info.is_role_none()) # predilict role none
                     else:
@@ -442,10 +452,11 @@ def agent(observation, configuration):
                         unit,
                         next_clust,
                         r_pos,
-                        score))
+                        score,
+                        time_distance))
 
-        # sort on distance
-        clust_analyses[cluster.id].sort(key=lambda x: (x[0], x[4])) #sort on distance, score
+        # sort on time_distance, score
+        clust_analyses[cluster.id].sort(key=lambda x: (x[5], x[4])) #time_distance, score
 
     for cluster in clusters.get_clusters():
         if len(clust_analyses[cluster.id]) == 0:
@@ -463,19 +474,15 @@ def agent(observation, configuration):
         bigger_cluster = None
         bigger_cluster_unit: Unit = None
         for k in clust_analyses[cluster.id]:
-            bigger_cluster_dist: int = k[0]
             bigger_cluster_unit: Unit = k[1]
             next_cluster: Cluster = k[2]
 
-            time_distance = 2 * (bigger_cluster_dist - 1) + bigger_cluster_unit.cooldown
-            if time_distance > game_state_info.steps_until_night:
-                break
-            elif next_cluster.get_available_fuel()>cluster.get_available_fuel():
+            if next_cluster.get_available_fuel()>cluster.get_available_fuel():
                 bigger_cluster=next_cluster
                 break
 
         move_to_closest_cluster: bool = False
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_fuel() and cluster.num_units() > 1:
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.is_overcrowded() and cluster.num_units() > 1:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
             move_to_closest_cluster = True
 
