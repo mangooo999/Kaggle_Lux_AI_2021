@@ -77,30 +77,37 @@ class ClusterControl:
         # first clear them up
         for k in list(self.clusters.keys()):
             self.clusters[k].units = []
+            self.clusters[k].incoming_explorers = []
+            self.clusters[k].city_tiles = []
 
         for u in player.units:
-            # at the moment we do not add explorer that move from one cluster to another,
-            # todo, really we should take them in account in the cluster they are traveling
+
             if u.id in unit_info.keys():
+                # if explorer\traveler add the target position as cluster reference
                 if unit_info[u.id].is_role_explorer() or unit_info[u.id].is_role_traveler():
+                    if unit_info[u.id].target_position is not None:
+                        closest_cluster = self.get_closest_cluster(player, unit_info[u.id].target_position)
+                        if closest_cluster is not None:
+                            closest_cluster.add_incoming_explorer(u.id)
+
+                    # anyway next, unit
                     continue
 
-            closest_cluster_distance = math.inf
-            closest_cluster = None
+            # otherwise just the position
+            closest_cluster = self.get_closest_cluster(player, u.pos)
 
-            for k in list(self.clusters.values()):
-                if k.res_type == RESOURCE_TYPES.WOOD or \
-                        (k.res_type == RESOURCE_TYPES.COAL and player.researched_coal()) or \
-                        (k.res_type == RESOURCE_TYPES.URANIUM and player.researched_uranium()):
-
-                    dist = u.pos.distance_to(k.get_centroid())
-                    if dist < closest_cluster_distance:
-                        closest_cluster_distance = dist
-                        closest_cluster = k
-
-            # if we found one
             if closest_cluster is not None:
                 closest_cluster.add_unit(u.id)
+
+        for city in player.cities.values():
+            for city_tile in city.citytiles:
+
+                closest_cluster = self.get_closest_cluster(player, city_tile.pos)
+
+                # if we found one
+                if closest_cluster is not None:
+                    closest_cluster.add_city_tile(city_tile)
+
 
         # update closest unit and enemy
         for k in list(self.clusters.keys()):
@@ -108,6 +115,20 @@ class ClusterControl:
 
         # ms = "{:10.2f}".format(1000. * (time.process_time() - function_start_time))
         # print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
+
+    def get_closest_cluster(self, player, pos):
+        closest_cluster_distance = math.inf
+        closest_cluster = None
+        for k in list(self.clusters.values()):
+            if k.res_type == RESOURCE_TYPES.WOOD or \
+                    (k.res_type == RESOURCE_TYPES.COAL and player.researched_coal()) or \
+                    (k.res_type == RESOURCE_TYPES.URANIUM and player.researched_uranium()):
+
+                dist = pos.distance_to(k.get_centroid())
+                if dist < closest_cluster_distance:
+                    closest_cluster_distance = dist
+                    closest_cluster = k
+        return closest_cluster
 
     def get_units_without_clusters(self) -> List[Unit]:
 
