@@ -9,7 +9,7 @@ import maps.map_analysis as MapAnalysis
 import resources.resource_helper as ResourceService
 
 # from missions.mission import Mission
-from lux.game_objects import Player
+from lux.game_objects import Player, CityTile
 from UnitInfo import UnitInfo
 
 
@@ -18,6 +18,8 @@ class Cluster:
         self.id: str = id
         self.resource_cells: List[Cell] = resource_cells
         self.units: List[str] = []
+        self.incoming_explorers: List[str] = []
+        self.city_tiles: List[CityTile] = []
         self.enemy_unit: List[str] = []
         self.perimeter: List[Position] = []
         self.exposed_perimeter: List[Position] = []
@@ -32,15 +34,30 @@ class Cluster:
         if unit_id not in self.units:
             self.units.append(unit_id)
 
+    def add_incoming_explorer(self, unit_id: str):
+        if unit_id not in self.incoming_explorers:
+            self.incoming_explorers.append(unit_id)
+
+    def add_city_tile(self, ct: CityTile):
+        if ct not in self.city_tiles:
+            self.city_tiles.append(ct)
+
     def add_enemy_unit(self, unit_id: str):
         if unit_id not in self.enemy_unit:
             self.enemy_unit.append(unit_id)
 
     def to_string_light(self) -> str:
-        return "{0} {1} r={2} u={3} e={4} rc={5} wl={6}".format(self.id, self.get_centroid(), len(self.resource_cells),
-                                                         len(self.units), len(self.enemy_unit),
-                                                         len(self.accessable_perimeter), len(self.walkable_perimeter))
-
+        return "{0} {1} r={2} f={3} u={4} iu={10} c={5} e={6} ed={7} pl={8} pw={9} ".format(self.id, self.get_centroid(),
+                                                                                    len(self.resource_cells),
+                                                                                    self.get_available_fuel(),
+                                                                                    len(self.units),
+                                                                                    len(self.city_tiles),
+                                                                                    len(self.enemy_unit),
+                                                                                    self.closest_enemy_distance,
+                                                                                    len(self.accessable_perimeter),
+                                                                                    len(self.walkable_perimeter),
+                                                                                    len(self.incoming_explorers),
+                                                                                    )
 
     def is_more_units_than_res(self) -> bool:
         return len(self.units) > len(self.resource_cells)
@@ -48,13 +65,25 @@ class Cluster:
     def has_eq_gr_units_than_res(self) -> bool:
         return len(self.units) >= len(self.resource_cells)
 
+    def has_eq_gr_units_than_fuel(self) -> bool:
+        return len(self.units) >= self.get_available_fuel()/500.
+
+    def is_overcrowded(self) -> bool:
+        u= len(self.units)
+        ct = len(self.city_tiles)
+        equivalent_units = min(max(u,ct),u+2)  # logic is that if units<ct, we can spawn units
+        equivalent_resources = min(len(self.resource_cells),self.get_available_fuel() / 500.)
+        return equivalent_units >= equivalent_resources
+
+
+
     def has_no_units_no_enemy(self) -> bool:
-        return len(self.units) ==0 and len(self.enemy_unit)==0
+        return len(self.units) == 0 and len(self.enemy_unit) == 0
 
     def num_units(self) -> int:
         return len(self.units)
 
-    def distance_to(self,pos) -> int:
+    def distance_to(self, pos) -> int:
         return self.get_centroid().distance_to(pos)
 
     def get_available_fuel(self) -> int:
@@ -87,15 +116,15 @@ class Cluster:
 
         return Position(math.inf, math.inf)
 
-    def get_closest_distance_to_perimeter(self,pos:Position) -> (Position,int):
+    def get_closest_distance_to_perimeter(self, pos: Position) -> (Position, int):
         return MapAnalysis.get_closest_position(
-                            pos,
-                            self.exposed_perimeter
-                        )
+            pos,
+            self.exposed_perimeter
+        )
 
     def update(self,
                game_state,
-               player: Player, opponent: Player, unit_info : DefaultDict[str, UnitInfo]
+               player: Player, opponent: Player, unit_info: DefaultDict[str, UnitInfo]
                ):
         '''
         This is to update the cluster information.
@@ -130,7 +159,7 @@ class Cluster:
 
         accessable_perimeter = []
         for p in self.perimeter:
-            city_tile=game_state.map.get_cell_by_pos(p).citytile
+            city_tile = game_state.map.get_cell_by_pos(p).citytile
             if city_tile is None:
                 # no city
                 # todo maybe exclude occupied enemy tiles
@@ -143,23 +172,23 @@ class Cluster:
 
         accessable_perimeter_now = []
         for p in self.accessable_perimeter:
-            add=True
+            add = True
             for e in opponent.units:
                 if p.equals(e.pos):
-                    add=False
+                    add = False
             if add:
                 accessable_perimeter_now.append(p)
 
         self.walkable_perimeter = accessable_perimeter_now
 
-    def update_closest(self,player: Player, opponent: Player):
+    def update_closest(self, player: Player, opponent: Player):
 
         # refresh units around this cluster
 
         self.enemy_unit = []
         self.closest_enemy_distance = math.inf
         for r in self.resource_cells:
-            #friendly units are added in the controller
+            # friendly units are added in the controller
 
             # add enemy units if they are closer than 2 from any resource cell
             for e in opponent.units:
@@ -170,9 +199,8 @@ class Cluster:
                     self.closest_enemy_distance = dist
 
                 # incrememnt the counter for enemy within 2 of range
-                if dist<=2:
+                if dist <= 2:
                     self.add_enemy_unit(e.id)
-
 
         # if there are no units, store the unit id and distance to closest
         self.closest_unit = ''
@@ -187,6 +215,5 @@ class Cluster:
         else:
             self.closest_unit_distance = 0
 
-
-    def is_reachable(self)->bool:
+    def is_reachable(self) -> bool:
         return len(self.accessable_perimeter) > 0

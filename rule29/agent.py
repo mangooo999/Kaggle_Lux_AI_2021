@@ -4,11 +4,13 @@ import collections
 import random
 import time
 
+
+
 random.seed(50)
 
 from game_state_info.game_state_info import GameStateInfo
 
-from typing import Optional, List, Dict, Tuple, DefaultDict, OrderedDict
+from typing import Optional, List, Dict, Tuple, DefaultDict, OrderedDict, Sequence
 from collections import defaultdict
 
 from lux.game import Game, Missions
@@ -47,6 +49,7 @@ import maps.map_analysis as MapAnalysis
 # we seem to have a very week logic if numerous units in the same area are without a cluster at the same time, we need to reuse here the logic we use in cluster move
 # we seem to go to un-researched resources too early https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27483344
 # if there are good clusters at more than 15 resources away, stock up and travel far
+
 ### Define helper functions
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
@@ -358,6 +361,7 @@ def agent(observation, configuration):
         for cluster in clusters.get_clusters():
             if len(cluster.units) > 0:
                 initial_cluster = cluster
+                print(t_prefix, "initial cluster",initial_cluster.to_string_light(),file=sys.stderr)
 
         x3: list = MapAnalysis.get_resources_around(available_resources_tiles, initial_city_pos, 3)
         game_info.at_start_resources_within3 = len(x3)
@@ -403,72 +407,98 @@ def agent(observation, configuration):
             unit_info[unit.id].update(unit, game_state.turn)
 
     # clusters management
+    clust_analyses :dict[str, Sequence[Tuple]] = {}
     for cluster in clusters.get_clusters():
         print(t_prefix, 'cluster', cluster.to_string_light(), file=sys.stderr)
+        clust_analyses[cluster.id] = []
         if len(cluster.units) == 0:
             continue
-
-        # find the closest unit of cluster to next cluster
-        closest_uncontested_dist = math.inf
-        closest_uncontested_unit: Unit = None
-        closest_uncontested_cluster: Cluster = None
-        closest_uncontested_pos: Position = None
 
         for next_clust in clusters.get_clusters():
             # we olny consider wood cluster
             # we olny consider uncontended and empty cluster
-            if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD \
-                    and next_clust.has_no_units_no_enemy():
+            if next_clust.id != cluster.id and next_clust.res_type == RESOURCE_TYPES.WOOD and next_clust.has_no_units_no_enemy():
                 for unitid in cluster.units:
                     unit = player.units_by_id[unitid]
+
+                    info = None
+                    if unitid in unit_info:
+                        info = unit_info[unitid]
+
                     if unit.get_cargo_space_left() == 0:
                         # do not consider units that can build
                         continue
 
                     # the distance to reach it
                     r_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, next_clust.resource_cells)
+                    time_distance = 2 * (distance - 1) + unit.cooldown
 
-                    if unit_info[unit.id].is_role_none() and distance < closest_uncontested_dist:
-                        closest_uncontested_dist = distance
-                        closest_uncontested_unit = unit
-                        closest_uncontested_cluster = next_clust
-                        closest_uncontested_pos = r_pos
+                    # TODO we could try to add here the resources if we are sure it doesn't pass from a city
+                    # # we only consider reachable clusters before the night
+                    if time_distance > game_state_info.steps_until_night:
+                        continue
+                    if info is None:						
+                        continue			
+                    if not info.is_role_none():
+                        continue						
 
-        # if closest_uncontested_unit is not None:
-        #     print(t_prefix, 'XXXXXXXXXXXXX', cluster.id, 'cluster un=', cluster.num_units(),' next dist',closest_uncontested_dist,
-        #           closest_uncontested_cluster.id, closest_uncontested_pos, closest_uncontested_unit.id, file=sys.stderr)
+                    clust_analyses[cluster.id].append(
+                        (distance,
+                        unit,
+                        next_clust,
+                        r_pos,
+                        0,
+                        time_distance))
 
-        is_cluster_overcrowded: bool = False
+        # sort on distance
+        clust_analyses[cluster.id].sort(key=lambda x: (x[0])) #distance
+
+    for cluster in clusters.get_clusters():
+        if len(clust_analyses[cluster.id]) == 0:
+            continue
+        #else:
+
+        # first element of sequence associated to this cluster analyses is the closest cluster
+        closest_cluster = next(iter(clust_analyses[cluster.id]), None)
+        # find the closest unit of cluster to next cluster
+        closest_cluster_dist: int = closest_cluster[0]
+        closest_cluster_unit: Unit = closest_cluster[1]
+        closest_cluster_cluster: Cluster = closest_cluster[2]
+        closest_cluster_pos: Position = closest_cluster[3]
+
+        move_to_closest_cluster: bool = False
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units, file=sys.stderr)
-            is_cluster_overcrowded = True
+            move_to_closest_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
             print(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units, file=sys.stderr)
-            is_cluster_overcrowded = True
+            move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_uncontested_dist < 4:
-            print(t_prefix, 'There is a very near uncontested cluster', closest_uncontested_cluster.id,
-                  'next to this cluster', cluster.id, 'at dist ', closest_uncontested_dist, file=sys.stderr)
-            is_cluster_overcrowded = True
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_dist < 4:
+            print(t_prefix, 'There is a very near uncontested cluster', closest_cluster_cluster.id,
+                  'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist, file=sys.stderr)
+            move_to_closest_cluster = True
 
-        if is_cluster_overcrowded:
+        if move_to_closest_cluster:
+            print(t_prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id, file=sys.stderr)
 
-            # find closest cluster (uncontended?)
-            if closest_uncontested_unit is not None:
-                # the time in turns to reach it
-                time_distance = 2 * (closest_uncontested_dist-1) + closest_uncontested_unit.cooldown
-
-                if time_distance > game_state_info.steps_until_night:
-                    # unreachable before night
-                    print(t_prefix,  closest_uncontested_cluster.id,'is unreachble at a time distance ',
-                          time_distance,'with turns to night',game_state_info.steps_until_night,
-                          closest_uncontested_unit.pos, closest_uncontested_pos, file=sys.stderr)
-                else:
-                    print(t_prefix, ' repurposing', closest_uncontested_unit.id, ' to explore ',
-                          closest_uncontested_cluster.id, closest_uncontested_cluster.get_centroid(), file=sys.stderr)
-                    unit_info[closest_uncontested_unit.id].set_unit_role_explorer(
-                        closest_uncontested_cluster.get_centroid())
+            # the time in turns to reach it
+            time_distance = 2 * (closest_cluster_dist - 1) + closest_cluster_unit.cooldown
+            # print(t_prefix, "XXX",target_cluster.id,
+            #       'dist',target_dist,
+            #       'time dist ',time_distance, 'with turns to night', game_state_info.steps_until_night,
+            #       target_unit.pos, target_pos, file=sys.stderr)
+            if time_distance > game_state_info.steps_until_night:
+                # unreachable before night
+                print(t_prefix, closest_cluster_cluster.id, 'is unreachble at a time distance ',
+                      time_distance, 'with turns to night', game_state_info.steps_until_night,
+                      closest_cluster_unit.pos, closest_cluster_pos, file=sys.stderr)
+            else:
+                print(t_prefix, ' repurposing', closest_cluster_unit.id, ' to explore closest_cluster',
+                      closest_cluster_cluster.id, closest_cluster_cluster.get_centroid(), file=sys.stderr)
+                unit_info[closest_cluster_unit.id].set_unit_role_explorer(
+                    closest_cluster_cluster.get_centroid())
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -632,14 +662,19 @@ def agent(observation, configuration):
 
             # adjacent SHORTCUTS
             adjacent_empty_tiles = find_all_adjacent_empty_tiles(game_state, unit.pos)
-            adjacent_enemies = get_units_number_around_pos(opponent,unit.pos,1)
             best_adjacent_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(
                 adjacent_empty_tiles, game_state, player, available_resources_tiles, u_prefix)
-            resources_distance = ResourceService.find_resources_distance(
+            resources_distance,adjacent_resources = ResourceService.find_resources_distance(
                 unit.pos, player, all_resources_tiles, game_info)
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
             adjacent_next_to_resources = get_walkable_that_are_near_resources(
                 u_prefix, move_mapper, get_4_positions(unit.pos, game_state), available_resources_tiles)
+            adjacent_units = get_units_around_pos(player, unit.pos,1)
+
+            #enemy SHORTCUTS
+            num_adjacent_enemy_unit = get_units_number_around_pos(opponent, unit.pos, 1)
+            num_hostiles_within2 = get_units_and_city_number_around_pos(opponent,unit.pos,2)
+            is_in_highly_hostile_area = False
 
             print(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles],
                   'favoured', best_adjacent_empty_tile.pos if best_adjacent_empty_tile else '', file=sys.stderr)
@@ -671,7 +706,7 @@ def agent(observation, configuration):
                     info.clean_unit_role()
 
             #   EXPANDER
-            if info.is_role_city_expander() and unit.get_cargo_space_left() > 0 and adjacent_enemies==0:
+            if info.is_role_city_expander() and unit.get_cargo_space_left() > 0 and num_adjacent_enemy_unit==0:
                 print(u_prefix, ' is expander', file=sys.stderr)
 
                 # all action expander are based on building next turn. We don't build at last day, so skip if day before
@@ -840,7 +875,7 @@ def agent(observation, configuration):
 
             # build city tiles adjacent of other tiles to make only one city.
             if unit.can_build(game_state.map):
-                if adjacent_enemies>0 and unit.cargo.fuel()<150:
+                if (num_adjacent_enemy_unit>0 or is_in_highly_hostile_area) and unit.cargo.fuel()<150:
                     build_city(actions, info, u_prefix, 'because we are close to enemy')
                     continue
                 if near_city:
@@ -913,6 +948,42 @@ def agent(observation, configuration):
                 # stay here, so we can build
                 print(u_prefix, " empty, near city, near wood, stay here", file=sys.stderr)
                 continue
+
+            if is_in_highly_hostile_area:
+                done=False
+                print(u_prefix, "hostile area;nearW=",near_wood,"inRes=",in_resource,'inEmp=',in_empty, file=sys.stderr)
+                #we are in wood in a highly hostile area, rule for building already implemented,
+                # here we try try to penetrate and not backoff
+                if near_wood and in_empty:
+                    print(u_prefix, "hostile area, empty, near wood, stay here, so we can build", file=sys.stderr)
+                    continue
+                if near_wood and not in_resource:
+                    #only try to move near wood
+                    for r in adjacent_resources:
+                        if move_mapper.can_move_to_pos(r.pos):
+                            move_unit_to_pos(actions, move_mapper, info, 'hostile area, from near to res',r.pos)
+                            done=True
+                            break
+                if in_resource:
+                    print(u_prefix, "hostile area, in resource", file=sys.stderr)
+                    for friend in adjacent_units:
+                        if is_cell_empty(friend.pos,game_state) and friend.get_cargo_space_left()>0:
+                            #pass the cargo on
+                            transfer_all_resources(actions,info,friend.id)
+                            done = True
+                            break
+
+                    if not done:
+                        # if we didn't pass to somebody in empty, see if there is something empty
+                        for empty in find_all_adjacent_empty_tiles(game_state,unit.pos):
+                            if move_mapper.can_move_to_pos(empty):
+                                move_unit_to_pos(actions, move_mapper, info, 'hostile area, from res to near', empty)
+                                done = True
+                                break
+
+                if done:
+                    continue
+
 
             if game_state_info.is_night_time():
                 enough_fuel = 500
@@ -1097,6 +1168,19 @@ def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, pref
             # continue
 
 
+def get_units_and_city_number_around_pos(actor, pos: Position, distance=1) -> int:
+    results = 0
+    for city in actor.cities.values():
+        for city_tile in city.citytiles:
+            if city_tile.pos.distance_to(pos) <= distance:
+                results+=1
+
+    for unit in actor.units:
+        if unit.pos.distance_to(pos) <= distance:
+            results+=1
+
+    return results
+
 def get_unit_in_pos(actor, pos) -> Unit:
     for unit in actor.units:
         if unit.pos.equals(pos):
@@ -1241,13 +1325,12 @@ def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str
 
 
 # return dist of cities, autonomy
-def adjacent_cities(player, pos: Position, do_log=False) -> {City, Tuple[int, int, DIRECTIONS]}:
+def adjacent_cities(player, pos: Position, dist=1) -> {City, Tuple[int, int, DIRECTIONS]}:
     cities = {}
     for city in player.cities.values():
         for city_tile in city.citytiles:
-            if city_tile.pos.is_adjacent(pos):
-                if do_log:
-                    print(pos, "adjacent_cities", city_tile.pos, file=sys.stderr)
+            if city_tile.pos.distance_to(pos) <= dist:
+                # print(pos, "adjacent_cities", city_tile.pos, file=sys.stderr)
                 cities[city] = (len(city.citytiles), get_autonomy_turns(city), directions_to(pos, city_tile.pos)[0])
 
     return cities
@@ -1264,7 +1347,7 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
         return DIRECTIONS.CENTER
 
     directions = directions_to(from_pos, target_pos)
-    possible_directions = {}
+    possible_directions = []
 
     check_penalise_directions(directions, info)
 
@@ -1274,18 +1357,29 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
         # if we are trying to move on top of somebody else, skip
         # print(t_prefix, ' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
         if move_mapper.can_move_to_pos(next_pos, allow_clash_unit, unit.id + ' moving to ' + direction):
+            # calculate how many resources there are to gather while walking, and predilect those if you have no cargo
             number_of_adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 1))
-            possible_directions[-number_of_adjacent_res] = direction
+            is_empty = is_cell_empty(next_pos,game_state)
+            near_resources = ResourceService.is_position_adjacent_to_resource(resource_tiles, next_pos)
+            is_city = move_mapper.is_position_city(next_pos)
+            possible_directions.append(
+                (direction, # 0
+                 -number_of_adjacent_res, # 1
+                 -int(is_empty), # 2
+                 -int(is_empty and near_resources), # 3
+                 -int(is_city) # 4
+                      ))
         else:
             # print(' XXX - skip', file=sys.stderr)
             continue
+    possible_directions.reverse()
+    possible_directions.sort(key=lambda x: (x[1]))
 
-    possible_directions = collections.OrderedDict(sorted(possible_directions.items(), key=lambda x: x[0]))
 
-    if len(possible_directions.values()) == 0:
+    if len(possible_directions) == 0:
         return DIRECTIONS.CENTER
     else:
-        return next(iter(possible_directions.values()))
+        return next(iter(possible_directions))[0]
 
 
 def check_penalise_directions(directions, info: UnitInfo):
@@ -1333,6 +1427,11 @@ def get_direction_to_city(game_state: Game, info: UnitInfo, target_pos: Position
 
     return DIRECTIONS.CENTER
 
+def is_resource_minable(actor, resource_type:str, research_rate=0., in_future_turns=0)-> bool:
+    expected_additional_research = int (research_rate * in_future_turns)
+    return (resource_type == RESOURCE_TYPES.WOOD) or \
+            (resource_type == RESOURCE_TYPES.COAL and actor.research_points + expected_additional_research >= 50 ) or \
+            (resource_type == RESOURCE_TYPES.URANIUM and actor.research_points + expected_additional_research >= 200)
 
 def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Position,
                                move_mapper: MoveHelper) -> DIRECTIONS:
