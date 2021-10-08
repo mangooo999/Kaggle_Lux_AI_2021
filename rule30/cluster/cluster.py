@@ -14,7 +14,7 @@ from UnitInfo import UnitInfo
 
 
 class Cluster:
-    def __init__(self, id: str, resource_cells: List[Cell], type: RESOURCE_TYPES):
+    def __init__(self, id: str, resource_cells: List[Cell], resource_type: RESOURCE_TYPES):
         self.id: str = id
         self.resource_cells: List[Cell] = resource_cells
         self.units: List[str] = []
@@ -23,9 +23,9 @@ class Cluster:
         self.enemy_unit: List[str] = []
         self.perimeter: List[Position] = []
         self.exposed_perimeter: List[Position] = []
-        self.accessable_perimeter: List[Position] = []
+        self.accessible_perimeter: List[Position] = []
         self.walkable_perimeter: List[Position] = []
-        self.res_type: RESOURCE_TYPES = type
+        self.res_type: RESOURCE_TYPES = resource_type
         self.closest_unit = ''
         self.closest_unit_distance = math.inf
         self.closest_enemy_distance = math.inf
@@ -54,7 +54,7 @@ class Cluster:
                                                                                     len(self.city_tiles),
                                                                                     len(self.enemy_unit),
                                                                                     self.closest_enemy_distance,
-                                                                                    len(self.accessable_perimeter),
+                                                                                    len(self.accessible_perimeter),
                                                                                     len(self.walkable_perimeter),
                                                                                     len(self.incoming_explorers),
                                                                                     )
@@ -69,13 +69,17 @@ class Cluster:
         return len(self.units) >= self.get_available_fuel()/500.
 
     def is_overcrowded(self) -> bool:
-        u= len(self.units)
-        ct = len(self.city_tiles)
-        equivalent_units = min(max(u,ct),u+2)  # logic is that if units<ct, we can spawn units
-        equivalent_resources = min(len(self.resource_cells),self.get_available_fuel() / 500.)
+        equivalent_units = self.get_equivalent_units()
+        equivalent_resources = self.get_equivalent_resources()
         return equivalent_units >= equivalent_resources
 
+    def get_equivalent_units(self) -> int:
+        u = len(self.units)
+        ct = len(self.city_tiles)
+        return min(max(u, ct), u + 2)  # logic is that if units<ct, we can spawn units
 
+    def get_equivalent_resources(self) -> int:
+        return min(len(self.resource_cells), int(float(self.get_available_fuel()) / 500.))
 
     def has_no_units_no_enemy(self) -> bool:
         return len(self.units) == 0 and len(self.enemy_unit) == 0
@@ -168,10 +172,10 @@ class Cluster:
                 # our city
                 accessable_perimeter.append(p)
 
-        self.accessable_perimeter = accessable_perimeter
+        self.accessible_perimeter = accessable_perimeter
 
         accessable_perimeter_now = []
-        for p in self.accessable_perimeter:
+        for p in self.accessible_perimeter:
             add = True
             for e in opponent.units:
                 if p.equals(e.pos):
@@ -216,4 +220,4 @@ class Cluster:
             self.closest_unit_distance = 0
 
     def is_reachable(self) -> bool:
-        return len(self.accessable_perimeter) > 0
+        return len(self.accessible_perimeter) > 0

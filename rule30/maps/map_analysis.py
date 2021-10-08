@@ -4,7 +4,7 @@ from typing import List
 from collections import defaultdict
 from functools import cmp_to_key
 from lux.game_map import Cell, Position
-
+from lux.game_objects import CityTile, DIRECTIONS
 
 def find_neighbors(v, resource_cells):
     '''
@@ -260,3 +260,166 @@ def get_resources_around(resource_tiles: List[Cell], pos: Position, max_dist) ->
             resources.append(r)
 
     return resources
+
+def is_cell_empty(pos, game_state) -> bool:
+    cell = game_state.map.get_cell(pos.x, pos.y)
+    result = (not cell.has_resource()) and cell.citytile is None;
+    # print("- ", pos, 'empty',result, file=sys.stderr)
+    return result
+
+
+def is_cell_empty_or_empty_next(pos, game_state) -> (bool, bool):
+    is_empty = is_cell_empty(pos, game_state)
+    has_empty_next = len(find_all_adjacent_empty_tiles(game_state, pos)) > 0
+    return is_empty, has_empty_next
+
+
+# snippet to find the all city tiles, cities distance and sort them.
+def find_number_of_adjacent_city_tile(pos, player) -> (int, int):
+    numbers_tiles = 0
+    numbers_cities = 0
+    for city in player.cities.values():
+        is_city_near = False
+        for citytiles in city.citytiles:
+            if citytiles.pos.is_adjacent(pos):
+                numbers_tiles += 1
+                is_city_near = True
+        if is_city_near:
+            numbers_cities += 1
+
+    return numbers_tiles, numbers_cities
+
+
+def find_all_adjacent_empty_tiles(game_state, pos) -> List[Position]:
+    adjacent_positions = [Position(pos.x, pos.y + 1), Position(pos.x - 1, pos.y), Position(pos.x, pos.y - 1),
+                          Position(pos.x + 1, pos.y)]
+    empty_tiles = []
+    for adjacent_position in adjacent_positions:
+        if not is_position_valid(adjacent_position, game_state):
+            continue
+        try:
+            if game_state.map.get_cell_by_pos(adjacent_position) is None:
+                continue
+            if not adjacent_position.is_adjacent(pos):
+                # strangely the above return cell on the other side of the map
+                continue
+            if is_cell_empty(adjacent_position, game_state):
+                empty_tiles.append(adjacent_position)
+        except Exception:
+            continue
+    return empty_tiles
+
+
+def is_position_valid(position, game_state) -> bool:
+    return not (position.x < 0 or position.y < 0 \
+                or position.x >= game_state.map_width or position.y >= game_state.map_height)
+
+def is_position_adjacent_city(player, pos, do_log=False) -> bool:
+    for city in player.cities.values():
+        for city_tile in city.citytiles:
+            if city_tile.pos.is_adjacent(pos):
+                if do_log:
+                    print(pos, "is_position_adjacent_city", city_tile.pos, file=sys.stderr)
+                return True
+
+    return False
+
+
+def get_next3_directions(without_direction: DIRECTIONS) -> [DIRECTIONS]:
+    directions: [DIRECTIONS] = get_4_directions()
+    directions.remove(without_direction)
+    return directions
+
+
+def get_4_directions() -> [DIRECTIONS]:
+    return [DIRECTIONS.SOUTH, DIRECTIONS.NORTH, DIRECTIONS.WEST, DIRECTIONS.EAST]
+
+
+def get_4_positions(pos: Position, game_state) -> [Position]:
+    positions = []
+    for direction in get_4_directions():
+        next_pos = pos.translate(direction, 1)
+        if is_position_valid(next_pos, game_state):
+            positions.append(next_pos)
+
+    return positions
+
+
+def get_12_positions(pos: Position, game_state) -> [Position]:
+    positions = []
+    for x in range(pos.x - 2, pos.x + 2):
+        for y in range(pos.y - 2, pos.y + 3):
+            next_pos = Position(x, y)
+            if 0 < pos.distance_to(next_pos) <= 2:
+                if is_position_valid(next_pos, game_state):
+                    positions.append(next_pos)
+
+    return positions
+
+
+def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]:
+    """
+    Return closest position to target_pos from this position
+    """
+    check_dirs = [
+        DIRECTIONS.NORTH,
+        DIRECTIONS.EAST,
+        DIRECTIONS.SOUTH,
+        DIRECTIONS.WEST,
+    ]
+    closest_dist = start_pos.distance_to(target_pos)
+    closest_dirs = [DIRECTIONS.CENTER]
+    for direction in check_dirs:
+        newpos = start_pos.translate(direction, 1)
+        dist = target_pos.distance_to(newpos)
+        if dist < closest_dist:
+            closest_dirs = [direction]
+            closest_dist = dist
+        elif dist == closest_dist:
+            closest_dirs.append(direction)
+            closest_dist = dist
+    return closest_dirs
+
+
+def find_closest_city_tile(pos, player) -> CityTile:
+    closest_city_tile = None
+    if len(player.cities) > 0:
+        closest_dist = math.inf
+        # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
+        # contains the information of all citytiles in that city
+        for k, city in player.cities.items():
+            for city_tile in city.citytiles:
+                dist = city_tile.pos.distance_to(pos)
+                if dist < closest_dist:
+                    closest_dist = dist
+                    closest_city_tile = city_tile
+    return closest_city_tile
+
+
+def find_closest_adjacent_enemy_city_tile(pos, opponent) -> CityTile:
+    closest_city_tile = None
+    if len(opponent.cities) > 0:
+        closest_dist = math.inf
+        # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
+        # contains the information of all citytiles in that city
+        for k, city in opponent.cities.items():
+            for city_tile in city.citytiles:
+                dist = city_tile.pos.distance_to(pos)
+                if dist < closest_dist:
+                    closest_dist = dist
+                    closest_city_tile = city_tile
+
+    # and now one step back
+    return closest_city_tile
+
+def is_position_adjacent_to_resource(resource_tiles, pos) -> bool:
+    for r in resource_tiles:
+        if r.pos.is_adjacent(pos):
+            return True
+    return False
+
+def is_position_resource(resource_tiles, pos) -> bool:
+    for r in resource_tiles:
+        if r.pos.equals(pos):
+            return True
+    return False

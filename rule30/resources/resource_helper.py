@@ -123,16 +123,6 @@ def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) ->
     resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
     return resources_distance,adjacent_resources
 
-def is_position_adjacent_to_resource(resource_tiles, pos) -> bool:
-    for r in resource_tiles:
-        if r.pos.is_adjacent(pos):
-            return True
-    return False
 
 
-def is_position_resource(resource_tiles, pos) -> bool:
-    for r in resource_tiles:
-        if r.pos.equals(pos):
-            return True
-    return False
 
