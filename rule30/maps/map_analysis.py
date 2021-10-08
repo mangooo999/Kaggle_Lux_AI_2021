@@ -3,7 +3,7 @@ import sys
 from typing import List
 from collections import defaultdict
 from functools import cmp_to_key
-from lux.game_map import Cell, Position
+from lux.game_map import Cell, Position, RESOURCE_TYPES
 from lux.game_objects import CityTile, DIRECTIONS
 
 def find_neighbors(v, resource_cells):
@@ -261,19 +261,6 @@ def get_resources_around(resource_tiles: List[Cell], pos: Position, max_dist) ->
 
     return resources
 
-def is_cell_empty(pos, game_state) -> bool:
-    cell = game_state.map.get_cell(pos.x, pos.y)
-    result = (not cell.has_resource()) and cell.citytile is None;
-    # print("- ", pos, 'empty',result, file=sys.stderr)
-    return result
-
-
-def is_cell_empty_or_empty_next(pos, game_state) -> (bool, bool):
-    is_empty = is_cell_empty(pos, game_state)
-    has_empty_next = len(find_all_adjacent_empty_tiles(game_state, pos)) > 0
-    return is_empty, has_empty_next
-
-
 # snippet to find the all city tiles, cities distance and sort them.
 def find_number_of_adjacent_city_tile(pos, player) -> (int, int):
     numbers_tiles = 0
@@ -423,3 +410,26 @@ def is_position_resource(resource_tiles, pos) -> bool:
         if r.pos.equals(pos):
             return True
     return False
+
+def is_position_in_X_adjacent_to_resource(resource_tiles, pos) -> (bool,bool):
+    adjacent = False
+    for r in resource_tiles:
+        if r.pos.equals(pos):
+            return (True,True) # if equal is also adjacent!
+        if r.pos.is_adjacent(pos):
+            adjacent = True
+
+    return (False,adjacent)
+
+
+def is_cell_empty(pos, game_state) -> bool:
+    cell = game_state.map.get_cell(pos.x, pos.y)
+    result = (not cell.has_resource()) and cell.citytile is None;
+    # print("- ", pos, 'empty',result, file=sys.stderr)
+    return result
+
+def is_cell_empty_or_empty_next(pos, game_state) -> (bool, bool):
+    is_empty = is_cell_empty(pos, game_state)
+    has_empty_next = len(find_all_adjacent_empty_tiles(game_state, pos)) > 0
+    return is_empty, has_empty_next
+

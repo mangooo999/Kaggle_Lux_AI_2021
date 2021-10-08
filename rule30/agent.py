@@ -516,11 +516,10 @@ def agent(observation, configuration):
             # in SHORTCUTS
             in_city = move_mapper.is_position_city(unit.pos)
             in_empty = MapAnalysis.is_cell_empty(unit.pos, game_state)
-            in_resource = MapAnalysis.is_position_resource(available_resources_tiles, unit.pos)
+            in_resource,near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(available_resources_tiles, unit.pos)
 
             # near SHORTCUTS
             near_wood = MapAnalysis.is_position_adjacent_to_resource(wood_tiles, unit.pos)
-            near_resource = MapAnalysis.is_position_adjacent_to_resource(available_resources_tiles, unit.pos)
             near_city = MapAnalysis.is_position_adjacent_city(player, unit.pos)
 
             # adjacent SHORTCUTS
