@@ -297,6 +297,10 @@ def find_all_adjacent_empty_tiles(game_state, pos) -> List[Position]:
     return empty_tiles
 
 
+def is_direction_valid(position, direction,game_state) -> bool:
+    next_pos = position.translate(direction, 1)
+    return is_position_valid(next_pos, game_state)
+
 def is_position_valid(position, game_state) -> bool:
     return not (position.x < 0 or position.y < 0 \
                 or position.x >= game_state.map_width or position.y >= game_state.map_height)

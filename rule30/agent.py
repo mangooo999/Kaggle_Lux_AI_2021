@@ -139,7 +139,7 @@ def get_random_step(from_pos: Position, move_mapper: MoveHelper) -> DIRECTIONS:
         directions = [DIRECTIONS.NORTH, DIRECTIONS.WEST, DIRECTIONS.EAST, DIRECTIONS.SOUTH]
 
     for direction in directions:
-        if move_mapper.can_move_to_direction(from_pos, direction):
+        if move_mapper.can_move_to_direction(from_pos, direction, game_state):
             return direction
     # otherwise
     return DIRECTIONS.CENTER
@@ -652,7 +652,7 @@ def agent(observation, configuration):
                         # not near resource
                         print(u_prefix, ' it is night, we are in city, not next resource, do not move', file=sys.stderr)
                         for pos in adjacent_next_to_resources.keys():
-                            if move_mapper.can_move_to_pos(pos) and not move_mapper.has_position(pos):
+                            if move_mapper.can_move_to_pos(pos, game_state) and not move_mapper.has_position(pos):
                                 direction = unit.pos.direction_to(pos)
                                 move_unit_to(actions, direction, move_mapper, info, "night, next to resource")
                                 break
@@ -669,10 +669,13 @@ def agent(observation, configuration):
                     continue
 
             # ALARM, we tried too many times the same move
-            if info.alarm >= 4:
+            if info.alarm >= 4 and len(unsafe_cities)>0:
                 print(u_prefix, ' has tried too many times to go to ', info.last_move_direction, file=sys.stderr)
-                direction = get_random_step(unit.pos, move_mapper)
-                move_unit_to(actions, direction, move_mapper, info,
+                if unit.can_build(game_state.map):
+                    build_city(actions, info, u_prefix, ':we tried too many times to go to'+info.last_move_direction)
+                else:
+                    direction = get_random_step(unit.pos, move_mapper)
+                    move_unit_to(actions, direction, move_mapper, info,
                              "randomly, too many try to " + info.last_move_direction)
                 continue
 
@@ -685,8 +688,8 @@ def agent(observation, configuration):
                     continue
 
                 direction = get_direction_to_quick(game_state, info, info.target_position, move_mapper,
-                                                   available_resources_tiles)
-                if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction):
+                                                   available_resources_tiles, unsafe_cities)
+                if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction, game_state):
                     move_unit_to(actions, direction, move_mapper, info, " move to traveler pos", info.target_position)
                     continue
                 else:
@@ -756,7 +759,7 @@ def agent(observation, configuration):
                             dummy, num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
                                                                                                      player)
                             # print(u_prefix, "XXXXXXX ", num_adjacent_city, adjacent_position, file=sys.stderr)
-                            if num_adjacent_city > num_adjacent_here and move_mapper.can_move_to_pos(adjacent_position):
+                            if num_adjacent_city > num_adjacent_here and move_mapper.can_move_to_pos(adjacent_position, game_state):
                                 move_unit_to_pos(actions, move_mapper, info,
                                                  " moved to a place where we can build{0} instead".format(
                                                      str(num_adjacent_city))
@@ -800,6 +803,16 @@ def agent(observation, configuration):
                             if city_size >= 5 and distance < 6:
                                 do_build = False
                                 break
+                        if adjacent_resources:
+                            #move away from resource
+                            for empty in adjacent_empty_tiles:
+                                if move_mapper.can_move_to_pos(empty,game_state):
+                                    if not MapAnalysis.is_position_adjacent_to_resource(available_resources_tiles,empty):
+                                        direction = unit.pos.direction_to(empty)
+                                        move_unit_to_or_transfer(actions, direction, info, move_mapper, player,
+                                                                 u_prefix, unit,'high resources')
+                                        do_build = False
+
 
                         if do_build:
                             build_city(actions, info, u_prefix,
@@ -828,7 +841,7 @@ def agent(observation, configuration):
                 if near_wood and not in_resource:
                     # only try to move near wood
                     for r in adjacent_resources:
-                        if move_mapper.can_move_to_pos(r.pos):
+                        if move_mapper.can_move_to_pos(r.pos, game_state):
                             move_unit_to_pos(actions, move_mapper, info, 'hostile area, from near to res', r.pos)
                             done = True
                             break
@@ -844,7 +857,7 @@ def agent(observation, configuration):
                     if not done:
                         # if we didn't pass to somebody in empty, see if there is something empty
                         for empty in MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos):
-                            if move_mapper.can_move_to_pos(empty):
+                            if move_mapper.can_move_to_pos(empty, game_state):
                                 move_unit_to_pos(actions, move_mapper, info, 'hostile area, from res to near', empty)
                                 done = True
                                 break
@@ -852,12 +865,15 @@ def agent(observation, configuration):
                 if done:
                     continue
 
-            if game_state_info.is_night_time():
-                enough_fuel = 500
-            elif game_state_info.turns_to_night < 4:
-                enough_fuel = 300
+            if len(unsafe_cities)==0:
+                enough_fuel = math.inf
             else:
-                enough_fuel = 400
+                if game_state_info.is_night_time():
+                    enough_fuel = 500
+                elif game_state_info.turns_to_night < 4:
+                    enough_fuel = 300
+                else:
+                    enough_fuel = 400
 
             if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
                     and (unit.cargo.fuel() < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
@@ -871,7 +887,23 @@ def agent(observation, configuration):
                         # create a move action to the direction of the closest resource tile and add to our actions list
                         direction, better_cluster_pos, msg, resource_type = \
                             find_best_resource(game_state, move_mapper, resources_distance, resource_target_by_unit,
-                                               info, available_resources_tiles, u_prefix)
+                                               info, available_resources_tiles, u_prefix, unsafe_cities)
+                        if direction == DIRECTIONS.CENTER and len(unsafe_cities) == 0:
+                            for empty in adjacent_empty_tiles:
+                                friend = get_unit_in_pos(player, empty)
+                                if friend is not None:
+                                    if not MapAnalysis.is_position_adjacent_to_resource(available_resources_tiles, empty):
+                                        if near_resource:
+                                            #if frien not near res and we are, transfer
+                                            transfer_all_resources(actions,info, friend.id)
+                                            break
+                                        else:
+                                            # if both near resourse, transfer to who has more
+                                            if friend.get_cargo_space_left()>0 and \
+                                                    friend.get_cargo_space_left()<unit.get_cargo_space_left():
+                                                transfer_all_resources(actions,info, friend.id)
+                                                break
+
                         if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                                 (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
                             # this is a not researched yet resource, force to go there, so there is no jitter
@@ -894,14 +926,14 @@ def agent(observation, configuration):
                     print(u_prefix, " Already on resources:", resource_type, file=sys.stderr)
                     if resource_type != RESOURCE_TYPES.WOOD \
                             and get_unit_in_pos(player, info.last_move_before_pos) is not None and \
-                            move_mapper.can_move_to_direction(unit.pos, info.last_move_direction):
+                            move_mapper.can_move_to_direction(unit.pos, info.last_move_direction, game_state):
                         move_unit_to(actions, info.last_move_direction, move_mapper, info, 'move a bit further')
                     else:
                         resource_target_by_unit.setdefault((unit.pos.x, unit.pos.y), []).append(unit.id)
                         print(u_prefix, " Stay on resources", file=sys.stderr)
                     continue
             else:
-                if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= 40 \
+                if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= info.gathered_last_turn \
                         and in_resource and best_adjacent_empty_tile is not None:
                     # if we are on a resource, and we can move to an empty tile,
                     # then it means we can at least collect 20 next turn on CD and then build
@@ -918,7 +950,7 @@ def agent(observation, configuration):
                     # we are full mostly with woods, we should try to build
                     for next_pos in MapAnalysis.get_4_positions(unit.pos, game_state):
                         # print(t_prefix, 'XXXX',next_pos,file=sys.stderr)
-                        if move_mapper.can_move_to_pos(next_pos) and not move_mapper.is_position_city(next_pos):
+                        if move_mapper.can_move_to_pos(next_pos,game_state) and not move_mapper.is_position_city(next_pos):
                             is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(next_pos, game_state)
                             potential_ok = (is_empty or has_empty_next)
                             # todo find the best, not only a possible one
@@ -1014,7 +1046,7 @@ def get_walkable_that_are_near_resources(t_prefix, move_mapper, possible_positio
 
 
 def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, msg):
-    if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction):
+    if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction,game_state):
         move_unit_to(actions, direction, move_mapper, info, " move to " + msg + " pos", info.target_position)
         # continue
     else:
@@ -1093,7 +1125,7 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsa
 
 
 def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, resource_target_by_unit, info,
-                       resources, prefix) -> \
+                       resources, prefix, unsafe_cities) -> \
         Tuple[DIRECTIONS, Optional[Position], str, str]:
     unit = info.unit
     closest_resource_tile, c_dist = None, None
@@ -1109,12 +1141,15 @@ def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, 
             if resource is not None and not resource.pos.equals(unit.pos):
                 if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
                                                           [])) < max_units_per_resource:
-                    direction = get_direction_to_quick(game_state, info, resource.pos, move_mapper, resources, False)
+                    direction = get_direction_to_quick(game_state, info, resource.pos, move_mapper, resources, unsafe_cities, False)
                     if direction != DIRECTIONS.CENTER:
                         return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
 
-    direction = get_random_step(unit.pos, move_mapper)
-    return direction, None, "randomly (due to resource)", ""
+    if len(unsafe_cities)==0:
+        return DIRECTIONS.CENTER, None, "stay where we are as we cannot go to resources, but no unsafe cities",""
+    else:
+        direction = get_random_step(unit.pos, move_mapper)
+        return direction, None, "randomly (due to resource)", ""
 
 
 def get_autonomy_turns(city) -> int:
@@ -1197,7 +1232,7 @@ def adjacent_cities(player, pos: Position, dist=1) -> {City, Tuple[int, int, DIR
 
 
 def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Position, move_mapper: MoveHelper,
-                           resource_tiles, allow_clash_unit: bool = False) -> DIRECTIONS:
+                           resource_tiles, unsafe_cities, allow_clash_unit: bool = False) -> DIRECTIONS:
     # below to turn smart direction on for all resources and city trip
     # return get_direction_to_smart(game_state,unit, target_pos, move_mapper)
 
@@ -1216,12 +1251,16 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
 
         # if we are trying to move on top of somebody else, skip
         # print(t_prefix, ' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
-        if move_mapper.can_move_to_pos(next_pos, allow_clash_unit, unit.id + ' moving to ' + direction):
+        if move_mapper.can_move_to_pos(next_pos, game_state, allow_clash_unit, unit.id + ' moving to ' + direction):
             # calculate how many resources there are to gather while walking, and predilect those if you have no cargo
             number_of_adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 1))
             is_empty = MapAnalysis.is_cell_empty(next_pos, game_state)
             near_resources = MapAnalysis.is_position_adjacent_to_resource(resource_tiles, next_pos)
             is_city = move_mapper.is_position_city(next_pos)
+            if is_city:
+                city_id = MapAnalysis.get_city_id_from_pos(next_pos, move_mapper.player)
+                if not city_id in unsafe_cities:
+                    continue
             possible_directions.append(
                 (direction,  # 0
                  -number_of_adjacent_res,  # 1
@@ -1280,6 +1319,8 @@ def get_direction_to_city(game_state: Game, info: UnitInfo, target_pos: Position
 
     for direction in directions:
         next_pos = from_pos.translate(direction, 1)
+        if not MapAnalysis.is_position_valid(next_pos,game_state):
+            continue
         if move_mapper.is_position_city(next_pos):
             city_on_the_way = MapAnalysis.get_city_id_from_pos(next_pos, move_mapper.player)
             if city_on_the_way not in unsafe_cities:
@@ -1289,7 +1330,7 @@ def get_direction_to_city(game_state: Game, info: UnitInfo, target_pos: Position
 
         # if we are trying to move on top of somebody else, skip
         # print(' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys(),file=sys.stderr)
-        if move_mapper.can_move_to_pos(next_pos, allow_clash_unit, unit.id + ' moving to ' + direction):
+        if move_mapper.can_move_to_pos(next_pos, game_state, allow_clash_unit,  unit.id + ' moving to ' + direction):
             return direction
         else:
             # print(' XXX - skip', file=sys.stderr)
