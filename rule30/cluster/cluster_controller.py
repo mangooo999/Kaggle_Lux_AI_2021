@@ -113,8 +113,13 @@ class ClusterControl:
         for k in list(self.clusters.keys()):
             self.clusters[k].update_closest(player, opponent)
 
+        for k in list(self.clusters.keys()):
+            self.clusters[k].refresh_score()
+
         # ms = "{:10.2f}".format(1000. * (time.process_time() - function_start_time))
         # print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
+
+
 
     def get_closest_cluster(self, player, pos):
         closest_cluster_distance = math.inf

@@ -29,6 +29,14 @@ class Cluster:
         self.closest_unit = ''
         self.closest_unit_distance = math.inf
         self.closest_enemy_distance = math.inf
+        self.score = 0.
+
+    def refresh_score(self) -> float:
+        self.score = -(
+                + float(len(self.resource_cells)) / 4.
+               - float(len(self.incoming_explorers) ) * 1.
+               - float(len(self.enemy_unit)) * 2.
+               )
 
     def add_unit(self, unit_id: str):
         if unit_id not in self.units:
@@ -47,7 +55,8 @@ class Cluster:
             self.enemy_unit.append(unit_id)
 
     def to_string_light(self) -> str:
-        return "{0} {1} r={2} f={3} u={4} iu={10} c={5} e={6} ed={7} pl={8} pw={9} ".format(self.id, self.get_centroid(),
+        return "{0} {1} r={2} f={3} u={4} iu={10} c={5} e={6} ed={7} pl={8} pw={9} sc={11:1.2f}".format(self.id,
+                                                                                    self.get_centroid(),
                                                                                     len(self.resource_cells),
                                                                                     self.get_available_fuel(),
                                                                                     len(self.units),
@@ -57,6 +66,7 @@ class Cluster:
                                                                                     len(self.accessible_perimeter),
                                                                                     len(self.walkable_perimeter),
                                                                                     len(self.incoming_explorers),
+                                                                                    self.score
                                                                                     )
 
     def is_more_units_than_res(self) -> bool:
@@ -81,8 +91,14 @@ class Cluster:
     def get_equivalent_resources(self) -> int:
         return min(len(self.resource_cells), int(float(self.get_available_fuel()) / 500.))
 
+    def has_no_units(self) -> bool:
+        return len(self.units) == 0
+
+    def has_no_enemy(self) -> bool:
+        return len(self.enemy_unit) == 0
+
     def has_no_units_no_enemy(self) -> bool:
-        return len(self.units) == 0 and len(self.enemy_unit) == 0
+        return self.has_no_units() and self.has_no_enemy()
 
     def num_units(self) -> int:
         return len(self.units)
