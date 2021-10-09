@@ -52,11 +52,11 @@ import builtins as __builtin__
 
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
-def pr(*args, sep=' ', end='\n'):  # known special case of print
+def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
     if False:
         print(*args, sep=sep)
-
-
+    elif f:
+        print(*args, sep=sep, file=sys.stderr)
 
 
 def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, player, resource_tiles, prefix) -> \
@@ -407,7 +407,7 @@ def agent(observation, configuration):
 
     # logging
     if game_state.turn == 360:
-        pr(t_prefix, "END C=", number_city_tiles, 'u=', len(player.units), 't=', str(time.time() - start_time))
+        pr(t_prefix, "END C=", number_city_tiles, 'u=', len(player.units), 't=', str(time.time() - start_time), f=True)
     else:
         pr(t_prefix, "INT Cities", number_city_tiles, 'units', len(player.units))
 
@@ -788,6 +788,8 @@ def agent(observation, configuration):
                                              " we could have build here, but we move close to city instead", next_pos)
                                 continue
 
+                do_stop = False
+
                 if game_state_info.turns_to_night > 1 or \
                         (game_state_info.turns_to_night == 1 and near_resource):
                     unit_fuel = unit.cargo.fuel()
@@ -803,7 +805,10 @@ def agent(observation, configuration):
                             city_size = abs(dist[2])
                             if city_size >= 5 and distance < 6:
                                 do_build = False
+                                pr(u_prefix, " we could have built NOT in adjacent city, but there is a need city close"
+                               , city_tile.cityid)
                                 break
+
                         if adjacent_resources:
                             # move away from resource
                             for empty in adjacent_empty_tiles:
@@ -813,15 +818,19 @@ def agent(observation, configuration):
                                         direction = unit.pos.direction_to(empty)
                                         move_unit_to_or_transfer(actions, direction, info, move_mapper, player,
                                                                  u_prefix, unit, 'high resources')
+                                        pr(u_prefix,
+                                           " we could have built, but better moving far away from resurces")
+                                        do_stop = True
                                         do_build = False
 
                         if do_build:
                             build_city(actions, info, u_prefix,
                                        'NOT in adjacent city, we have lot of fuel, but no city needs saving')
                             continue
-                        else:
-                            pr(u_prefix, " we could have built NOT in adjacent city, but there is a need city close"
-                               , city_tile.cityid)
+
+                        if do_stop:
+                            continue
+
 
             # IF WE CANNOT BUILD, or we could and have decided not to
 
