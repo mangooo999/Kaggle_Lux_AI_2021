@@ -305,7 +305,7 @@ def agent(observation, configuration):
                          unit,
                          next_clust,
                          r_pos,
-                         next_clust.score,
+                         time_distance+next_clust.score,
                          time_distance))
 
         # sort on distance
