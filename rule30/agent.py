@@ -308,12 +308,19 @@ def agent(observation, configuration):
                     if not info.is_role_none():
                         continue
 
+                    # OVERRIDE SCORE to mimic Rule 300
+                    # from lower (best), to higher
+                    score = time_distance \
+                            + len(next_clust.incoming_explorers) * 1 \
+                            + len(next_clust.enemy_unit) * 3 \
+                            - len(next_clust.resource_cells) / 10.
+
                     clust_analyses[cluster.id].append(
                         (distance,
                          unit,
                          next_clust,
                          r_pos,
-                         time_distance + next_clust.score,
+                         score,
                          time_distance))
 
         # sort on distance
@@ -343,14 +350,6 @@ def agent(observation, configuration):
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_dist < 4:
             pr(t_prefix, 'There is a very near uncontested cluster', closest_cluster_cluster.id,
-               'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
-            move_to_closest_cluster = True
-
-        # if enemy is very far away from this cluster, and closest cluster is interesting, be more aggressive
-        if cluster.num_units() > 3 \
-                and cluster.closest_enemy_distance > 7 \
-                and closest_cluster_cluster.get_equivalent_resources() > cluster.get_equivalent_resources():
-            pr(t_prefix, 'Enemy is far away, move quickly ', closest_cluster_cluster.id,
                'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
             move_to_closest_cluster = True
 
