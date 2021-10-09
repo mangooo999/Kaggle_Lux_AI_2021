@@ -13,7 +13,7 @@ from UnitInfo import UnitInfo
 
 
 class ClusterControl:
-    def __init__(self, game_state):
+    def __init__(self, game_state, pr):
         '''
         This is called only once, when the game starts.
         The cluster types are wood, coal, and uranium.
@@ -21,6 +21,7 @@ class ClusterControl:
         we assume they are in the same cluster.
         '''
         self.clusters: DefaultDict[str, Cluster] = defaultdict(Cluster)
+        self.pr=pr
 
         resource_cells = ResourceService.get_resources(game_state)
 
@@ -69,7 +70,7 @@ class ClusterControl:
                 player, opponent, unit_info
             )
             if len(self.clusters[k].resource_cells) == 0:
-                print("T_" + str(game_state.turn), "cluster", k, "terminated", file=sys.stderr)
+                self.pr("T_" + str(game_state.turn), "cluster", k, "terminated")
                 del self.clusters[k]
 
         # attribute friendly unit to the closer cluster

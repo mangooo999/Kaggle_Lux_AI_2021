@@ -8,7 +8,7 @@ import maps.map_analysis as MapAnalysis
 
 
 class MoveHelper:
-    def __init__(self, player, opponent, turn):
+    def __init__(self, player, opponent, turn,pr):
         """
         initialize state
         """
@@ -17,6 +17,7 @@ class MoveHelper:
         self.opponent = opponent
         self.turn = turn
         self.log_prefix = "T_{0}".format(str(self.turn))
+        self.pr=pr
 
     def add_position(self, pos: Position, unit: Unit):
         self.move_mapper[self.__hash_pos__(pos)] = unit
@@ -37,7 +38,7 @@ class MoveHelper:
         # we cannot move if somebody is already going, and it is not a city
         if ((not allow_clash_unit) and self.has_position(pos)) and not self.is_position_city(pos):
             unit: Unit = self.move_mapper.get(self.__hash_pos__(pos))
-            print(self.log_prefix + msg, 'Collision in', pos, 'with', unit.id, file=sys.stderr)
+            self.pr(self.log_prefix + msg, 'Collision in', pos, 'with', unit.id)
             return False
         else:
             return MapAnalysis.is_position_valid(pos,game_state) and not self.is_position_enemy_city(pos)

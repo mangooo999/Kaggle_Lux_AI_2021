@@ -6,7 +6,7 @@ import itertools
 
 
 class GameInfo:
-    def __init__(self):
+    def __init__(self,pr):
         """
         initialize state
         """
@@ -16,6 +16,7 @@ class GameInfo:
         self.increase_research_points_last_turn = 0
         self.increase_research_points_sequence = []
         self.at_start_resources_within3 = 0
+        self.pr = pr
 
     def update(self, player: Player, game_state: Game):
         self.increase_research_points_last_turn = player.research_points - self.reseach_points
@@ -34,15 +35,14 @@ class GameInfo:
 
     def do_research(self,actions, city_tile, msg):
         actions.append(city_tile.research())
-        print(msg, file=sys.stderr)
+        self.pr(msg)
         self.research_this_turn += 1
 
     def get_research_rate(self, n: int) -> float:
         return float(self.get_research_increase_last_n_turns(n)) / float(n)
 
     def log_research_stats(self, n: int):
-        print(self.log_prefix, 'Research points', self.reseach_points, ' research rate', self.get_research_rate(5),
-              file=sys.stderr)
+        self.pr(self.log_prefix, 'Research points', self.reseach_points, ' research rate', self.get_research_rate(5))
 
     def get_total_reseach(self):
         return self.reseach_points+self.research_this_turn
