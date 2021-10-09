@@ -1,6 +1,6 @@
 @echo off
 set agent1=C:/git/luxai/minh/main.py
-set agent2=rule27/main.py
+set agent2=rule291/main.py
 set num_loops=100
 SetLocal EnableDelayedExpansion
 

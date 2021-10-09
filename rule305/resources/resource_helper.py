@@ -94,12 +94,16 @@ def find_all_resources(game_state, player) -> (List[Cell], List[Cell], List[Cell
 def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) -> Dict[CityTile,
                                                                                       Tuple[int, int, DIRECTIONS]]:
     resources_distance = {}
+    adjacent_resources = {}
     for resource_tile in resource_tiles:
 
         dist = resource_tile.pos.distance_to(pos)
 
         if resource_tile.resource.type == RESOURCE_TYPES.WOOD:
             resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
+            if dist == 1:
+                adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
+
         else:
             expected_resource_additional = (float(dist * 2.0) * float(game_info.get_research_rate(5)))
             expected_resource_at_distance = float(game_info.reseach_points) + expected_resource_additional
@@ -113,20 +117,12 @@ def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) ->
             else:
                 # order by distance asc, resource asc
                 resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
+                if dist == 1:
+                    adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
 
     resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
-    return resources_distance
-
-def is_position_adjacent_to_resource(resource_tiles, pos) -> bool:
-    for r in resource_tiles:
-        if r.pos.is_adjacent(pos):
-            return True
-    return False
+    return resources_distance,adjacent_resources
 
 
-def is_position_resource(resource_tiles, pos) -> bool:
-    for r in resource_tiles:
-        if r.pos.equals(pos):
-            return True
-    return False
+
 

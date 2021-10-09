@@ -4,7 +4,7 @@ import sys
 
 
 class UnitInfo:
-    def __init__(self, unit: Unit):
+    def __init__(self, unit: Unit,pr):
         """
         initialize state
         """
@@ -29,7 +29,8 @@ class UnitInfo:
         self.last_move_before_pos = unit.pos
         self.last_move_expected_pos = None
         self.alarm = 0
-        print(self.log_prefix, 'created', file=sys.stderr)
+        self.pr=pr
+        self.pr(self.log_prefix, 'created')
 
     def update(self, unit: Unit, current_turn):
         self.unit = unit
@@ -77,28 +78,28 @@ class UnitInfo:
         self.has_done_action_this_turn = True
 
     def set_unit_role_traveler(self, pos: Position, number_turns):
-        print(self.log_prefix, 'set this unit as traveler to', pos, " for number_turns", number_turns, file=sys.stderr)
+        self.pr(self.log_prefix, 'set this unit as traveler to', pos, " for number_turns", number_turns)
         self.set_unit_role('traveler', self.log_prefix)
         self.target_position = pos
         self.role_time_turn_limit = number_turns
 
     def set_unit_role_returner(self, prefix: str = ''):
-        print(self.log_prefix, 'set this unit as returner', file=sys.stderr)
+        self.pr(self.log_prefix, 'set this unit as returner')
         self.set_unit_role('returner', prefix)
 
     def set_unit_role_explorer(self, pos: Position, prefix: str = ''):
         if pos is not None:
-            print(self.log_prefix, 'set this unit as explorer to', pos, file=sys.stderr)
+            self.pr(self.log_prefix, 'set this unit as explorer to', pos)
             self.set_unit_role('explorer', prefix)
             self.target_position = pos
 
     def set_unit_role(self, role, prefix: str = ''):
         self.role = role
-        print(prefix, "Setting unit", self.id, " as ", self.role, file=sys.stderr)
+        self.pr(prefix, "Setting unit", self.id, " as ", self.role)
 
     def clean_unit_role(self, msg=''):
         if self.role != '':
-            print(self.log_prefix, 'removing role', self.role,msg, file=sys.stderr)
+            self.pr(self.log_prefix, 'removing role', self.role,msg)
         self.role = ''
         self.target_position = None
         self.build_if_you_can = False

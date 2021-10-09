@@ -4,7 +4,7 @@ from lux.game_constants import GAME_CONSTANTS
 
 
 class GameStateInfo:
-    def __init__(self, turn: int):
+    def __init__(self, turn: int,pr):
         MAX_DAYS = GAME_CONSTANTS['PARAMETERS']['MAX_DAYS']
         DAY_LENGTH = GAME_CONSTANTS['PARAMETERS']['DAY_LENGTH']
         NIGHT_LENGTH = GAME_CONSTANTS['PARAMETERS']['NIGHT_LENGTH']
@@ -24,7 +24,7 @@ class GameStateInfo:
         # below is probably duplicate
         self.steps_until_night = 30 - turn % 40
 
-        print("T_" + str(turn), self.__str__(), file=sys.stderr)
+        pr("T_" + str(turn), self.__str__())
 
     def is_dawn(self) -> bool:
         return self.turns_to_night == 30
