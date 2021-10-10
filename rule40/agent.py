@@ -56,7 +56,7 @@ def prx(*args):
     pr(*args,f=True)
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if False:
+    if True:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -922,6 +922,13 @@ def agent(observation, configuration):
                             and get_unit_in_pos(player, info.last_move_before_pos) is not None and \
                             move_mapper.can_move_to_direction(unit.pos, info.last_move_direction, game_state):
                         move_unit_to(actions, info.last_move_direction, move_mapper, info, 'move a bit further')
+                    elif resource_type == RESOURCE_TYPES.WOOD and \
+                        game_state_info.turns_to_night > 10 \
+                            and unit.get_cargo_space_left() <= 40 \
+                            and best_adjacent_empty_tile is not None:
+                        move_unit_to_pos(actions, move_mapper, info,
+                                         " towards closest empty (anticipating getting resources, wood)",
+                                         best_adjacent_empty_tile.pos)
                     else:
                         resource_target_by_unit.setdefault((unit.pos.x, unit.pos.y), []).append(unit.id)
                         pr(u_prefix, " Stay on resources")
