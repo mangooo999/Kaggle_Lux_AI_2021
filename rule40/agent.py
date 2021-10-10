@@ -330,8 +330,8 @@ def agent(observation, configuration):
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units)
             move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
-            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>6, u=', cluster.units)
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 5:
+            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>5, u=', cluster.units)
             move_to_closest_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_dist < 4:
