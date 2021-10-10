@@ -5,10 +5,12 @@
 *.pyc
 /errorlogs/
 /*.log
-/path-finding/.idea/*
+.idea/*
 /replays
 /*.json
 /rule17/*.gz
 /results/*.log
-/rule24/*.gz
-/rule28/submit.bat
+*.gz
+
+submit.bat
+/path-finding/.idea
