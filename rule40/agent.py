@@ -984,7 +984,7 @@ def agent(observation, configuration):
         # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
         if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
             pr(u_prefix, " this unit has not worked")
-            if unit.cargo.coal > 0 or unit.cargo.uranium > 0:
+            if unit.cargo.coal > 0 or unit.cargo.uranium > 0 and not info.last_move_before_pos.equals(unit.pos):
                 # check if anybody in the pos where we come from
                 friend_unit = get_unit_in_pos(player, info.last_move_before_pos)
                 if friend_unit is not None:
