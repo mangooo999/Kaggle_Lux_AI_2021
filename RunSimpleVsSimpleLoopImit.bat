@@ -1,6 +1,6 @@
 @echo off
 set agent1=C:/git/luxai/imitate/main.py
-set agent2=rule305/main.py
+set agent2=rule402b/main.py
 set num_loops=100
 set storeReplay=false
 set storeLogs=false
