@@ -1413,11 +1413,13 @@ def find_resources_distance(pos, clusters:ClusterControl, resource_tiles, game_i
     for resource_tile in resource_tiles:
 
 
-        # if resource_tile.pos in clusters.resource_pos_to_cluster:
-        #     cluster = clusters.resource_pos_to_cluster[resource_tile.pos]
-        #     print("XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid(),file=sys.stderr)
-        #     print("XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
-        #     print("XXX3",game_info.turn, len(cluster.perimeter), len(cluster.accessible_perimeter), file=sys.stderr)
+        if resource_tile.pos in clusters.resource_pos_to_cluster:
+            cluster = clusters.resource_pos_to_cluster[resource_tile.pos]
+            # print("XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid(),file=sys.stderr)
+            # print("XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
+            # print("XXX3",game_info.turn,cluster.id, len(cluster.perimeter), len(cluster.walkable_perimeter), file=sys.stderr)
+            if len(cluster.accessible_perimeter) == 0:
+                continue
 
         dist = resource_tile.pos.distance_to(pos)
 
