@@ -47,6 +47,10 @@ class City:
     def get_light_upkeep(self):
         return self.light_upkeep
 
+    def get_autonomy_turns(self) -> int:
+        turns_city_can_live = self.fuel // self.get_light_upkeep()
+        return turns_city_can_live
+
 
 class CityTile:
     def __init__(self, teamid, cityid, x, y, cooldown):
@@ -94,6 +98,17 @@ class Cargo:
 
     def fuel(self) -> int:
         return self.wood + self.coal * 10 + self.uranium * 40
+
+    def to_string(self):
+        return_value = ''
+        if self.wood > 0:
+            return_value = return_value + f"Wood:{self.wood}"
+        if self.coal > 0:
+            return_value = return_value + f" Coal:{self.coal}"
+        if self.uranium > 0:
+            return_value = return_value + f" Uran:{self.uranium}"
+
+        return return_value
 
 
 class Unit:

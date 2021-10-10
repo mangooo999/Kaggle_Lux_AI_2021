@@ -52,6 +52,9 @@ import builtins as __builtin__
 
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
+def prx(*args):
+    pr(*args,f=True)
+
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
     if False:
         print(*args, sep=sep, file=sys.stderr)
@@ -123,7 +126,7 @@ def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTi
                 for city_tile in city.citytiles:
                     dist = city_tile.pos.distance_to(pos)
                     # order by distance asc, autonomy desc
-                    city_tiles_distance[city_tile] = (dist, get_autonomy_turns(city), -len(city.citytiles), city.cityid)
+                    city_tiles_distance[city_tile] = (dist, city.get_autonomy_turns(), -len(city.citytiles), city.cityid)
     # order by
     # - increasing distance (closest city first),
     # - increasing autonomy (smallest autonomy first)
@@ -151,18 +154,6 @@ def get_random_step(from_pos: Position, move_mapper: MoveHelper) -> DIRECTIONS:
             return direction
     # otherwise
     return DIRECTIONS.CENTER
-
-
-def cargo_to_string(cargo) -> str:
-    return_value = ''
-    if cargo.wood > 0:
-        return_value = return_value + f"Wood:{cargo.wood}"
-    if cargo.coal > 0:
-        return_value = return_value + f" Coal:{cargo.coal}"
-    if cargo.uranium > 0:
-        return_value = return_value + f" Uran:{cargo.uranium}"
-
-    return return_value
 
 
 game_state = None
@@ -384,12 +375,12 @@ def agent(observation, configuration):
     # set unsafe cities, record how many available city actions we have
     if len(cities) > 0:
         for city in cities:
-            will_live = get_autonomy_turns(city) >= game_state_info.all_night_turns_lef
+            will_live = city.get_autonomy_turns() >= game_state_info.all_night_turns_lef
             # collect unsafe cities
             if not will_live:
                 unsafe_cities[city.cityid] = (
                     len(city.citytiles),
-                    (game_state_info.all_night_turns_lef - get_autonomy_turns(city)) * city.get_light_upkeep())
+                    (game_state_info.all_night_turns_lef - city.get_autonomy_turns()) * city.get_light_upkeep())
 
             # record how many available city actions we have now
             for city_tile in city.citytiles[::-1]:
@@ -444,7 +435,7 @@ def agent(observation, configuration):
 
         # choose in which tiles we want to create workers
         for city in cities:
-            city_autonomy = get_autonomy_turns(city)
+            city_autonomy = city.get_autonomy_turns()
             will_live = city_autonomy >= game_state_info.all_night_turns_lef
             for city_tile in city.citytiles[::-1]:
                 if city_tile.can_act():
@@ -502,7 +493,7 @@ def agent(observation, configuration):
         info: UnitInfo = unit_info[unit.id]
         u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
 
-        pr(u_prefix, ";pos", unit.pos, 'CD=', unit.cooldown, cargo_to_string(unit.cargo), 'fuel=',
+        pr(u_prefix, ";pos", unit.pos, 'CD=', unit.cooldown, unit.cargo.to_string(), 'fuel=',
            unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role)
 
         if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1
@@ -598,7 +589,7 @@ def agent(observation, configuration):
                 if game_state_info.is_night_time() and unit.cargo.fuel() > 0 and not in_city:
                     # if we have resources, next to a city that will die in this night,
                     # and we have enough resources to save it, then move
-                    cities = adjacent_cities(player, unit.pos)
+                    cities = MapAnalysis.adjacent_cities(player, unit.pos)
                     # order cities by decreasing size
                     cities = collections.OrderedDict(sorted(cities.items(), key=lambda x: x[-1]))
                     if len(cities) > 0:
@@ -1126,41 +1117,6 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsa
         direction = get_random_step(unit.pos, move_mapper)
         return direction, None, "randomly (due to city)"
 
-
-def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, resource_target_by_unit, info,
-                       resources, prefix, unsafe_cities) -> \
-        Tuple[DIRECTIONS, Optional[Position], str, str]:
-    unit = info.unit
-    closest_resource_tile, c_dist = None, None
-    moved = False
-    # pr(prefix, " XXX Find resources dis", resources_distance.values())
-    # pr(prefix, " XXX Find resources pos", resources_distance.keys())
-    # pr(prefix, " XXX Move mapper", move_mapper.move_mapper.keys())
-
-    # we try not to allocate x units to same resource, but we are happy to go up to y in range (x,y)
-    for max_units_per_resource in range(6, 7):
-        for resource, resource_dist_info in resources_distance.items():
-            # pr(prefix, " XXX - ", resource.pos, resource_dist_info)
-            if resource is not None and not resource.pos.equals(unit.pos):
-                if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
-                                                          [])) < max_units_per_resource:
-                    direction = get_direction_to_quick(game_state, info, resource.pos, move_mapper, resources,
-                                                       unsafe_cities, False)
-                    if direction != DIRECTIONS.CENTER:
-                        return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
-
-    if len(unsafe_cities) == 0:
-        return DIRECTIONS.CENTER, None, "stay where we are as we cannot go to resources, but no unsafe cities", ""
-    else:
-        direction = get_random_step(unit.pos, move_mapper)
-        return direction, None, "randomly (due to resource)", ""
-
-
-def get_autonomy_turns(city) -> int:
-    turns_city_can_live = city.fuel // city.get_light_upkeep()
-    return turns_city_can_live
-
-
 def build_city(actions, info: UnitInfo, u_prefix, msg=''):
     actions.append(info.unit.build_city())
     pr(u_prefix, '- build city', msg)
@@ -1220,19 +1176,6 @@ def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str
         return True
     else:
         return False
-
-
-# return dist of cities, autonomy
-def adjacent_cities(player, pos: Position, dist=1) -> {City, Tuple[int, int, DIRECTIONS]}:
-    cities = {}
-    for city in player.cities.values():
-        for city_tile in city.citytiles:
-            if city_tile.pos.distance_to(pos) <= dist:
-                # pr(pos, "adjacent_cities", city_tile.pos)
-                cities[city] = (
-                    len(city.citytiles), get_autonomy_turns(city), MapAnalysis.directions_to(pos, city_tile.pos)[0])
-
-    return cities
 
 
 def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Position, move_mapper: MoveHelper,
@@ -1404,6 +1347,33 @@ def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Positio
     return closest_dir
 
 
+def find_best_resource(game_state, move_mapper: MoveHelper, resources_distance, resource_target_by_unit, info,
+                       resources, prefix, unsafe_cities) -> \
+        Tuple[DIRECTIONS, Optional[Position], str, str]:
+    unit = info.unit
+    closest_resource_tile, c_dist = None, None
+    moved = False
+    # pr(prefix, " XXX Find resources dis", resources_distance.values())
+    # pr(prefix, " XXX Find resources pos", resources_distance.keys())
+    # pr(prefix, " XXX Move mapper", move_mapper.move_mapper.keys())
+
+    # we try not to allocate x units to same resource, but we are happy to go up to y in range (x,y)
+    for max_units_per_resource in range(6, 7):
+        for resource, resource_dist_info in resources_distance.items():
+            # pr(prefix, " XXX - ", resource.pos, resource_dist_info)
+            if resource is not None and not resource.pos.equals(unit.pos):
+                if len(resource_target_by_unit.setdefault((resource.pos.x, resource.pos.y),
+                                                          [])) < max_units_per_resource:
+                    direction = get_direction_to_quick(game_state, info, resource.pos, move_mapper, resources,
+                                                       unsafe_cities, False)
+                    if direction != DIRECTIONS.CENTER:
+                        return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
+
+    if len(unsafe_cities) == 0:
+        return DIRECTIONS.CENTER, None, "stay where we are as we cannot go to resources, but no unsafe cities", ""
+    else:
+        direction = get_random_step(unit.pos, move_mapper)
+        return direction, None, "randomly (due to resource)", ""
 
 # the next snippet all resources distance and return as sorted order.
 def find_resources_distance(pos, clusters:ClusterControl, resource_tiles, game_info: GameInfo) -> Dict[CityTile,
@@ -1412,19 +1382,21 @@ def find_resources_distance(pos, clusters:ClusterControl, resource_tiles, game_i
     adjacent_resources = {}
     for resource_tile in resource_tiles:
 
-
+        score = 0
         if resource_tile.pos in clusters.resource_pos_to_cluster:
             cluster = clusters.resource_pos_to_cluster[resource_tile.pos]
-            # print("XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid(),file=sys.stderr)
-            # print("XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
-            # print("XXX3",game_info.turn,cluster.id, len(cluster.perimeter), len(cluster.walkable_perimeter), file=sys.stderr)
+            # prx("XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid())
+            # prx("XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
+            # prx("XXX3",game_info.turn,cluster.id, len(cluster.perimeter), len(cluster.walkable_perimeter))
             if len(cluster.accessible_perimeter) == 0:
-                continue
+                score = 2 # not accessible, (and therefore also not walkable)
+            elif len(cluster.walkable_perimeter) == 0:
+                score = 1 # accesible but not walkable
 
         dist = resource_tile.pos.distance_to(pos)
 
         if resource_tile.resource.type == RESOURCE_TYPES.WOOD:
-            resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
+            resources_distance[resource_tile] = (score, dist, -resource_tile.resource.amount)
             if dist == 1:
                 adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
 
@@ -1440,7 +1412,7 @@ def find_resources_distance(pos, clusters:ClusterControl, resource_tiles, game_i
                 continue
             else:
                 # order by distance asc, resource asc
-                resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
+                resources_distance[resource_tile] = (score, dist, -resource_tile.resource.amount)
                 if dist == 1:
                     adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
 

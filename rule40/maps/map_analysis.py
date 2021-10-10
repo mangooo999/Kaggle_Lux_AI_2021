@@ -1,10 +1,11 @@
 import math
 import sys
-from typing import List
+from typing import List, Tuple
 from collections import defaultdict
 from functools import cmp_to_key
 from lux.game_map import Cell, Position, RESOURCE_TYPES
-from lux.game_objects import CityTile, DIRECTIONS
+from lux.game_objects import CityTile, DIRECTIONS, City
+
 
 def find_neighbors(v, resource_cells):
     '''
@@ -402,6 +403,18 @@ def find_closest_adjacent_enemy_city_tile(pos, opponent) -> CityTile:
 
     # and now one step back
     return closest_city_tile
+
+# return dist of cities, autonomy
+def adjacent_cities(player, pos: Position, dist=1) -> {City, Tuple[int, int, DIRECTIONS]}:
+    cities = {}
+    for city in player.cities.values():
+        for city_tile in city.citytiles:
+            if city_tile.pos.distance_to(pos) <= dist:
+                # pr(pos, "adjacent_cities", city_tile.pos)
+                cities[city] = (
+                    len(city.citytiles), city.get_autonomy_turns(), directions_to(pos, city_tile.pos)[0])
+
+    return cities
 
 def is_position_adjacent_to_resource(resource_tiles, pos) -> bool:
     for r in resource_tiles:
