@@ -447,7 +447,7 @@ def agent(observation, configuration):
                         (closest_resource, int(will_live), float(units_around) / float(res_around + 1))] = city_tile
 
         ordered_tyles = collections.OrderedDict(sorted(ordered_tyles.items(), key=lambda x: x[0]))
-        # pr(t_prefix, "XXXX2 ", ordered_tyles)
+        pr(t_prefix, "Ordered cities we want to create workers ", ordered_tyles)
 
     while min(number_work_we_can_build, number_work_we_want_to_build) > 0:
         for city_tile in ordered_tyles.values():
