@@ -196,8 +196,6 @@ def agent(observation, configuration):
     ### AI Code goes down here! ###
     game_state_info: GameStateInfo = GameStateInfo(game_state.turn,pr)
 
-    # the below is very expensive and at the moment is only used to get_direction_to_smart
-    # game_state.calculate_features(Missions())
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     move_mapper = MoveHelper(player, opponent, game_state.turn,pr)
