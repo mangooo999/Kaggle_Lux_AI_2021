@@ -54,7 +54,7 @@ import builtins as __builtin__
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
     if False:
-        print(*args, sep=sep)
+        print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
 
