@@ -31,12 +31,14 @@ class Cluster:
         self.closest_enemy_distance = math.inf
         self.score = 0.
 
-    def refresh_score(self) -> float:
+    def refresh_score(self) -> int:
         self.score = -(
-                + float(len(self.resource_cells)) * 2.
+                + float(len(self.resource_cells)) / 10.
                - float(len(self.incoming_explorers) ) * 3
                - float(len(self.enemy_unit)) * 1.
                )
+
+
 
     def add_unit(self, unit_id: str):
         if unit_id not in self.units:

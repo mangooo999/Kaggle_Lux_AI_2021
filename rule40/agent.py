@@ -310,10 +310,7 @@ def agent(observation, configuration):
 
                     # OVERRIDE SCORE to mimic Rule 300
                     # from lower (best), to higher
-                    score = time_distance \
-                            + len(next_clust.incoming_explorers) * 1 \
-                            + len(next_clust.enemy_unit) * 3 \
-                            - len(next_clust.resource_cells) / 10.
+                    score = time_distance + next_clust.score
 
                     clust_analyses[cluster.id].append(
                         (distance,
