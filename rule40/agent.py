@@ -526,8 +526,8 @@ def agent(observation, configuration):
             adjacent_empty_tiles = MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos)
             best_adjacent_empty_tile = adjacent_empty_tile_favor_close_to_city_and_res(
                 adjacent_empty_tiles, game_state, player, available_resources_tiles, u_prefix)
-            resources_distance, adjacent_resources = ResourceService.find_resources_distance(
-                unit.pos, player, all_resources_tiles, game_info)
+            resources_distance, adjacent_resources = find_resources_distance(
+                unit.pos, clusters, all_resources_tiles, game_info)
             city_tile_distance = find_city_tile_distance(unit.pos, player, unsafe_cities)
             adjacent_next_to_resources = get_walkable_that_are_near_resources(
                 u_prefix, move_mapper, MapAnalysis.get_4_positions(unit.pos, game_state), available_resources_tiles)
@@ -1402,3 +1402,45 @@ def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Positio
         unit.cooldown += 2
 
     return closest_dir
+
+
+
+# the next snippet all resources distance and return as sorted order.
+def find_resources_distance(pos, clusters:ClusterControl, resource_tiles, game_info: GameInfo) -> Dict[CityTile,
+                                                                                      Tuple[int, int, DIRECTIONS]]:
+    resources_distance = {}
+    adjacent_resources = {}
+    for resource_tile in resource_tiles:
+
+
+        # if resource_tile.pos in clusters.resource_pos_to_cluster:
+        #     cluster = clusters.resource_pos_to_cluster[resource_tile.pos]
+        #     print("XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid(),file=sys.stderr)
+        #     print("XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
+        #     print("XXX3",game_info.turn, len(cluster.perimeter), len(cluster.accessible_perimeter), file=sys.stderr)
+
+        dist = resource_tile.pos.distance_to(pos)
+
+        if resource_tile.resource.type == RESOURCE_TYPES.WOOD:
+            resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
+            if dist == 1:
+                adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
+
+        else:
+            expected_resource_additional = (float(dist * 2.0) * float(game_info.get_research_rate(5)))
+            expected_resource_at_distance = float(game_info.reseach_points) + expected_resource_additional
+            # check if we are likely to have researched this by the time we arrive
+            if resource_tile.resource.type == RESOURCE_TYPES.COAL and \
+                    expected_resource_at_distance < 50.0:
+                continue
+            elif resource_tile.resource.type == RESOURCE_TYPES.URANIUM and \
+                    expected_resource_at_distance < 200.0:
+                continue
+            else:
+                # order by distance asc, resource asc
+                resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
+                if dist == 1:
+                    adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
+
+    resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
+    return resources_distance,adjacent_resources

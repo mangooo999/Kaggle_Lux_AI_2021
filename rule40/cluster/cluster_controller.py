@@ -49,6 +49,12 @@ class ClusterControl:
         for i, rc in enumerate(MapAnalysis.get_resource_groups(uranium_resource_cells)):
             self.clusters[f'uranium_{i}'] = Cluster(f'uranium_{i}', rc, RESOURCE_TYPES.URANIUM)
 
+        self.resource_pos_to_cluster = {}
+
+        for k in self.clusters.values():
+            for r in k.resource_cells:
+                self.resource_pos_to_cluster[r.pos] = k
+
     def get_clusters(self) -> ValuesView[Cluster]:
         return self.clusters.values()
 

@@ -22,9 +22,9 @@ class Cluster:
         self.city_tiles: List[CityTile] = []
         self.enemy_unit: List[str] = []
         self.perimeter: List[Position] = []
-        self.exposed_perimeter: List[Position] = []
-        self.accessible_perimeter: List[Position] = []
-        self.walkable_perimeter: List[Position] = []
+        self.exposed_perimeter: List[Position] = [] # empty (no resources, no city)
+        self.accessible_perimeter: List[Position] = [] # no enemy city
+        self.walkable_perimeter: List[Position] = [] # no enemy city, no enemy units
         self.res_type: RESOURCE_TYPES = resource_type
         self.closest_unit = ''
         self.closest_unit_distance = math.inf
@@ -179,29 +179,30 @@ class Cluster:
         ]
         self.exposed_perimeter = exposed_perimeter
 
-        accessable_perimeter = []
+        accessible_perimeter = []
         for p in self.perimeter:
             city_tile = game_state.map.get_cell_by_pos(p).citytile
             if city_tile is None:
                 # no city
                 # todo maybe exclude occupied enemy tiles
-                accessable_perimeter.append(p)
+                accessible_perimeter.append(p)
             elif MapAnalysis.get_city_id_from_pos(p, player) != '':
                 # our city
-                accessable_perimeter.append(p)
+                accessible_perimeter.append(p)
 
-        self.accessible_perimeter = accessable_perimeter
+        self.accessible_perimeter = accessible_perimeter
 
-        accessable_perimeter_now = []
+        accessible_perimeter_now = []
         for p in self.accessible_perimeter:
             add = True
             for e in opponent.units:
                 if p.equals(e.pos):
                     add = False
+                    break
             if add:
-                accessable_perimeter_now.append(p)
+                accessible_perimeter_now.append(p)
 
-        self.walkable_perimeter = accessable_perimeter_now
+        self.walkable_perimeter = accessible_perimeter_now
 
     def update_closest(self, player: Player, opponent: Player):
 

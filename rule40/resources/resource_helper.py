@@ -3,8 +3,8 @@ import math
 from typing import List, Tuple, Dict
 from lux.game_map import Cell, Position, RESOURCE_TYPES
 from GameInfo import GameInfo
-
 from lux.game_objects import CityTile, DIRECTIONS
+
 
 
 def get_resources(game_state) -> List[Cell]:
@@ -89,39 +89,6 @@ def find_all_resources(game_state, player) -> (List[Cell], List[Cell], List[Cell
 
     return resource_tiles_all, resource_tiles_available, wood_tiles
 
-
-# the next snippet all resources distance and return as sorted order.
-def find_resources_distance(pos, player, resource_tiles, game_info: GameInfo) -> Dict[CityTile,
-                                                                                      Tuple[int, int, DIRECTIONS]]:
-    resources_distance = {}
-    adjacent_resources = {}
-    for resource_tile in resource_tiles:
-
-        dist = resource_tile.pos.distance_to(pos)
-
-        if resource_tile.resource.type == RESOURCE_TYPES.WOOD:
-            resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
-            if dist == 1:
-                adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
-
-        else:
-            expected_resource_additional = (float(dist * 2.0) * float(game_info.get_research_rate(5)))
-            expected_resource_at_distance = float(game_info.reseach_points) + expected_resource_additional
-            # check if we are likely to have researched this by the time we arrive
-            if resource_tile.resource.type == RESOURCE_TYPES.COAL and \
-                    expected_resource_at_distance < 50.0:
-                continue
-            elif resource_tile.resource.type == RESOURCE_TYPES.URANIUM and \
-                    expected_resource_at_distance < 200.0:
-                continue
-            else:
-                # order by distance asc, resource asc
-                resources_distance[resource_tile] = (dist, -resource_tile.resource.amount, resource_tile.resource.type)
-                if dist == 1:
-                    adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
-
-    resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
-    return resources_distance,adjacent_resources
 
 
 
