@@ -52,13 +52,15 @@ import builtins as __builtin__
 
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
+def prx(*args):
+    pr(*args,f=True)
+
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
 
-def prx(*args):pr(*args,f=True)
 
 def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, player, resource_tiles, prefix) -> \
         Optional[Cell]:
@@ -320,47 +322,6 @@ def agent(observation, configuration):
         clust_analyses[cluster.id].sort(key=lambda x: (x[4]))  # score
 
     for cluster in clusters.get_clusters():
-
-        # big cluster, try to spread our units in empty perimeter
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.get_equivalent_resources() > 8 \
-                and len(cluster.enemy_unit)==0 \
-                and (cluster.num_units() + len(cluster.incoming_explorers)) >= 3:
-            pr(t_prefix, "big cluster",cluster.id)
-            for pos in cluster.perimeter_empty:
-                if pos in cluster.incoming_explorers_position:
-                    continue
-
-                unit_around = get_units_and_city_number_around_pos(player,pos,3)
-                if unit_around > 0:
-                    continue
-                enemy_around = get_units_and_city_number_around_pos(opponent, pos, 3)
-                if enemy_around > 0:
-                    continue
-
-                units_to_pos =[]
-                for unitid in cluster.units:
-                    unit = player.units_by_id[unitid]
-                    info = None
-                    if unitid in unit_info:
-                        info = unit_info[unitid]
-                    if info is not None:
-                        if info.is_role_none():
-                            dist = unit.pos.distance_to(pos)
-                            units_to_pos.append((dist,info,pos))
-                units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
-
-                spread_move = next(iter(units_to_pos), None)
-                if spread_move is not None:
-                    dist = spread_move[0]
-                    i:UnitInfo = spread_move[1] #infor
-                    u = i.unit
-                    pos = spread_move[2]
-                    pr(t_prefix, "assigning",u.id,"to spread in big cluster",cluster.id,pos)
-                    i.set_unit_role_traveler(pos,dist*2)
-                    break
-
-
-
         if len(clust_analyses[cluster.id]) == 0:
             continue
         # else:
@@ -378,7 +339,7 @@ def agent(observation, configuration):
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units)
             move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 5:
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 6:
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>5, u=', cluster.units)
             move_to_closest_cluster = True
 
@@ -442,7 +403,7 @@ def agent(observation, configuration):
 
     # logging
     if game_state.turn == 360:
-        prx(t_prefix, "END C=", number_city_tiles, 'u=', len(player.units), 't=', str(time.time() - start_time))
+        pr(t_prefix, "END C=", number_city_tiles, 'u=', len(player.units), 't=', str(time.time() - start_time), f=True)
     else:
         pr(t_prefix, "INT Cities", number_city_tiles, 'units', len(player.units))
 
@@ -1462,9 +1423,9 @@ def find_resources_distance(pos, clusters:ClusterControl, resource_tiles, game_i
             # prx("XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid())
             # prx("XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
             # prx("XXX3",game_info.turn,cluster.id, len(cluster.perimeter), len(cluster.walkable_perimeter))
-            if len(cluster.perimeter_accessible) == 0:
+            if len(cluster.accessible_perimeter) == 0:
                 score = 2 # not accessible, (and therefore also not walkable)
-            elif len(cluster.perimeter_walkable) == 0:
+            elif len(cluster.walkable_perimeter) == 0:
                 score = 1 # accesible but not walkable
 
         dist = resource_tile.pos.distance_to(pos)

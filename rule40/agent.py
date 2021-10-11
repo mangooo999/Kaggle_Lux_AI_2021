@@ -56,7 +56,7 @@ def prx(*args):
     pr(*args,f=True)
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
