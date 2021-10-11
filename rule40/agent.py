@@ -113,12 +113,22 @@ def empty_tile_near_wood_and_city(empty_tiles, wood_tiles, game_state, player) -
     # pr("Return", result)
     return game_state.map.get_cell_by_pos(result)
 
+def find_closest_city_tile_no_logic(pos: Position, player):
+    if len(player.cities) > 0:
+        city_tiles_distance = {}
+        for k, city in player.cities.items():
+            for city_tile in city.citytiles:
+                city_tiles_distance[city_tile.pos] = city_tile.pos.distance_to(pos)
+        # order by dist
+        city_tiles_distance = collections.OrderedDict(sorted(city_tiles_distance.items(), key=lambda x: x[1]))
+        return next(iter(city_tiles_distance.keys()))
+    else:
+        return pos
 
 # snippet to find the all city tiles distance and sort them.
 def find_city_tile_distance(pos: Position, player, unsafe_cities) -> Dict[CityTile, Tuple[int, int, int, str]]:
     city_tiles_distance: Dict[CityTile, Tuple[int, int, int, str]] = {}
     if len(player.cities) > 0:
-        closest_dist = math.inf
         # the cities are stored as a dictionary mapping city id to the city object, which has a citytiles field that
         # contains the information of all citytiles in that city
         for k, city in player.cities.items():
@@ -366,7 +376,7 @@ def agent(observation, configuration):
 
     cities = list(player.cities.values())
     unsafe_cities = {}
-    lowest_autonomy = 0
+    immediately_unsafe_cities = {}
     available_city_actions = 0
     available_city_actions_now_and_next = 0;
     do_research_points = 0
@@ -376,11 +386,13 @@ def agent(observation, configuration):
     if len(cities) > 0:
         for city in cities:
             will_live = city.get_autonomy_turns() >= game_state_info.all_night_turns_lef
+            will_live_next_night = city.get_autonomy_turns() >= game_state_info.next_night_number_turn
+            payload = (len(city.citytiles),will_live_next_night)
             # collect unsafe cities
             if not will_live:
-                unsafe_cities[city.cityid] = (
-                    len(city.citytiles),
-                    (game_state_info.all_night_turns_lef - city.get_autonomy_turns()) * city.get_light_upkeep())
+                unsafe_cities[city.cityid] = payload
+            if not will_live_next_night:
+                immediately_unsafe_cities[city.cityid] = payload
 
             # record how many available city actions we have now
             for city_tile in city.citytiles[::-1]:
@@ -478,7 +490,8 @@ def agent(observation, configuration):
                         # let's do research
                         game_info.do_research(actions, city_tile, str(city_tile.pos) + " research")
 
-    pr(t_prefix, "Unsafe cities", unsafe_cities)
+    pr(t_prefix, "Unsafe cities            ", unsafe_cities)
+    pr(t_prefix, "Immediately Unsafe cities", immediately_unsafe_cities)
 
     # trace the agent move
     # store all unit current location on move tracker
@@ -496,6 +509,20 @@ def agent(observation, configuration):
         pr(u_prefix, ";pos", unit.pos, 'CD=', unit.cooldown, unit.cargo.to_string(), 'fuel=',
            unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role)
 
+        in_city = move_mapper.is_position_city(unit.pos)
+
+        if len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city:
+            # those units are not useful anymore, return home
+            pr(u_prefix, ' nothing to do, go home')
+            closest_city = find_closest_city_tile_no_logic(unit.pos, player)
+            directions = MapAnalysis.directions_to(unit.pos, closest_city)
+            for direction in directions:
+                if move_mapper.can_move_to_direction(unit.pos, direction, game_state):
+                    move_unit_to(actions, direction, move_mapper, info, " nothing to do, go home",
+                                 closest_city)
+
+            continue
+
         if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1
                 and len(player.units) == 1):
             pr(u_prefix, ' NEEDS to become an expander')
@@ -504,7 +531,7 @@ def agent(observation, configuration):
         if unit.is_worker() and unit.can_act():
             # SHORTCUTS
             # in SHORTCUTS
-            in_city = move_mapper.is_position_city(unit.pos)
+
             in_empty = MapAnalysis.is_cell_empty(unit.pos, game_state)
             in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(available_resources_tiles,
                                                                                            unit.pos)
@@ -1109,7 +1136,7 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsa
     unit = info.unit
 
     moved = False
-    for city_tile, dist in city_tile_distance.items():
+    for city_tile, payload in city_tile_distance.items():
         if not move_mapper.has_position(city_tile.pos):
             closest_city_tile = city_tile
             if closest_city_tile is not None:
@@ -1118,7 +1145,7 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsa
                 if direction != DIRECTIONS.CENTER:
                     moved = True
                     return direction, closest_city_tile.pos, " towards closest city distancing and autonomy, size" \
-                           + dist.__str__()
+                           + payload.__str__()
 
     if not moved:
         direction = get_random_step(unit.pos, move_mapper)

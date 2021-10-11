@@ -23,6 +23,7 @@ class GameStateInfo:
 
         # below is probably duplicate
         self.steps_until_night = 30 - turn % 40
+        self.next_night_number_turn = min(10,10 + self.steps_until_night)
 
         pr("T_" + str(turn), self.__str__())
 
