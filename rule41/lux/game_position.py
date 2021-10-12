@@ -1,3 +1,5 @@
+import math
+
 from lux import game
 
 from typing import List, Set, Tuple
@@ -13,16 +15,28 @@ class Position:
         self.y = y
 
     def __hash__(self):
-        return self.x*100+self.y
+        return self.x * 100 + self.y
 
     def __sub__(self, pos: 'Position') -> int:
         return abs(pos.x - self.x) + abs(pos.y - self.y)
 
-    def distance_to(self, pos: 'Position'):
+    def distance_to(self, pos: 'Position') -> int:
         """
         Returns Manhattan (L1/grid) distance to pos
         """
         return self - pos
+
+    def distance_to_mult(self, positions: '[Position]') -> int:
+        """
+        Returns Manhattan (L1/grid) distance to multiple pos
+        """
+        result = math.inf
+        for pos in positions:
+            dist = self.distance_to(pos)
+            if dist < result:
+                result = dist
+
+        return result
 
     def is_adjacent(self, pos: 'Position'):
         return (self - pos) <= 1

@@ -22,10 +22,10 @@ class Cluster:
         self.incoming_explorers_position: List[Position] = []
         self.city_tiles: List[CityTile] = []
         self.enemy_unit: List[str] = []
-        self.perimeter: List[Position] = []
-        self.perimeter_empty: List[Position] = [] # empty (no resources, no city)
-        self.perimeter_accessible: List[Position] = [] # no enemy city
-        self.perimeter_walkable: List[Position] = [] # no enemy city, no enemy units
+        self.perimeter: List[Position] = [Position]
+        self.perimeter_empty: List[Position] = [Position] # empty (no resources, no city)
+        self.perimeter_accessible: List[Position] = [Position] # no enemy city
+        self.perimeter_walkable: List[Position] = [Position] # no enemy city, no enemy units
         self.res_type: RESOURCE_TYPES = resource_type
         self.closest_unit = ''
         self.closest_unit_distance = math.inf
@@ -242,3 +242,6 @@ class Cluster:
 
     def is_reachable(self) -> bool:
         return len(self.perimeter_accessible) > 0
+
+    def __repr__(self):
+        return self.id

@@ -202,3 +202,6 @@ class Unit:
 
     def encode_tuple_for_cmp(self):
         return (self.cooldown, self.cargo.wood, self.cargo.coal, self.cargo.uranium, self.is_worker())
+
+    def __repr__(self):
+        return self.id

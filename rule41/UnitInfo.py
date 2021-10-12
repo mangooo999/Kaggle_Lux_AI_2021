@@ -93,6 +93,10 @@ class UnitInfo:
             self.set_unit_role('explorer', prefix)
             self.target_position = pos
 
+    def set_unit_role_expander(self, prefix: str = ''):
+        self.pr(self.log_prefix, 'set this unit as expander')
+        self.set_unit_role('expander', prefix)
+
     def set_unit_role(self, role, prefix: str = ''):
         self.role = role
         self.pr(prefix, "Setting unit", self.id, " as ", self.role)

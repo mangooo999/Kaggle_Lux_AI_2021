@@ -4,9 +4,11 @@ import collections
 import random
 import time
 
+
 random.seed(50)
 
 from game_state_info.game_state_info import GameStateInfo
+from ConfigManager import ConfigManager
 
 from typing import Optional, Dict, Tuple, DefaultDict, Sequence
 
@@ -75,7 +77,7 @@ def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, pla
             adjacent_city_tiles, adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
                                                                                                player)
             adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
-            adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
+            # adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
             # results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
             results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res)
 
@@ -173,6 +175,7 @@ start_time = 0
 def agent(observation, configuration):
     global game_state
     global clusters
+    global config
     global start_time
 
     ### Do not edit ###
@@ -184,6 +187,7 @@ def agent(observation, configuration):
 
         # This is the start of the game
         clusters = ClusterControl(game_state,pr)
+        config = ConfigManager(game_state.map_width,pr)
         start_time = time.time()
 
     else:
@@ -301,7 +305,7 @@ def agent(observation, configuration):
                         continue
                     if info is None:
                         continue
-                    if not info.is_role_none():
+                    if not (info.is_role_none() or info.is_role_city_expander()):
                         continue
 
                     # OVERRIDE SCORE to mimic Rule 300
@@ -322,19 +326,22 @@ def agent(observation, configuration):
     for cluster in clusters.get_clusters():
 
         # big cluster, try to spread our units in empty perimeter
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.get_equivalent_resources() > 8 \
-                and len(cluster.enemy_unit)==0 \
+        if cluster.res_type == RESOURCE_TYPES.WOOD \
+                and (cluster.get_equivalent_resources() + (len(cluster.enemy_unit) * 2) > 8) \
                 and (cluster.num_units() + len(cluster.incoming_explorers)) >= 3:
-            pr(t_prefix, "big cluster",cluster.id)
+            pr(t_prefix, "big cluster",cluster.to_string_light())
             for pos in cluster.perimeter_empty:
-                if pos in cluster.incoming_explorers_position:
+                MIN_DIST = 3
+                # not close to friendly
+                if get_num_units_and_city_number_around_pos(player, pos, MIN_DIST) > 0:
                     continue
 
-                unit_around = get_units_and_city_number_around_pos(player,pos,3)
-                if unit_around > 0:
+                # not close to enemies
+                if get_num_units_and_city_number_around_pos(opponent, pos, MIN_DIST) > 0:
                     continue
-                enemy_around = get_units_and_city_number_around_pos(opponent, pos, 3)
-                if enemy_around > 0:
+
+                # not close to other traveller
+                if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
                     continue
 
                 units_to_pos =[]
@@ -344,7 +351,8 @@ def agent(observation, configuration):
                     if unitid in unit_info:
                         info = unit_info[unitid]
                     if info is not None:
-                        if info.is_role_none():
+                        pr("XXX",info.unit.id,info.role)
+                        if info.is_role_none() :
                             dist = unit.pos.distance_to(pos)
                             units_to_pos.append((dist,info,pos))
                 units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
@@ -367,6 +375,7 @@ def agent(observation, configuration):
 
         # first element of sequence associated to this cluster analyses is the closest cluster
         closest_cluster = next(iter(clust_analyses[cluster.id]), None)
+        pr(t_prefix,"XXXX",closest_cluster)
         # find the closest unit of cluster to next cluster
         closest_cluster_dist: int = closest_cluster[0]
         closest_cluster_unit: Unit = closest_cluster[1]
@@ -378,8 +387,9 @@ def agent(observation, configuration):
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units)
             move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 5:
-            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>5, u=', cluster.units)
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > config.cluster_wood_overcrowded:
+            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>',config.cluster_wood_overcrowded,
+               '5'', u=', cluster.units)
             move_to_closest_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_dist < 4:
@@ -398,14 +408,23 @@ def agent(observation, configuration):
             #       target_unit.pos, target_pos)
             if time_distance > game_state_info.steps_until_night:
                 # unreachable before night
-                pr(t_prefix, closest_cluster_cluster.id, 'is unreachble at a time distance ',
+                pr(t_prefix, closest_cluster_cluster.id, 'is unreachable at a time distance ',
                    time_distance, 'with turns to night', game_state_info.steps_until_night,
                    closest_cluster_unit.pos, closest_cluster_pos)
             else:
                 pr(t_prefix, ' repurposing', closest_cluster_unit.id, ' to explore closest_cluster',
                    closest_cluster_cluster.id, closest_cluster_cluster.get_centroid())
+                is_expander = unit_info[closest_cluster_unit.id].is_role_city_expander()
                 unit_info[closest_cluster_unit.id].set_unit_role_explorer(
                     closest_cluster_cluster.get_centroid())
+                if is_expander:
+                    # we need to set expander some other unit
+                    for u in cluster.units:
+                        if unit_info[u].is_role_none():
+                            pr(t_prefix, closest_cluster_cluster.id, 'expander repurposed')
+                            unit_info[u].set_unit_role_expander(t_prefix)
+                            break
+
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -517,7 +536,7 @@ def agent(observation, configuration):
                         # if we have resources around here, but no units, do not research
                         near_resource = MapAnalysis.is_position_adjacent_to_resource(available_resources_tiles,
                                                                                      city_tile.pos)
-                        near_units = len(get_units_around_pos(player, city_tile.pos, 2))
+                        near_units = get_units_number_around_pos(player, city_tile.pos, 2)
                         if near_resource and near_units == 0:
                             pr(t_prefix,
                                "- this city tile could do research, but better to wait till it can create a worker")
@@ -564,7 +583,7 @@ def agent(observation, configuration):
         if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1
                 and len(player.units) == 1):
             pr(u_prefix, ' NEEDS to become an expander')
-            info.set_unit_role('expander', u_prefix)
+            info.set_unit_role_expander(u_prefix)
 
         if unit.is_worker() and unit.can_act():
             # SHORTCUTS
@@ -590,8 +609,9 @@ def agent(observation, configuration):
             adjacent_units = LazyWrapper(lambda: get_units_around_pos(player, unit.pos, 1))
 
             # enemy SHORTCUTS
-            num_adjacent_enemy_unit = LazyWrapper(lambda: get_units_number_around_pos(opponent, unit.pos, 1))
-            num_hostiles_within2 = LazyWrapper(lambda:  get_units_and_city_number_around_pos(opponent, unit.pos, 2))
+            adjacent_enemy_units = LazyWrapper(lambda: get_units_around_pos(opponent, unit.pos, 1))
+            num_adjacent_enemy_unit = LazyWrapper(lambda: len(adjacent_enemy_units()))
+            num_hostiles_within2 = LazyWrapper(lambda:  get_num_units_and_city_number_around_pos(opponent, unit.pos, 2))
             is_in_highly_hostile_area = LazyWrapper(lambda:  num_hostiles_within2() > 5)
 
             # pr(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles()],
@@ -890,6 +910,57 @@ def agent(observation, configuration):
                 pr(u_prefix, " empty, near city, near wood, stay here")
                 continue
 
+            # if we are next to enemy, try to make sure we do not back off
+            enemy_pos = get_units_and_city_number_around_pos(opponent,unit.pos)
+            if len(enemy_pos) > 0:
+                if in_city():
+                    enemy_positions = []
+                    enemy_direction = []
+                    for e_pos in enemy_pos:
+                        enemy_direction.append(unit.pos.direction_to(e_pos))
+
+                    # pick empty that are near wood, not on enemy not backing off, and possibly near city
+                    if len(adjacent_empty_tiles())>0:
+                        possible_moves =[]
+                        for pos in adjacent_empty_tiles():
+                            if pos in enemy_positions:
+                                continue
+                            if not MapAnalysis.is_position_adjacent_to_resource(wood_tiles,pos):
+                                continue
+
+                            if move_mapper.can_move_to_pos(pos,game_state):
+                                num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(pos, player)
+                                is_pos_walk_away = opposite_dir(unit.pos.direction_to(pos)) in enemy_direction
+                                possible_moves.append((int(is_pos_walk_away), -num_adjacent_city[0], pos))
+
+                        possible_moves.sort(key=lambda x: (x[0], x[1]))
+
+                        if len(possible_moves)>0:
+                           next_pos = next(iter(possible_moves))[2]
+                           move_unit_to(actions,unit.pos.direction_to(next_pos),move_mapper, info,"standing enemy",next_pos)
+                           continue
+
+            else:
+                #if we are not close to an enemy, but we are in a city close to adjacent that is close to enemy:
+                possible_moves =[]
+                for pos in adjacent_empty_tiles():
+                    if not move_mapper.can_move_to_pos(pos,game_state):
+                        continue
+                    if not MapAnalysis.is_position_adjacent_to_resource(wood_tiles, pos):
+                        continue
+                    if get_units_and_city_number_around_pos(opponent,pos) == 0:
+                        continue
+                    possible_moves.append(pos)
+                if len(possible_moves) > 0:
+                    next_pos = next(iter(possible_moves))
+                    move_unit_to(actions, unit.pos.direction_to(next_pos), move_mapper, info, "surround enemy",
+                                 next_pos)
+                    continue
+
+
+
+
+
             if is_in_highly_hostile_area():
                 done = False
                 pr(u_prefix, "hostile area;nearW=", near_wood(), "inRes=", in_resource, 'inEmp=', in_empty())
@@ -1136,16 +1207,19 @@ def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, pref
             # continue
 
 
-def get_units_and_city_number_around_pos(actor, pos: Position, distance=1) -> int:
-    results = 0
+def get_num_units_and_city_number_around_pos(actor, pos: Position, distance=1) -> int:
+    return len(get_units_and_city_number_around_pos(actor, pos,distance=distance))
+
+def get_units_and_city_number_around_pos(actor, pos: Position, distance=1) -> [Position]:
+    results = []
     for city in actor.cities.values():
         for city_tile in city.citytiles:
             if city_tile.pos.distance_to(pos) <= distance:
-                results += 1
+                results.append(city_tile.pos)
 
     for unit in actor.units:
         if unit.pos.distance_to(pos) <= distance:
-            results += 1
+            results.append(unit.pos)
 
     return results
 
@@ -1492,3 +1566,16 @@ def find_resources_distance(pos, clusters:ClusterControl, resource_tiles, game_i
 
     resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
     return resources_distance,adjacent_resources
+
+
+def opposite_dir(dir:DIRECTIONS) -> DIRECTIONS:
+    if dir == DIRECTIONS.NORTH:
+        return DIRECTIONS.SOUTH
+    elif dir == DIRECTIONS.SOUTH:
+        return DIRECTIONS.NORTH
+    elif dir == DIRECTIONS.WEST:
+        return DIRECTIONS.EAST
+    elif dir == DIRECTIONS.EAST:
+        return DIRECTIONS.WEST
+    else:
+        return DIRECTIONS.CENTER
