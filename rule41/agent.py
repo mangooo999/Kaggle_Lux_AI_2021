@@ -574,6 +574,7 @@ def agent(observation, configuration):
 
         in_city = LazyWrapper(lambda: move_mapper.is_position_city(unit.pos))
         adjacent_units = LazyWrapper(lambda: get_units_around_pos(player, unit.pos, 1))
+        adjacent_empty_tiles = LazyWrapper(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
 
         # End of game, try to save units that are not going anymore to do anything
         if (len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
@@ -590,13 +591,51 @@ def agent(observation, configuration):
 
         if (len(all_resources_tiles) == 0 and unit.cargo.fuel() > 0 and len(unsafe_cities)==0):
             pr(u_prefix,' end of game, with resources ',unit.get_cargo_space_used())
+            do_continue = False
             if unit.can_build(game_state.map):
-                #todo check if we are adjacent and ca couse issues
-                build_city(actions, info, u_prefix, 'end of game')
+                dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
+                if len(cities) == 0:
+                    build_city(actions, info, u_prefix, 'end of game')
+                    continue
+                else:
+                    additional_fuel = 0
+                    # check if we are adjacent and can cause issues
+
+                    # fuel that can be gathered from adjacent units
+                    if game_state_info.turns_to_night>2:
+                        for u in adjacent_units():
+                            additional_fuel+=u.cargo.fuel()
+
+                    do_build = True
+                    for c in cities:
+                        increased_upkeep = 23 - 5 * len(cities)
+                        expected_autonomy = (c.fuel + additional_fuel) // (c.get_light_upkeep() + increased_upkeep)
+                        if expected_autonomy < game_state_info.all_night_turns_lef:
+                            pr(u_prefix, "end of game. Do not build near adjacent", c.cityid,
+                               "because low expected autonomy", expected_autonomy)
+                            do_build = False
+                            break
+                        else:
+                            pr(u_prefix,'adjancet city',c.cityid,'will be fine with autonomy',expected_autonomy)
+
+                    if do_build:
+                        build_city(actions, info, u_prefix, 'end of game (adjacent)')
+                        continue
+                    else:
+                        for adjacent_position in adjacent_empty_tiles():
+                            # pr(u_prefix, "XXXXXXX ", num_adjacent_here)
+                            dummy, num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
+                                                                                                     player)
+                            if num_adjacent_city ==0:
+                                move_unit_to_or_transfer(actions,unit.pos.direction_to(adjacent_position),info,
+                                                         move_mapper,player,u_prefix,unit,'end of game, move away city')
+                                break
+                                do_continue = True
+
+            if do_continue:
                 continue
 
             # end of game, try to put together 100 to build something
-            do_continue = False
             if len(adjacent_units()) > 0:
                 for f in adjacent_units():
                     if f.cargo.fuel() > unit.cargo.fuel():
@@ -651,7 +690,6 @@ def agent(observation, configuration):
             near_city = LazyWrapper(lambda: MapAnalysis.is_position_adjacent_city(player, unit.pos))
 
             # adjacent SHORTCUTS
-            adjacent_empty_tiles = LazyWrapper(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
             best_adjacent_empty_tile = LazyWrapper(lambda: adjacent_empty_tile_favor_close_to_city_and_res(
                 adjacent_empty_tiles(), game_state, player, available_resources_tiles, u_prefix))
             resources_distance, adjacent_resources = find_resources_distance(
