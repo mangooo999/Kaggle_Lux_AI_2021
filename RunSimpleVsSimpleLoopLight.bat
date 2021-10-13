@@ -1,6 +1,6 @@
 @echo off
 set agent1=C:/git/luxai/light/main.py
-set agent2=rule431/main.py
+set agent2=rule430b/main.py
 set num_loops=100
 set storeReplay=false
 set storeLogs=false
