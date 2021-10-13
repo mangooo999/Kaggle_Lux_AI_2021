@@ -33,10 +33,10 @@ class Cluster:
         self.score = 0.
 
     def refresh_score(self) -> int:
-        self.score = -(
-                + float(len(self.resource_cells)) / 10.
+        self.score = - int (
+                + float(len(self.resource_cells)) * 3
                - float(len(self.incoming_explorers) ) * 3
-               - float(len(self.enemy_unit)) * 1.
+               - float(len(self.enemy_unit)) * 3.
                )
 
 

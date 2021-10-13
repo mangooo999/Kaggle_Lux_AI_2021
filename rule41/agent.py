@@ -55,7 +55,7 @@ import builtins as __builtin__
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if False:
+    if True:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -417,8 +417,8 @@ def agent(observation, configuration):
                    time_distance, 'with turns to night', game_state_info.steps_until_night,
                    closest_cluster_unit.pos, closest_cluster_pos)
             else:
-                pr(t_prefix, ' repurposing', closest_cluster_unit.id, ' to explore closest_cluster',
-                   closest_cluster_cluster.id, closest_cluster_cluster.get_centroid())
+                pr(t_prefix, ' repurposing', closest_cluster_unit.id, ' to explore closest_cluster tdist',
+                   time_distance, closest_cluster_cluster.to_string_light())
                 is_expander = unit_info[closest_cluster_unit.id].is_role_city_expander()
                 unit_info[closest_cluster_unit.id].set_unit_role_explorer(
                     closest_cluster_cluster.get_centroid())
