@@ -246,7 +246,6 @@ def agent(observation, configuration):
         else:
             initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
             distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
-            pr("XXXX", distance_cities)
             if 3 <= distance_cities <= 3:
                 step_to_enemy = initial_city_pos.translate_towards(initial_enemy_city_pos)
                 if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy):
@@ -607,13 +606,7 @@ def agent(observation, configuration):
         if (len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
                 or (game_state.turn >= 350):
             # those units are not useful anymore, return home
-            pr(u_prefix, ' nothing to do, go home')
-            closest_city = find_closest_city_tile_no_logic(unit.pos, player)
-            directions = MapAnalysis.directions_to(unit.pos, closest_city)
-            for direction in directions:
-                if move_mapper.can_move_to_direction(unit.pos, direction, game_state):
-                    move_unit_to(actions, direction, move_mapper, info, " nothing to do, go home",
-                                 closest_city)
+            send_unit_home(actions, game_state, info, move_mapper, player, u_prefix, unit,"nothing to do, go home")
             continue
 
         if (len(all_resources_tiles) == 0 and unit.cargo.fuel() > 0 and len(unsafe_cities)==0):
@@ -1275,7 +1268,10 @@ def agent(observation, configuration):
         # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
         if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
             pr(u_prefix, " this unit has not worked")
-            if unit.cargo.coal > 0 or unit.cargo.uranium > 0:
+            if unit.get_cargo_space_used() == 0 and len(available_resources_tiles) == 0:
+                #return home
+                send_unit_home(actions, game_state, info, move_mapper, player, u_prefix, unit, "no cargo, no resource")
+            elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
                 transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                                       available_resources_tiles, info, in_resource,
                                                                       near_resource,
@@ -1288,6 +1284,17 @@ def agent(observation, configuration):
     #    pr("XXXX resources map ",game_info.turn,i,len(j))
 
     return actions
+
+
+def send_unit_home(actions, game_state, info, move_mapper, player, u_prefix, unit, msg):
+    pr(u_prefix, msg)
+    closest_city = find_closest_city_tile_no_logic(unit.pos, player)
+    directions = MapAnalysis.directions_to(unit.pos, closest_city)
+    for direction in directions:
+        if move_mapper.can_move_to_direction(unit.pos, direction, game_state):
+            move_unit_to(actions, direction, move_mapper, info, msg, closest_city)
+            return True
+    return False
 
 
 def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, available_resources_tiles, info,
