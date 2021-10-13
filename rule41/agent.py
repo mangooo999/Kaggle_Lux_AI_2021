@@ -55,7 +55,7 @@ import builtins as __builtin__
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -826,7 +826,7 @@ def agent(observation, configuration):
                     build_city(actions, info, u_prefix, 'because we are close to enemy')
                     continue
                 if near_city():
-                    moved = False
+                    do_not_build = False
 
                     # this is an excellent spot, but is there even a better one, one that join two different cities?
                     if game_state_info.turns_to_night > 2:
@@ -843,11 +843,33 @@ def agent(observation, configuration):
                                                  " moved to a place where we can build{0} instead".format(
                                                      str(num_adjacent_city))
                                                  , adjacent_position)
-                                moved = True
+                                do_not_build = True
                                 break
-                    if not moved:
+
+                    if not do_not_build and game_state_info.turns_to_night < 6:
+                        dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
+                        for c in cities:
+
+                            # pr(u_prefix,"XXXX1 auton",c.cityid,c.get_autonomy_turns())
+                            if c.get_autonomy_turns()<10:
+                                pr(u_prefix, "Do not build near adjacent", c.cityid,"because low autonomy",
+                                    c.get_autonomy_turns())
+                                do_not_build = True
+                                break
+                            else:
+                                # autonomy if we build here
+                                increased_upkeep = 23 - 5 * len(cities)
+                                expected_autonomy = c.fuel // (c.get_light_upkeep() + increased_upkeep)
+                                # pr(u_prefix, "XXXX2 eauto", c.cityid, expected_autonomy)
+                                if expected_autonomy < 10:
+                                    pr(u_prefix, "Do not build near adjacent", c.cityid, "because low expected autonomy",
+                                        expected_autonomy)
+                                    do_not_build = True
+                                    break
+
+                    if not do_not_build:
                         build_city(actions, info, u_prefix, 'in adjacent city!')
-                    continue
+                        continue
 
                 else:  # if can build but we are not near city
 
@@ -867,8 +889,9 @@ def agent(observation, configuration):
 
                 do_stop = False
 
-                if game_state_info.turns_to_night > 1 or \
-                        (game_state_info.turns_to_night == 1 and near_resource):
+                if (not near_city()) and \
+                        (game_state_info.turns_to_night > 1 or \
+                        (game_state_info.turns_to_night == 1 and near_resource)):
                     unit_fuel = unit.cargo.fuel()
                     if unit_fuel < 200:
                         build_city(actions, info, u_prefix,
@@ -883,7 +906,8 @@ def agent(observation, configuration):
                             if city_size >= 5 and distance < 6:
                                 do_build = False
                                 pr(u_prefix, " we could have built NOT in adjacent city, but there is a need city close"
-                               , city_tile.cityid)
+                               , city_tile.cityid, 'dist',distance,'size',city_size)
+                                info.set_unit_role_returner()
                                 break
 
                         if adjacent_resources:
