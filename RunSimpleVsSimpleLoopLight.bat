@@ -1,9 +1,9 @@
 @echo off
 set agent1=C:/git/luxai/light/main.py
-set agent2=rule420/main.py
+set agent2=rule425/main.py
 set num_loops=100
 set storeReplay=false
-set storeLogs=true
+set storeLogs=false
 
 
 SetLocal EnableDelayedExpansion
