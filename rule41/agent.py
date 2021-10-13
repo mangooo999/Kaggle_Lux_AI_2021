@@ -518,8 +518,18 @@ def agent(observation, configuration):
                     res_around = len(MapAnalysis.get_resources_around(available_resources_tiles, city_tile.pos, 3))
                     dummy, closest_resource = MapAnalysis.get_closest_position_cells(city_tile.pos,
                                                                                      available_resources_tiles)
-                    ordered_tyles[
-                        (closest_resource, int(will_live), float(units_around) / float(res_around + 1))] = city_tile
+                    has_res_around = res_around>0
+                    if has_res_around:
+                        score = float(units_around) / float(res_around + 1)
+                    else:
+                        score = closest_resource
+
+                    ordered_tyles[(
+                        score,
+                        closest_resource,
+                        int(will_live),
+                        float(units_around) / float(res_around + 1))
+                    ] = city_tile
 
         ordered_tyles = collections.OrderedDict(sorted(ordered_tyles.items(), key=lambda x: x[0]))
         pr(t_prefix, "Ordered cities we want to create workers ", ordered_tyles)
@@ -540,8 +550,8 @@ def agent(observation, configuration):
                     if game_state.turn < 30:  # TODO maybe this should be based on how close is the unit to build
                         # we are turn<30, we need to prioritise spawning in the right city rather than research
                         # if we have resources around here, but no units, do not research
-                        near_resource = MapAnalysis.is_position_adjacent_to_resource(available_resources_tiles,
-                                                                                     city_tile.pos)
+                        near_resource = MapAnalysis.is_position_adjacent_to_resource_distance(
+                            available_resources_tiles,city_tile.pos, 2)
                         near_units = get_units_number_around_pos(player, city_tile.pos, 2)
                         if near_resource and near_units == 0:
                             pr(t_prefix,

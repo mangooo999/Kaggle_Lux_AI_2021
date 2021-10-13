@@ -459,11 +459,13 @@ def adjacent_cities(player, pos: Position, dist=1) -> {City, Tuple[int, int, DIR
 
 
 def is_position_adjacent_to_resource(resource_tiles, pos) -> bool:
+    return is_position_adjacent_to_resource_distance(resource_tiles,pos,1)
+
+def is_position_adjacent_to_resource_distance(resource_tiles, pos: Position, distance) -> bool:
     for r in resource_tiles:
-        if r.pos.is_adjacent(pos):
+        if pos.distance_to(r.pos) <= distance:
             return True
     return False
-
 
 def get_max_fuel_harvest_in_pos(resource_tiles: List[Cell], pos) -> int:
     fuel = 0
