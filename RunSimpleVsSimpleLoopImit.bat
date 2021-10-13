@@ -1,6 +1,6 @@
 @echo off
 set agent1=C:/git/luxai/imitate/main.py
-set agent2=rule413/main.py
+set agent2=rule405x/main.py
 set num_loops=100
 set storeReplay=false
 set storeLogs=true
@@ -38,11 +38,13 @@ echo start %DATE% %TIME% > %log_file%
 FOR /L %%G IN (1,1,%num_loops%) DO (
 	rem echo|set /p="!TIME! %%G a" >> %log_file%
 	echo|set /p=" %%G a" >> %log_file%
+	echo|set /p=" %%G a" 
 	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent1% %agent2% | grep "rank: 1" >> %log_file%  
 	rem echo|set /p="!TIME! %%G b" >> %log_file%
 	echo|set /p=" %%G b" >> %log_file%
+	echo|set /p=" b" 
 	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent2% %agent1% | grep "rank: 1" >> %log_file%  	
-	echo|set /p="."
+	echo "."
 )
 
 echo end %DATE% %TIME% >> %log_file%

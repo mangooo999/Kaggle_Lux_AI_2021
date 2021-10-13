@@ -2,6 +2,10 @@
 set agent1=rule301/main.py
 set agent2=rule303/main.py
 set num_loops=100
+set storeReplay=true
+set storeLogs=true
+
+
 SetLocal EnableDelayedExpansion
 
 
@@ -34,10 +38,10 @@ echo start %DATE% %TIME% > %log_file%
 FOR /L %%G IN (1,1,%num_loops%) DO (
 	rem echo|set /p="!TIME! %%G a" >> %log_file%
 	echo|set /p=" %%G a" >> %log_file%
-	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=false --storeLogs=false %agent1% %agent2% | grep "rank: 1" >> %log_file%  
+	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent1% %agent2% | grep "rank: 1" >> %log_file%  
 	rem echo|set /p="!TIME! %%G b" >> %log_file%
 	echo|set /p=" %%G b" >> %log_file%
-	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=false --storeLogs=false %agent2% %agent1% | grep "rank: 1" >> %log_file%  	
+	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent2% %agent1% | grep "rank: 1" >> %log_file%  	
 	echo|set /p="."
 )
 

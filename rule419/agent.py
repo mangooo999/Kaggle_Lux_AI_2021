@@ -375,7 +375,7 @@ def agent(observation, configuration):
 
         # first element of sequence associated to this cluster analyses is the closest cluster
         closest_cluster = next(iter(clust_analyses[cluster.id]), None)
-        pr(t_prefix,"XXXX",closest_cluster)
+        # pr(t_prefix,"XXXX",closest_cluster)
         # find the closest unit of cluster to next cluster
         closest_cluster_dist: int = closest_cluster[0]
         closest_cluster_unit: Unit = closest_cluster[1]
