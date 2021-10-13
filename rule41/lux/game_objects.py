@@ -132,11 +132,14 @@ class Unit:
     def is_cart(self) -> bool:
         return self.type == UNIT_TYPES.CART
 
+    def get_cargo_space_used(self) -> int:
+        return self.cargo.wood + self.cargo.coal + self.cargo.uranium;
+
     def get_cargo_space_left(self):
         """
         get cargo space left in this unit
         """
-        spaceused = self.cargo.wood + self.cargo.coal + self.cargo.uranium
+        spaceused = self.get_cargo_space_used()
         if self.type == UNIT_TYPES.WORKER:
             return GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"] - spaceused
         else:

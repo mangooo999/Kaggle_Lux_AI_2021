@@ -573,8 +573,11 @@ def agent(observation, configuration):
            unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role)
 
         in_city = LazyWrapper(lambda: move_mapper.is_position_city(unit.pos))
+        adjacent_units = LazyWrapper(lambda: get_units_around_pos(player, unit.pos, 1))
 
-        if len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city():
+        # End of game, try to save units that are not going anymore to do anything
+        if (len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
+                or (game_state.turn >= 350):
             # those units are not useful anymore, return home
             pr(u_prefix, ' nothing to do, go home')
             closest_city = find_closest_city_tile_no_logic(unit.pos, player)
@@ -583,8 +586,52 @@ def agent(observation, configuration):
                 if move_mapper.can_move_to_direction(unit.pos, direction, game_state):
                     move_unit_to(actions, direction, move_mapper, info, " nothing to do, go home",
                                  closest_city)
-
             continue
+
+        if (len(all_resources_tiles) == 0 and unit.cargo.fuel() > 0 and len(unsafe_cities)==0):
+            pr(u_prefix,' end of game, with resources ',unit.get_cargo_space_used())
+            if unit.can_build(game_state.map):
+                #todo check if we are adjacent and ca couse issues
+                build_city(actions, info, u_prefix, 'end of game')
+                continue
+
+            # end of game, try to put together 100 to build something
+            do_continue = False
+            if len(adjacent_units()) > 0:
+                for f in adjacent_units():
+                    if f.cargo.fuel() > unit.cargo.fuel():
+                        pr(u_prefix, ' end of game, try to transfer',f.id,'resource to put together 100')
+                        transfer_all_resources(actions,info,f.id)
+                        do_continue = True
+                        break
+
+            if do_continue:
+                continue
+
+            #find closest unit with resources:
+            distance_to_friend_with_res = math.inf
+            friend_unit_with_res = None
+            for f in player.units:
+                if f.cargo.fuel() > 0 and f.id!=unit.id:
+                    dist = unit.pos.distance_to(f.pos)
+                    if 1 < dist < distance_to_friend_with_res:
+                        distance_to_friend_with_res = dist
+                        friend_unit_with_res =f
+
+            if friend_unit_with_res is not None:
+                directions = MapAnalysis.directions_to_no_city(unit.pos, friend_unit_with_res.pos,player)
+                for direction in directions:
+                    if move_mapper.can_move_to_direction(unit.pos,direction, game_state):
+                        move_unit_to(actions, direction, move_mapper, info,
+                                     'try to move' + direction +
+                                     ' closer to ' + friend_unit_with_res.id + ' to put together 100',
+                                     friend_unit_with_res.pos)
+                        do_continue = True
+                        break
+
+            if do_continue:
+                continue
+
 
         if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1
                 and len(player.units) == 1):
@@ -612,7 +659,7 @@ def agent(observation, configuration):
             city_tile_distance = LazyWrapper(lambda: find_city_tile_distance(unit.pos, player, unsafe_cities))
             adjacent_next_to_resources = LazyWrapper(lambda: get_walkable_that_are_near_resources(
                 u_prefix, move_mapper, MapAnalysis.get_4_positions(unit.pos, game_state), available_resources_tiles))
-            adjacent_units = LazyWrapper(lambda: get_units_around_pos(player, unit.pos, 1))
+
 
             # enemy SHORTCUTS
             adjacent_enemy_units = LazyWrapper(lambda: get_units_around_pos(opponent, unit.pos, 1))
@@ -846,7 +893,7 @@ def agent(observation, configuration):
                                 do_not_build = True
                                 break
 
-                    if not do_not_build and game_state_info.turns_to_night < 6:
+                    if not do_not_build and game_state_info.turns_to_night < 4:
                         dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
                         for c in cities:
                             if do_continue:

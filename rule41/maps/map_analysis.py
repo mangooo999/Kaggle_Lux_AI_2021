@@ -244,6 +244,8 @@ def get_city_id_from_pos(pos, actor):
 
     return ''
 
+def is_position_city(pos: Position,actor) -> bool:
+    return get_city_id_from_pos(pos, actor) != ''
 
 def get_units_around(actor, pos: Position, max_dist) -> int:
     num = 0
@@ -380,6 +382,36 @@ def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]
             closest_dist = dist
     return closest_dirs
 
+def directions_to_no_city(start_pos: 'Position', target_pos: 'Position', player) -> [DIRECTIONS]:
+    """
+    Return closest position to target_pos from this position, avoiding city tiles from player
+    """
+    check_dirs = directions_to(start_pos,target_pos)
+    return_dirs = []
+
+    for direction in check_dirs:
+        newpos = start_pos.translate(direction, 1)
+        if is_position_city(newpos,player):
+            continue
+        else:
+            return_dirs.append(direction)
+
+    return return_dirs
+
+def direction_to_no_city(start_pos: 'Position', target_pos: 'Position', player) -> DIRECTIONS:
+    """
+    Return closest position to target_pos from this position, avoiding city tiles from player
+    """
+    check_dirs = directions_to(start_pos,target_pos)
+
+    for direction in check_dirs:
+        newpos = start_pos.translate(direction, 1)
+        if is_position_city(newpos,player):
+            continue
+        else:
+            return direction
+
+    return DIRECTIONS.CENTER
 
 def find_closest_city_tile(pos, player) -> CityTile:
     closest_city_tile = None
@@ -475,3 +507,6 @@ def is_cell_empty_or_empty_next(pos, game_state) -> (bool, bool):
     is_empty = is_cell_empty(pos, game_state)
     has_empty_next = len(find_all_adjacent_empty_tiles(game_state, pos)) > 0
     return is_empty, has_empty_next
+
+
+

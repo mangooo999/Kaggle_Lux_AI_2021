@@ -31,8 +31,8 @@ class MoveHelper:
     def __hash_pos__(self, pos: Position) -> Tuple[int, int]:
         return pos.x, pos.y
 
-    def can_move_to_direction(self, pos: Position, direction: DIRECTIONS,game_state) -> bool:
-        return self.can_move_to_pos(pos.translate(direction, 1),game_state)
+    def can_move_to_direction(self, from_pos: Position, direction: DIRECTIONS,game_state) -> bool:
+        return self.can_move_to_pos(from_pos.translate(direction, 1),game_state)
 
     def can_move_to_pos(self, pos: Position, game_state, allow_clash_unit: bool = False, msg: str = '') -> bool:
         # we cannot move if somebody is already going, and it is not a city
