@@ -585,6 +585,8 @@ def agent(observation, configuration):
         in_city = LazyWrapper(lambda: move_mapper.is_position_city(unit.pos))
         adjacent_units = LazyWrapper(lambda: get_units_around_pos(player, unit.pos, 1))
         adjacent_empty_tiles = LazyWrapper(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
+        in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(available_resources_tiles,
+                                                                                       unit.pos)
 
         # End of game, try to save units that are not going anymore to do anything
         if (len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
@@ -646,16 +648,13 @@ def agent(observation, configuration):
                 continue
 
             # end of game, try to put together 100 to build something
-            if len(adjacent_units()) > 0:
-                for f in adjacent_units():
-                    if f.cargo.fuel() > unit.cargo.fuel():
-                        pr(u_prefix, ' end of game, try to transfer',f.id,'resource to put together 100')
-                        transfer_all_resources(actions,info,f.id)
-                        do_continue = True
-                        break
-
-            if do_continue:
+            transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                  available_resources_tiles, info, in_resource,
+                                                                  near_resource, player, unit)
+            if transfered:
+                pr(u_prefix, ' end of game, transfered resource to put together 100')
                 continue
+
 
             #find closest unit with resources:
             distance_to_friend_with_res = math.inf
@@ -692,8 +691,6 @@ def agent(observation, configuration):
             # in SHORTCUTS
 
             in_empty = LazyWrapper(lambda: MapAnalysis.is_cell_empty(unit.pos, game_state))
-            in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(available_resources_tiles,
-                                                                                           unit.pos)
 
             # near SHORTCUTS
             near_wood = LazyWrapper(lambda: MapAnalysis.is_position_adjacent_to_resource(wood_tiles, unit.pos))
@@ -1129,22 +1126,25 @@ def agent(observation, configuration):
                             move_unit_to_pos(actions, move_mapper, info, 'hostile area, from near to res', r.pos)
                             done = True
                             break
+
+                if done:
+                    continue
+
+                transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                      available_resources_tiles, info, in_resource,
+                                                                      near_resource,
+                                                                      player, unit)
+                if transfered:
+                    continue
+
                 if in_resource:
                     pr(u_prefix, "hostile area, in resource")
-                    for friend in adjacent_units():
-                        if MapAnalysis.is_cell_empty(friend.pos, game_state) and friend.get_cargo_space_left() > 0:
-                            # pass the cargo on
-                            transfer_all_resources(actions, info, friend.id)
+                     # if we didn't pass to somebody in empty, see if there is something empty
+                    for empty in MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos):
+                        if move_mapper.can_move_to_pos(empty, game_state):
+                            move_unit_to_pos(actions, move_mapper, info, 'hostile area, from res to near', empty)
                             done = True
                             break
-
-                    if not done:
-                        # if we didn't pass to somebody in empty, see if there is something empty
-                        for empty in MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos):
-                            if move_mapper.can_move_to_pos(empty, game_state):
-                                move_unit_to_pos(actions, move_mapper, info, 'hostile area, from res to near', empty)
-                                done = True
-                                break
 
                 if done:
                     continue
@@ -1173,21 +1173,11 @@ def agent(observation, configuration):
                             find_best_resource(game_state, move_mapper, resources_distance, resource_target_by_unit,
                                                info, available_resources_tiles, u_prefix, unsafe_cities)
                         if direction == DIRECTIONS.CENTER and len(unsafe_cities) == 0:
-                            for empty in adjacent_empty_tiles():
-                                friend = get_unit_in_pos(player, empty)
-                                if friend is not None:
-                                    if not MapAnalysis.is_position_adjacent_to_resource(available_resources_tiles,
-                                                                                        empty):
-                                        if near_resource:
-                                            # if frien not near res and we are, transfer
-                                            transfer_all_resources(actions, info, friend.id)
-                                            break
-                                        else:
-                                            # if both near resourse, transfer to who has more
-                                            if friend.get_cargo_space_left() > 0 and \
-                                                    friend.get_cargo_space_left() < unit.get_cargo_space_left():
-                                                transfer_all_resources(actions, info, friend.id)
-                                                break
+                            transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                    available_resources_tiles, info, in_resource, near_resource,
+                                                    player, unit)
+                            if transfered:
+                                continue
 
                         if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                                 (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
@@ -1254,9 +1244,9 @@ def agent(observation, configuration):
                 elif not info.is_role_hassler():
                     pr(u_prefix, " Goto city; fuel=", unit.cargo.fuel())
                     # find closest city tile and move towards it to drop resources to a it to fuel the city
-                    cities
                     if len(city_tile_distance()) > 0:
                         pr(u_prefix, " Goto city2")
+
                         direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance(), move_mapper,
                                                                             unsafe_cities, info)
                         move_unit_to_or_transfer(actions, direction, info, move_mapper, player, u_prefix, unit, 'city')
@@ -1271,19 +1261,54 @@ def agent(observation, configuration):
         # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
         if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
             pr(u_prefix, " this unit has not worked")
-            if unit.cargo.coal > 0 or unit.cargo.uranium > 0 and not info.last_move_before_pos.equals(unit.pos):
-                # check if anybody in the pos where we come from
-                friend_unit = get_unit_in_pos(player, info.last_move_before_pos)
-                if friend_unit is not None:
-                    pr(u_prefix, " Do transfer to", friend_unit.id, ' in ', info.last_move_before_pos)
-                    transfer_all_resources(actions, info, friend_unit.id)
-                    if unit_info[unit.id].is_role_traveler:
-                        unit_info[unit.id].clean_unit_role();
+            if unit.cargo.coal > 0 or unit.cargo.uranium > 0:
+                transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                      available_resources_tiles, info, in_resource,
+                                                                      near_resource,
+                                                                      player, unit)
+
+
+
 
     # for i,j in resource_target_by_unit.items():
     #    pr("XXXX resources map ",game_info.turn,i,len(j))
 
     return actions
+
+
+def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, available_resources_tiles, info,
+                                             in_resource, near_resource, player, unit) -> bool:
+    for empty in adjacent_empty_tiles():
+        friend = get_unit_in_pos(player, empty)
+        if friend is not None:
+            if friend.get_cargo_space_left()==0:
+                continue
+
+            friend_in_resource, friend_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                                    available_resources_tiles, friend.pos)
+
+            if in_resource and not friend_in_resource:
+                #if we are on resource, but friend is not
+                transfer_all_resources(actions, info, friend.id)
+                if unit_info[friend.id].is_role_traveler:unit_info[friend.id].clean_unit_role()
+                return True
+            elif (not in_resource) and near_resource and not (friend_near_resource or friend_in_resource):
+                transfer_all_resources(actions, info, friend.id)
+                # if we are near resource, but friend is not
+                transfer_all_resources(actions, info, friend.id)
+                if unit_info[friend.id].is_role_traveler: unit_info[friend.id].clean_unit_role()
+                return True
+            elif (in_resource and friend_in_resource) or \
+                    ((not in_resource) and near_resource and (not friend_in_resource) and friend_near_resource) or \
+                    (not (in_resource or near_resource or friend_in_resource or friend_near_resource)):
+                # if both in or near resourse, or none, transfer to who has more
+                if friend.get_cargo_space_left() > 0 and \
+                        friend.get_cargo_space_left() < unit.get_cargo_space_left():
+                    transfer_all_resources(actions, info, friend.id)
+                    if unit_info[friend.id].is_role_traveler:unit_info[friend.id].clean_unit_role()
+                    return True
+
+    return False
 
 
 def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, possible_positions, resource_tiles):
