@@ -396,8 +396,9 @@ def agent(observation, configuration):
                'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
             move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and cluster.closest_enemy_distance>9 and\
-                closest_cluster_cluster.has_no_units_no_incoming():
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and cluster.closest_enemy_distance>9 \
+                and closest_cluster_cluster.has_no_units_no_incoming()\
+                and closest_cluster_cluster.num_enemy_units() * 5 < closest_cluster_cluster.get_equivalent_resources():
             pr(t_prefix, 'enemy is very far, and next cluster has no units, no incoming ', closest_cluster_cluster.id,
                'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
             move_to_closest_cluster = True
@@ -417,7 +418,7 @@ def agent(observation, configuration):
                    time_distance, 'with turns to night', game_state_info.steps_until_night,
                    closest_cluster_unit.pos, closest_cluster_pos)
             else:
-                pr(t_prefix, ' repurposing', closest_cluster_unit.id, ' to explore closest_cluster tdist',
+                pr(t_prefix, ' repurposing', closest_cluster_unit.id, ' from', cluster.id,' to tdist',
                    time_distance, closest_cluster_cluster.to_string_light())
                 is_expander = unit_info[closest_cluster_unit.id].is_role_city_expander()
                 unit_info[closest_cluster_unit.id].set_unit_role_explorer(

@@ -36,7 +36,7 @@ class Cluster:
         self.score = - int (
                 + float(len(self.resource_cells)) * 3
                - float(len(self.incoming_explorers) ) * 3
-               - float(len(self.enemy_unit)) * 3.
+               - float(len(self.enemy_unit)) * 5.
                )
 
 
@@ -112,6 +112,9 @@ class Cluster:
 
     def num_units(self) -> int:
         return len(self.units)
+
+    def num_enemy_units(self) -> int:
+        return len(self.enemy_unit)
 
     def distance_to(self, pos) -> int:
         return self.get_centroid().distance_to(pos)
