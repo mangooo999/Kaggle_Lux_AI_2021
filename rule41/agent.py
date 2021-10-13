@@ -296,8 +296,8 @@ def agent(observation, configuration):
                         continue
 
                     # the distance to reach it
-                    r_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, next_clust.resource_cells)
-                    time_distance = 2 * (distance - 1) + unit.cooldown
+                    r_pos, distance = MapAnalysis.get_closest_to_positions(unit.pos, next_clust.perimeter_empty)
+                    time_distance = 2 * distance + unit.cooldown
 
                     # TODO we could try to add here the resources if we are sure it doesn't pass from a city
                     # # we only consider reachable clusters before the night
@@ -310,6 +310,7 @@ def agent(observation, configuration):
 
                     # from lowest (best), to highest
                     score = time_distance + next_clust.score
+                    already_incoming = next_clust.incoming_explorers_position.count(r_pos)
 
                     clust_analyses[cluster.id].append(
                         (distance,
@@ -317,10 +318,11 @@ def agent(observation, configuration):
                          next_clust,
                          r_pos,
                          score,
-                         time_distance))
+                         time_distance,
+                         already_incoming))
 
         # sort on distance
-        clust_analyses[cluster.id].sort(key=lambda x: (x[4]))  # score
+        clust_analyses[cluster.id].sort(key=lambda x: (x[4], x[6]))  # score, already incoming
 
     for cluster in clusters.get_clusters():
 
@@ -350,7 +352,7 @@ def agent(observation, configuration):
                     if unitid in unit_info:
                         info = unit_info[unitid]
                     if info is not None:
-                        pr("XXX",info.unit.id,info.role)
+                        # pr("XXX",info.unit.id,info.role)
                         if info.is_role_none() :
                             dist = unit.pos.distance_to(pos)
                             units_to_pos.append((dist,info,pos))
@@ -383,12 +385,12 @@ def agent(observation, configuration):
 
         move_to_closest_cluster: bool = False
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
-            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.units)
+            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), cluster.num_resource())
             move_to_closest_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > config.cluster_wood_overcrowded:
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>',config.cluster_wood_overcrowded,
-               '5'', u=', cluster.units)
+                                                                     'u=', cluster.units)
             move_to_closest_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_dist < 4:
@@ -407,7 +409,7 @@ def agent(observation, configuration):
             pr(t_prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id)
 
             # the time in turns to reach it
-            time_distance = 2 * (closest_cluster_dist - 1) + closest_cluster_unit.cooldown
+            time_distance = 2 * closest_cluster_dist + closest_cluster_unit.cooldown
             # pr(t_prefix, "XXX",target_cluster.id,
             #       'dist',target_dist,
             #       'time dist ',time_distance, 'with turns to night', game_state_info.steps_until_night,
@@ -421,8 +423,7 @@ def agent(observation, configuration):
                 pr(t_prefix, ' repurposing', closest_cluster_unit.id, ' from', cluster.id,' to tdist',
                    time_distance, closest_cluster_cluster.to_string_light())
                 is_expander = unit_info[closest_cluster_unit.id].is_role_city_expander()
-                unit_info[closest_cluster_unit.id].set_unit_role_explorer(
-                    closest_cluster_cluster.get_centroid())
+                unit_info[closest_cluster_unit.id].set_unit_role_explorer(closest_cluster_pos)
                 if is_expander:
                     # we need to set expander some other unit
                     for u in cluster.units:
@@ -1054,7 +1055,6 @@ def agent(observation, configuration):
 
 
             # IF WE CANNOT BUILD, or we could and have decided not to
-
             if in_empty() and near_city() and near_wood():
                 # stay here, so we can build
                 pr(u_prefix, " empty, near city, near wood, stay here")
@@ -1363,16 +1363,20 @@ def get_walkable_that_are_near_resources(t_prefix, move_mapper, possible_positio
 
 
 def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, msg):
-    if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction, game_state):
+    next_pos = unit.pos.translate(direction, 1)
+    move_to_city = MapAnalysis.is_position_city(next_pos,player)
+    friend_unit = get_unit_in_pos(player, next_pos)
+    if direction != DIRECTIONS.CENTER and friend_unit is not None and move_to_city:
+        transfer_all_resources(actions, info, friend_unit.id)
+    elif direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction, game_state):
         move_unit_to(actions, direction, move_mapper, info, " move to " + msg + " pos", info.target_position)
         # continue
     else:
-        if unit.get_cargo_space_left() < 100:
+        if unit.get_cargo_space_used() > 0:
             # check if anybody in the pos we want to go
-            friend_unit = get_unit_in_pos(player, unit.pos.translate(direction, 1))
             if friend_unit is not None:
                 if unit_info[friend_unit.id].is_role_none() or unit_info[friend_unit.id].is_role_returner() \
-                        and friend_unit.get_cargo_space_left() > 100 - unit.get_cargo_space_left():
+                        and friend_unit.get_cargo_space_used() < 100 :
                     pr(prefix, msg, "instead of going to city, do transfer to", friend_unit.id,
                        ' in ', unit.pos.translate(direction, 1))
                     transfer_all_resources(actions, info, friend_unit.id)

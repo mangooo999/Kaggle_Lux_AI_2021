@@ -236,6 +236,19 @@ def get_closest_position_cells(position: Position, cells: [Cell]) -> (Position, 
     return closest_pos, closest_distance
 
 
+def get_closest_to_positions(position: Position, positions: [Position]) -> (Position, int):
+    closest_pos = None
+    closest_distance = math.inf
+
+    for pos in positions:
+        distance = position.distance_to(pos)
+        # print(' XXXX get_closest_position', pos, distance, file=sys.stderr)
+        if distance < closest_distance:
+            closest_distance = distance
+            closest_pos = pos
+
+    return closest_pos, closest_distance
+
 def get_city_id_from_pos(pos, actor):
     for city in actor.cities.values():
         for city_tile in city.citytiles:
