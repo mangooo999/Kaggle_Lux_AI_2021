@@ -59,6 +59,9 @@ class Position:
         elif direction == DIRECTIONS.CENTER:
             return Position(self.x, self.y)
 
+    def translate_towards(self, pos) -> 'Position':
+        return self.translate(self.direction_to(pos),1)
+
     def direction_to(self, target_pos: 'Position') -> DIRECTIONS:
         """
         Return closest position to target_pos from this position

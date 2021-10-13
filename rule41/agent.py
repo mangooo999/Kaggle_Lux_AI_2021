@@ -227,17 +227,11 @@ def agent(observation, configuration):
                 initial_cluster = cluster
                 pr(t_prefix, "initial cluster", initial_cluster.to_string_light())
 
-        x3: list = MapAnalysis.get_resources_around(available_resources_tiles, initial_city_pos, 3)
-        game_info.at_start_resources_within3 = len(x3)
-        pr(t_prefix, "Resources within distance 3 of", initial_city_pos, "initial pos", len(x3))
-
-        possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
-        good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper,
-                                                   possible_positions, wood_tiles)
-
         # check if we should move very quickly to another cluster
         distance = math.inf
         better_cluster_pos = None
+        good_pos_around_city = None
+
         for cluster in clusters.get_clusters():
             if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_no_units_no_enemy():
                 r_pos, r_distance = MapAnalysis.get_closest_position_cells(initial_city_pos, cluster.resource_cells)
@@ -249,6 +243,25 @@ def agent(observation, configuration):
 
         if better_cluster_pos is not None:
             good_pos_around_city = better_cluster_pos
+        else:
+            initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
+            distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
+            pr("XXXX", distance_cities)
+            if 3 <= distance_cities <= 3:
+                step_to_enemy = initial_city_pos.translate_towards(initial_enemy_city_pos)
+                if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy):
+                    pr(t_prefix, "Confrontational first step towards enemy")
+                    good_pos_around_city = step_to_enemy
+
+            if good_pos_around_city is None:
+                x3: list = MapAnalysis.get_resources_around(available_resources_tiles, initial_city_pos, 3)
+                game_info.at_start_resources_within3 = len(x3)
+                pr(t_prefix, "Resources within distance 3 of", initial_city_pos, "initial pos", len(x3))
+
+                possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
+                good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper,
+                                                           possible_positions, wood_tiles)
+
 
         # END initial calculations
 
@@ -328,7 +341,8 @@ def agent(observation, configuration):
 
         # big cluster, try to spread our units in empty perimeter
         if cluster.res_type == RESOURCE_TYPES.WOOD \
-                and (cluster.get_equivalent_resources() + (len(cluster.enemy_unit) * 2) > 8) \
+                and (cluster.get_equivalent_resources() > 8) \
+                and (len(cluster.enemy_unit) < (cluster.get_equivalent_resources()//4)) \
                 and (cluster.num_units() + len(cluster.incoming_explorers)) >= 3:
             pr(t_prefix, "big cluster",cluster.to_string_light())
             for pos in cluster.perimeter_empty:

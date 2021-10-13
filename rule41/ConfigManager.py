@@ -2,7 +2,7 @@ class ConfigManager():
     def __init__(self, map_size: int, pr):
         self.cluster_wood_overcrowded = 5
 
-        print("ConfigManager,map size{0}".format(map_size))
+        pr("ConfigManager,map size{0}".format(map_size))
         if map_size == 12:
             self.cluster_wood_overcrowded = 3
         elif map_size == 16:
