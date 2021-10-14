@@ -1262,8 +1262,8 @@ def agent(observation, configuration):
                 elif game_state_info.turns_to_night > 6 and unit.get_cargo_space_left() == 0 \
                         and best_adjacent_empty_tile() is not None:
                     # find the closest empty tile it to build a city
-                    move_unit_to_pos(actions, move_mapper, info, " towards closest empty ",
-                                     best_adjacent_empty_tile().pos)
+                    move_unit_to_pos_or_transfer(actions, best_adjacent_empty_tile().pos, info,
+                                                 move_mapper, player, u_prefix, unit, " towards closest empty ")
                 elif unit.get_cargo_space_left() == 0 and unit.cargo.fuel() < 120 and game_state_info.turns_to_night > 10:
                     # we are full mostly with woods, we should try to build
                     for next_pos in MapAnalysis.get_4_positions(unit.pos, game_state):
@@ -1413,6 +1413,45 @@ def get_walkable_that_are_near_resources(t_prefix, move_mapper, possible_positio
     return possible_moves
 
 
+def move_unit_to_pos(actions, move_mapper: MoveHelper, info: UnitInfo, reason, pos: Position):
+    direction = info.unit.pos.direction_to(pos)
+    move_unit_to(actions, direction, move_mapper, info, reason, pos)
+
+
+def move_unit_to(actions, direction, move_mapper: MoveHelper, info: UnitInfo, reason="", target_far_position=None):
+    unit = info.unit
+    next_state_pos = unit.pos.translate(direction, 1)
+    # pr("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction)
+    if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
+        # do not annotate
+        pr(move_mapper.log_prefix, unit.id, '- not moving "', '', '" ', reason)
+        move_mapper.add_position(unit.pos, unit)
+    else:
+        if target_far_position is not None:
+            # target_far_position is only used for the annotation line
+            actions.append(annotate.line(unit.pos.x, unit.pos.y, target_far_position.x, target_far_position.y))
+            # actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
+
+        actions.append(unit.move(direction))
+        move_mapper.add_position(next_state_pos, unit)
+        info.set_last_action_move(direction, next_state_pos)
+        pr(move_mapper.log_prefix + unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
+           , str(target_far_position or ''))
+
+
+def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str) -> bool:
+    direction = info.unit.pos.direction_to(pos)
+    # if nobody is already moving there
+    if not move_mapper.has_position(pos):
+        move_unit_to(actions, direction, move_mapper, info, msg, pos)
+        return True
+    else:
+        return False
+
+def move_unit_to_pos_or_transfer(actions, pos, info, move_mapper, player, prefix, unit, msg):
+    direction = info.unit.pos.direction_to(pos)
+    move_unit_to_or_transfer(actions, direction, info,  move_mapper, player, prefix, unit, msg)
+
 def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, prefix, unit, msg):
     next_pos = unit.pos.translate(direction, 1)
     move_to_city = MapAnalysis.is_position_city(next_pos,player)
@@ -1523,40 +1562,6 @@ def can_city_live(city, all_night_turns_lef) -> bool:
     return city.fuel / (city.get_light_upkeep() + 20) >= min(all_night_turns_lef, 30)
 
 
-def move_unit_to_pos(actions, move_mapper: MoveHelper, info: UnitInfo, reason, pos: Position):
-    direction = info.unit.pos.direction_to(pos)
-    move_unit_to(actions, direction, move_mapper, info, reason, pos)
-
-
-def move_unit_to(actions, direction, move_mapper: MoveHelper, info: UnitInfo, reason="", target_far_position=None):
-    unit = info.unit
-    next_state_pos = unit.pos.translate(direction, 1)
-    # pr("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction)
-    if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
-        # do not annotate
-        pr(move_mapper.log_prefix, unit.id, '- not moving "', '', '" ', reason)
-        move_mapper.add_position(unit.pos, unit)
-    else:
-        if target_far_position is not None:
-            # target_far_position is only used for the annotation line
-            actions.append(annotate.line(unit.pos.x, unit.pos.y, target_far_position.x, target_far_position.y))
-            # actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
-
-        actions.append(unit.move(direction))
-        move_mapper.add_position(next_state_pos, unit)
-        info.set_last_action_move(direction, next_state_pos)
-        pr(move_mapper.log_prefix + unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
-           , str(target_far_position or ''))
-
-
-def try_to_move_to(actions, move_mapper, info: UnitInfo, pos: Position, msg: str) -> bool:
-    direction = info.unit.pos.direction_to(pos)
-    # if nobody is already moving there
-    if not move_mapper.has_position(pos):
-        move_unit_to(actions, direction, move_mapper, info, msg, pos)
-        return True
-    else:
-        return False
 
 
 def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Position, move_mapper: MoveHelper,
