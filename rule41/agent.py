@@ -472,7 +472,7 @@ def agent(observation, configuration):
                 immediately_unsafe_cities[city.cityid] = payload
 
             # record how many available city actions we have now
-            for city_tile in city.citytiles[::-1]:
+            for city_tile in city.citytiles:
                 number_city_tiles = number_city_tiles + 1
                 if city_tile.can_act():
                     available_city_actions += 1
@@ -526,20 +526,50 @@ def agent(observation, configuration):
         for city in cities:
             city_autonomy = city.get_autonomy_turns()
             will_live = city_autonomy >= game_state_info.all_night_turns_lef
-            for city_tile in city.citytiles[::-1]:
+            will_live_this_night = city_autonomy >= game_state_info.next_night_number_turn
+            city_size = len(city.citytiles)
+            for city_tile in city.citytiles:
                 if city_tile.can_act():
                     units_around = MapAnalysis.get_units_around(player, city_tile.pos, 2)
                     res_around = len(MapAnalysis.get_resources_around(available_resources_tiles, city_tile.pos, 3))
                     dummy, closest_resource = MapAnalysis.get_closest_position_cells(city_tile.pos,
                                                                                      available_resources_tiles)
                     has_res_around = res_around>0
+                    score1 = 0
+                    score2 = closest_resource
                     if has_res_around:
-                        score = float(units_around) / float(res_around + 1)
+                        # RES around
+                        if not will_live_this_night:
+                            if not units_around:
+                                # first city that have not unit around, that will die next
+                                score1 = 0
+                                score2 = -city_size
+                            else:
+                                score1 = 1
+                                score2 = float(units_around) / float(res_around + 1)
+                        elif not will_live:
+                            if not units_around:
+                                # then city  that will die at one point
+                                score1 = 3
+                                score2 = -city_size
+                            else:
+                                score1 = 4
+                                score2 = float(units_around) / float(res_around + 1)
                     else:
-                        score = closest_resource
+                        #NO RES around
+                        if not units_around:
+                            # there are no resources, no units, if no other city with resource around
+                            score1 = 5
+                            score2 = closest_resource
+                        else:
+                            # at the moment we score identically city with no resource around,
+                            # regardless if they have or not units
+                            score1 = 5
+                            score2 = closest_resource
 
                     ordered_tyles[(
-                        score,
+                        score1,
+                        score2,
                         closest_resource,
                         int(will_live),
                         float(units_around) / float(res_around + 1))
@@ -558,7 +588,7 @@ def agent(observation, configuration):
 
     if len(cities) > 0:
         for city in cities:
-            for city_tile in city.citytiles[::-1]:
+            for city_tile in city.citytiles:
                 # pr(t_prefix, "- C tile ", city_tile.pos, " CD=", city_tile.cooldown)
                 if city_tile.can_act():
                     if game_state.turn < 30:  # TODO maybe this should be based on how close is the unit to build
