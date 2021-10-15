@@ -3,12 +3,12 @@ from typing import Tuple
 
 from lux.game_objects import Player, Unit, DIRECTIONS
 from lux.game_map import Position
+from lux import annotate
 import maps.map_analysis as MapAnalysis
-
-
+from UnitInfo import UnitInfo
 
 class MoveHelper:
-    def __init__(self, player, opponent, turn,pr):
+    def __init__(self, player, opponent, turn, pr):
         """
         initialize state
         """
@@ -17,7 +17,7 @@ class MoveHelper:
         self.opponent = opponent
         self.turn = turn
         self.log_prefix = "T_{0}".format(str(self.turn))
-        self.pr=pr
+        self.pr = pr
 
     def add_position(self, pos: Position, unit: Unit):
         self.move_mapper[self.__hash_pos__(pos)] = unit
@@ -51,6 +51,43 @@ class MoveHelper:
 
     def is_position_enemy_city(self, pos: Position) -> bool:
         return MapAnalysis.get_city_id_from_pos(pos, self.opponent) != ''
+
+
+
+    def move_unit_to_pos(self, actions, info: UnitInfo, reason, pos: Position):
+        direction = info.unit.pos.direction_to(pos)
+        self.move_unit_to(actions, direction, info, reason, pos)
+
+
+    def move_unit_to(self, actions, direction, info: UnitInfo, reason="", target_far_position=None):
+        unit = info.unit
+        next_state_pos = unit.pos.translate(direction, 1)
+        # pr("Unit", unit.id, 'XXX -', unit.pos, next_state_pos, direction)
+        if direction == DIRECTIONS.CENTER or next_state_pos.equals(unit.pos):
+            # do not annotate
+            self.pr(self.log_prefix, unit.id, '- not moving "', '', '" ', reason)
+            self.add_position(unit.pos, unit)
+        else:
+            if target_far_position is not None:
+                # target_far_position is only used for the annotation line
+                actions.append(annotate.line(unit.pos.x, unit.pos.y, target_far_position.x, target_far_position.y))
+                # actions.append(annotate.text(unit.pos.x, unit.pos.y, reason))
+
+            actions.append(unit.move(direction))
+            self.add_position(next_state_pos, unit)
+            info.set_last_action_move(direction, next_state_pos)
+            self.pr(self.log_prefix + unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
+               , str(target_far_position or ''))
+
+
+    def try_to_move_to(self, actions, info: UnitInfo, pos: Position, msg: str) -> bool:
+        direction = info.unit.pos.direction_to(pos)
+        # if nobody is already moving there
+        if not self.has_position(pos):
+            self.move_unit_to(actions, direction, info, msg, pos)
+            return True
+        else:
+            return False
 
 
 
