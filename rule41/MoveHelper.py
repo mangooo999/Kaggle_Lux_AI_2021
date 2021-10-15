@@ -12,21 +12,39 @@ class MoveHelper:
         """
         initialize state
         """
-        self.move_mapper = {}
+        self.initial_position_mapper = {}
+        self.movement_mapper = {}
         self.player = player
         self.opponent = opponent
         self.turn = turn
         self.log_prefix = "T_{0}".format(str(self.turn))
         self.pr = pr
 
+
+    def add_initial_position(self, pos: Position, unit: Unit):
+        self.initial_position_mapper[self.__hash_pos__(pos)] = unit
+
     def add_position(self, pos: Position, unit: Unit):
-        self.move_mapper[self.__hash_pos__(pos)] = unit
+        self.movement_mapper[self.__hash_pos__(pos)] = unit
+
+    def has_initial_position(self, pos: Position) -> bool:
+        return self.__hash_pos__(pos) in self.initial_position_mapper
+
+    def has_movement_position(self, pos: Position) -> bool:
+        return self.__hash_pos__(pos) in self.movement_mapper
 
     def has_position(self, pos: Position) -> bool:
-        if self.__hash_pos__(pos) in self.move_mapper:
-            return True
+        return self.has_initial_position(pos) or \
+                self.has_movement_position(pos)
+
+    def get_unit_from_mapper(self,pos) -> Unit:
+        if self.__hash_pos__(pos) in self.initial_position_mapper:
+            return self.initial_position_mapper.get(self.__hash_pos__(pos))
+        elif self.__hash_pos__(pos) in self.movement_mapper:
+            return self.movement_mapper.get(self.__hash_pos__(pos))
         else:
-            return False
+            return None
+
 
     def __hash_pos__(self, pos: Position) -> Tuple[int, int]:
         return pos.x, pos.y
@@ -36,9 +54,13 @@ class MoveHelper:
 
     def can_move_to_pos(self, pos: Position, game_state, allow_clash_unit: bool = False, msg: str = '') -> bool:
         # we cannot move if somebody is already going, and it is not a city
-        if ((not allow_clash_unit) and self.has_position(pos)) and not self.is_position_city(pos):
-            unit: Unit = self.move_mapper.get(self.__hash_pos__(pos))
-            self.pr(self.log_prefix + msg, 'Collision in', pos, 'with', unit.id)
+        if ((not allow_clash_unit) and self.has_initial_position(pos)) and not self.is_position_city(pos):
+            unit: Unit = self.get_unit_from_mapper(pos)
+            self.pr(self.log_prefix + msg, 'Collision static in', pos, 'with', unit.id)
+            return False
+        elif self.has_movement_position(pos) and not self.is_position_city(pos):
+            unit: Unit = self.get_unit_from_mapper(pos)
+            self.pr(self.log_prefix + msg, 'Collision dynamic in', pos, 'with', unit.id)
             return False
         else:
             return MapAnalysis.is_position_valid(pos,game_state) and not self.is_position_enemy_city(pos)

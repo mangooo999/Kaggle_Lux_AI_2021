@@ -45,6 +45,7 @@ class UnitInfo:
 
         if self.last_move_expected_pos is not None and self.last_move_turn == current_turn-1:
             if not unit.pos.equals(self.last_move_expected_pos):
+                self.pr(self.log_prefix, 'this unit has not moved as expected to',self.last_move_expected_pos)
                 self.alarm +=1
             else:
                 self.alarm = 0
