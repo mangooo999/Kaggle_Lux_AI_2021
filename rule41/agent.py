@@ -845,12 +845,13 @@ def agent(observation, configuration):
 
                 # if we have the possibility of going in a tile that is empty_tile_near_wood_and_city
                 # go if not in a city, or if you are in a city, go just last 1 days of night (so we gather and covered)
-                if (not in_city()) or time_to_dawn <= 1:
-                    best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles(), wood_tiles,
-                                                                    game_state, player)
-                    if best_night_spot is not None \
-                            and try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
-                        continue
+                best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles(), wood_tiles,
+                                                                game_state, player)
+                if best_night_spot is not None:
+                    enemy_there = len(get_units_around_pos(opponent, best_night_spot.pos, 1)) > 0  #IN OR ADJACENT
+                    if (not in_city()) or time_to_dawn <= 1 or enemy_there:
+                        if try_to_move_to(actions, move_mapper, info, best_night_spot.pos, " best_night_spot"):
+                            continue
 
                 if in_city():
                     if near_resource:
