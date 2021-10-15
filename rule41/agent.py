@@ -274,7 +274,7 @@ def agent(observation, configuration):
 
                 possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
                 good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper,
-                                                           possible_positions, wood_tiles)
+                                                           possible_positions, wood_tiles, initial_enemy_city_pos)
 
         # END initial calculations
 
@@ -1209,6 +1209,10 @@ def agent(observation, configuration):
                 else:
                     enough_fuel = 400
 
+            if near_wood and in_empty() and  unit.get_cargo_space_used() >= 60:
+                pr(u_prefix, " Near wood, in empty, with substantial cargo, stay put")
+                continue
+
             if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
                     and (unit.cargo.fuel() < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
                 if not in_resource:
@@ -1370,9 +1374,17 @@ def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, avai
     return False
 
 
-def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, possible_positions, resource_tiles):
+def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, possible_positions, resource_tiles,
+                        initial_enemy_city_pos:Position):
     first_best_position = None
     first_move = {}
+    distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
+    direction_to_enemy = DIRECTIONS.CENTER
+    direction_from_enemy = DIRECTIONS.CENTER
+    if 3 <= distance_cities <= 4:
+        direction_to_enemy = initial_city_pos.direction_to(initial_enemy_city_pos)
+        direction_from_enemy = DIRECTIONS.opposite(direction_to_enemy)
+
 
     result = get_walkable_that_are_near_resources(t_prefix, move_mapper, possible_positions, resource_tiles)
     for next_pos, res_2 in result.items():
@@ -1383,6 +1395,7 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, pos
 
         res_4 = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 4))
         dist = initial_city_pos.distance_to(next_pos)
+        direction = initial_city_pos.direction_to(next_pos)
 
         if dist == 1 and is_empty and res_2 == 3:
             score = 1  # best as we can build in 2
@@ -1393,7 +1406,13 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, move_mapper, pos
         else:
             score = 9
 
-        first_move[next_pos] = (score, dist, -res_2, -res_4)
+        score_aggressive = 0
+        if direction == direction_to_enemy:
+            score_aggressive = -1 # favour towards enemy
+        elif direction == direction_from_enemy:
+            score_aggressive = +1  # discourage from enemy
+
+        first_move[next_pos] = (score, dist, score_aggressive, -res_2, -res_4)
     pr(t_prefix, 'Not Ordered Resources within 2', first_move)
     if len(first_move.keys()) > 0:
         result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[1]))
