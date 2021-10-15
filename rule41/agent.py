@@ -53,7 +53,7 @@ import builtins as __builtin__
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if False:
+    if True:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -62,13 +62,20 @@ def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
 def prx(*args): pr(*args, f=True)
 
 
-def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, player, resource_tiles, prefix) -> \
-        Optional[Cell]:
+def adjacent_empty_tile_favor_close_to_city_and_res(pos:Position, empty_tyles, game_state, player, opponent, resource_tiles,
+                                                    prefix) -> Optional[Cell]:
     if len(empty_tyles) == 0:
         return None
     elif len(empty_tyles) == 1:
         return game_state.map.get_cell_by_pos(empty_tyles[0])
     else:
+        enemy_unity, enemy_distance = get_closest_unit(opponent,pos)
+        enemy_direction = DIRECTIONS.CENTER
+        if 3<= enemy_distance <= 5:
+            enemy_direction = pos.direction_to(enemy_unity.pos)
+            # pr(prefix, "XXXX0 enemy is at ", enemy_direction, enemy_distance)
+
+
         # pr(prefix,"Trying to solve which empty one is close to most cities tiles")
         results = {}
         # pr(prefix,"XXXX1 adjacent_empty_tile_favor_close_to_city empty_tyles" , empty_tyles)
@@ -77,9 +84,13 @@ def adjacent_empty_tile_favor_close_to_city_and_res(empty_tyles, game_state, pla
             adjacent_city_tiles, adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
                                                                                                player)
             adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
+
+
+            is_going_toward_enemy = pos.direction_to(adjacent_position) == enemy_direction
+
             # adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
             # results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
-            results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res)
+            results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res, int(is_going_toward_enemy))
 
             # pr(prefix,"- XXXX1b",adjacent_position,results[adjacent_position])
 
@@ -735,8 +746,8 @@ def agent(observation, configuration):
             near_city = LazyWrapper(lambda: MapAnalysis.is_position_adjacent_city(player, unit.pos))
 
             # adjacent SHORTCUTS
-            best_adjacent_empty_tile = LazyWrapper(lambda: adjacent_empty_tile_favor_close_to_city_and_res(
-                adjacent_empty_tiles(), game_state, player, available_resources_tiles, u_prefix))
+            best_adjacent_empty_tile = LazyWrapper(lambda: adjacent_empty_tile_favor_close_to_city_and_res(unit.pos,
+                adjacent_empty_tiles(), game_state, player, opponent, available_resources_tiles, u_prefix))
             resources_distance, adjacent_resources = find_resources_distance(
                 unit.pos, clusters, all_resources_tiles, game_info)
             city_tile_distance = LazyWrapper(lambda: find_city_tile_distance(unit.pos, player, unsafe_cities))
@@ -1132,16 +1143,18 @@ def agent(observation, configuration):
                             continue
 
             else:
-                # if we are not close to an enemy, but we are in a city close to adjacent that is close to enemy:
+                #no enemy or city around us
                 possible_moves = []
                 for pos in adjacent_empty_tiles():
                     if not move_mapper.can_move_to_pos(pos, game_state):
-                        continue
+                        continue  # cannote move here, next
                     if not MapAnalysis.is_position_adjacent_to_resource(wood_tiles, pos):
-                        continue
-                    if get_units_and_city_number_around_pos(opponent, pos) == 0:
-                        continue
+                        continue  # this is not close to resource
+                    if get_num_units_and_city_number_around_pos(opponent, pos) == 0:
+                        continue  # this is not close to enemy
+                    pr(u_prefix,'this pos is around enemy and resource ',pos)
                     possible_moves.append(pos)
+                # if we are not close to an enemy, but we are in a city close to adjacent that is close to enemy:
                 if len(possible_moves) > 0:
                     next_pos = next(iter(possible_moves))
                     move_mapper.move_unit_to(actions, unit.pos.direction_to(next_pos), info, "surround enemy",
@@ -1425,24 +1438,24 @@ def move_unit_to_or_transfer(actions, direction, info, move_mapper, player, pref
     if direction != DIRECTIONS.CENTER and friend_unit is not None and move_to_city:
         transfer_all_resources(actions, info, friend_unit.id)
         return True
-    elif direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction, game_state):
-        move_mapper.move_unit_to(actions, direction, info, " move to " + msg + " pos", info.target_position)
-        return False
-    else:
-        if unit.get_cargo_space_used() > 0:
-            # check if anybody in the pos we want to go
-            if friend_unit is not None:
-                if unit_info[friend_unit.id].is_role_none() or unit_info[friend_unit.id].is_role_returner() \
-                        and friend_unit.get_cargo_space_used() < 100:
-                    pr(prefix, msg, "instead of going to city, do transfer to", friend_unit.id,
-                       ' in ', unit.pos.translate(direction, 1))
-                    transfer_all_resources(actions, info, friend_unit.id)
-                    return True
 
-        else:
-            direction = get_random_step(unit.pos, move_mapper)
-            move_mapper.move_unit_to(actions, direction, info, "randomly (due to " + msg + ")")
-            return False
+    if unit.get_cargo_space_used() > 0:
+        # check if anybody in the pos we want to go
+        if friend_unit is not None:
+            if unit_info[friend_unit.id].is_role_none() or unit_info[friend_unit.id].is_role_returner() \
+                    and friend_unit.get_cargo_space_left() >= unit.get_cargo_space_used():
+                pr(prefix, msg, "instead of moving, do transfer to", friend_unit.id, ' in ',
+                   unit.pos.translate(direction, 1))
+                transfer_all_resources(actions, info, friend_unit.id)
+                return True
+
+    if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction, game_state):
+        move_mapper.move_unit_to(actions, direction, info, " move to " + msg + " pos", info.target_position)
+    else:
+        direction = get_random_step(unit.pos, move_mapper)
+        move_mapper.move_unit_to(actions, direction, info, "randomly (due to " + msg + ")")
+
+    return False
 
 
 def get_num_units_and_city_number_around_pos(actor, pos: Position, distance=1) -> int:
@@ -1482,6 +1495,19 @@ def get_units_around_pos(actor, pos, distance) -> [Unit]:
             units.append(unit)
 
     return units
+
+def get_closest_unit(actor, pos) -> (Unit, int):
+    distance = math.inf
+    res_unit: Unit = None
+    for unit in actor.units:
+        d = unit.pos.distance_to(pos)
+        if d <= distance:
+            res_unit = unit
+            distance = d
+            if distance == 0:
+                break
+
+    return res_unit, distance
 
 
 def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsafe_cities, info: UnitInfo) -> Tuple[
