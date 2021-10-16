@@ -65,21 +65,15 @@ class MoveHelper:
         else:
             return MapAnalysis.is_position_valid(pos,game_state) and not self.is_position_enemy_city(pos)
 
-    def cannot_move_to(self, pos: Position) -> bool:
-        return not self.can_move_to_pos(pos)
-
     def is_position_city(self, pos: Position) -> bool:
         return MapAnalysis.get_city_id_from_pos(pos, self.player) != ''
 
     def is_position_enemy_city(self, pos: Position) -> bool:
         return MapAnalysis.get_city_id_from_pos(pos, self.opponent) != ''
 
-
-
     def move_unit_to_pos(self, actions, info: UnitInfo, reason, pos: Position):
         direction = info.unit.pos.direction_to(pos)
         self.move_unit_to(actions, direction, info, reason, pos)
-
 
     def move_unit_to(self, actions, direction, info: UnitInfo, reason="", target_far_position=None):
         unit = info.unit
