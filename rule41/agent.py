@@ -193,6 +193,7 @@ def agent(observation, configuration):
     global clusters
     global config
     global start_time
+    global move_mapper
 
     ### Do not edit ###
     if observation["step"] == 0:
@@ -262,7 +263,7 @@ def agent(observation, configuration):
         else:
             initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
             distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
-            if 3 <= distance_cities <= 3:
+            if 3 <= distance_cities <= 5:
                 step_to_enemy = initial_city_pos.translate_towards(initial_enemy_city_pos)
                 if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy):
                     pr(t_prefix, "Confrontational first step towards enemy")
@@ -332,6 +333,7 @@ def agent(observation, configuration):
                         continue
                     if info is None:
                         continue
+                    # we also consider expanders to be moved, as their role gets transfered
                     if not (info.is_role_none() or info.is_role_city_expander()):
                         continue
 
@@ -347,9 +349,6 @@ def agent(observation, configuration):
                          score,
                          time_distance,
                          already_incoming))
-
-        # sort on distance
-        clust_analyses[cluster.id].sort(key=lambda x: (x[4], x[6]))  # score, already incoming
 
     for cluster in clusters.get_clusters():
 
@@ -400,63 +399,74 @@ def agent(observation, configuration):
             continue
         # else:
 
+        # sort
+        clust_analyses[cluster.id].sort(key=lambda x: (x[4], x[6]))  # score, already incoming
+
         # first element of sequence associated to this cluster analyses is the closest cluster
-        closest_cluster = next(iter(clust_analyses[cluster.id]), None)
-        # pr(t_prefix,"XXXX",closest_cluster)
+        best_cluster = next(iter(clust_analyses[cluster.id]), None)
+        # pr(t_prefix,"XXXX",best_cluster)
         # find the closest unit of cluster to next cluster
-        closest_cluster_dist: int = closest_cluster[0]
-        closest_cluster_unit: Unit = closest_cluster[1]
-        closest_cluster_cluster: Cluster = closest_cluster[2]
-        closest_cluster_pos: Position = closest_cluster[3]
+        best_cluster_dist: int = best_cluster[0]
+        best_cluster_unit: Unit = best_cluster[1]
+        best_cluster_cluster: Cluster = best_cluster[2]
+        best_cluster_pos: Position = best_cluster[3]
+
+        move_to_best_cluster: bool = False
+
+        # pick the closest with no units or no incoming
+        dist = math.inf
+        closest_cluster_dist= None
+        closest_cluster_unit: Unit = None
+        closest_cluster_cluster: Cluster = None
+        closest_cluster_pos: Position = None
+        for c in clust_analyses[cluster.id]:
+            this_cluster: Cluster = c[2]
+            this_cluster_dist: int = c[0]
+            if len(this_cluster.units)==0 and len(this_cluster.incoming_explorers)==0 and this_cluster_dist<dist:
+                closest_cluster_dist: int = this_cluster_dist
+                closest_cluster_unit: Unit = c[1]
+                closest_cluster_cluster: Cluster = this_cluster
+                closest_cluster_pos: Position = c[3]
+                dist = this_cluster_dist
+
 
         move_to_closest_cluster: bool = False
+
+        if config.super_fast_expansion and cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_cluster is not None:
+            pr(t_prefix, 'super_fast_expansion move_to_closest_cluster' )
+            move_to_closest_cluster = True
+
+
+
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), cluster.num_resource())
-            move_to_closest_cluster = True
+            move_to_best_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > config.cluster_wood_overcrowded:
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
                'u=', cluster.units)
-            move_to_closest_cluster = True
+            move_to_best_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_dist < 4:
-            pr(t_prefix, 'There is a very near uncontested cluster', closest_cluster_cluster.id,
-               'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
-            move_to_closest_cluster = True
+        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and best_cluster_dist < 4:
+            pr(t_prefix, 'There is a very near uncontested cluster', best_cluster_cluster.id,
+               'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
+            move_to_best_cluster = True
 
         if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and cluster.closest_enemy_distance > 9 \
-                and closest_cluster_cluster.has_no_units_no_incoming() \
-                and closest_cluster_cluster.num_enemy_units() * 5 < closest_cluster_cluster.get_equivalent_resources():
-            pr(t_prefix, 'enemy is very far, and next cluster has no units, no incoming ', closest_cluster_cluster.id,
-               'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
-            move_to_closest_cluster = True
+                and best_cluster_cluster.has_no_units_no_incoming() \
+                and best_cluster_cluster.num_enemy_units() * 5 < best_cluster_cluster.get_equivalent_resources():
+            pr(t_prefix, 'enemy is very far, and next cluster has no units, no incoming ', best_cluster_cluster.id,
+               'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
+            move_to_best_cluster = True
 
-        if move_to_closest_cluster:
+        if move_to_best_cluster:
+            pr(t_prefix, 'try_move_units_cluster best_cluster ', best_cluster_cluster.id)
+            repurpose_unit(best_cluster_cluster, best_cluster_pos, best_cluster_unit, cluster, t_prefix)
+
+        elif move_to_closest_cluster:
             pr(t_prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id)
+            repurpose_unit(closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit, cluster, t_prefix)
 
-            # the time in turns to reach it
-            time_distance = 2 * closest_cluster_dist + closest_cluster_unit.cooldown
-            # pr(t_prefix, "XXX",target_cluster.id,
-            #       'dist',target_dist,
-            #       'time dist ',time_distance, 'with turns to night', game_state_info.steps_until_night,
-            #       target_unit.pos, target_pos)
-            if time_distance > game_state_info.steps_until_night:
-                # unreachable before night
-                pr(t_prefix, closest_cluster_cluster.id, 'is unreachable at a time distance ',
-                   time_distance, 'with turns to night', game_state_info.steps_until_night,
-                   closest_cluster_unit.pos, closest_cluster_pos)
-            else:
-                pr(t_prefix, ' repurposing', closest_cluster_unit.id, ' from', cluster.id, ' to tdist',
-                   time_distance, closest_cluster_cluster.to_string_light())
-                is_expander = unit_info[closest_cluster_unit.id].is_role_city_expander()
-                unit_info[closest_cluster_unit.id].set_unit_role_explorer(closest_cluster_pos)
-                if is_expander:
-                    # we need to set expander some other unit
-                    for u in cluster.units:
-                        if unit_info[u].is_role_none():
-                            pr(t_prefix, closest_cluster_cluster.id, 'expander repurposed')
-                            unit_info[u].set_unit_role_expander(t_prefix)
-                            break
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -625,8 +635,10 @@ def agent(observation, configuration):
     # trace the agent move
     # store all unit current location on move tracker
     for unit in player.units:
+        move_mapper.add_initial_position(unit.pos, unit)
         if not unit.can_act():
-            move_mapper.add_initial_position(unit.pos, unit)
+            #those units cannot move
+            move_mapper.add_position(unit.pos, unit)
 
     # map of resource to unit going for them
     resource_target_by_unit = {}
@@ -1358,6 +1370,19 @@ def agent(observation, configuration):
     return actions
 
 
+def repurpose_unit(best_cluster_cluster, best_cluster_pos, best_cluster_unit, cluster, t_prefix):
+    pr(t_prefix, ' repurposing', best_cluster_unit.id, ' from', cluster.id, best_cluster_cluster.to_string_light())
+    is_expander = unit_info[best_cluster_unit.id].is_role_city_expander()
+    unit_info[best_cluster_unit.id].set_unit_role_explorer(best_cluster_pos)
+    if is_expander:
+        # we need to set expander some other unit
+        for u in cluster.units:
+            if unit_info[u].is_role_none():
+                pr(t_prefix, best_cluster_cluster.id, 'expander repurposed')
+                unit_info[u].set_unit_role_expander(t_prefix)
+                break
+
+
 def send_unit_home(actions, game_state, info, move_mapper, player, u_prefix, unit, msg):
     pr(u_prefix, msg)
     closest_city = find_closest_city_tile_no_logic(unit.pos, player)
@@ -1582,6 +1607,7 @@ def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsa
 def build_city(actions, info: UnitInfo, u_prefix, msg=''):
     actions.append(info.unit.build_city())
     pr(u_prefix, '- build city', msg)
+    move_mapper.add_position(info.unit.pos,info.unit)
     info.set_last_action_build()
 
 
@@ -1594,14 +1620,18 @@ def transfer_all_resources(actions, info: UnitInfo, to_unit_id: str, prefix,pos:
         actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium))
         pr(prefix,"Unit", info.unit.id, '- transfer', info.unit.cargo.uranium, 'uranium to ', to_unit_string)
         info.set_last_action_transfer()
+        move_mapper.add_position(info.unit.pos,info.unit)
     elif info.unit.cargo.coal > 0:
         actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.COAL, info.unit.cargo.coal))
         pr(prefix, "Unit", info.unit.id, '- transfer', info.unit.cargo.coal, 'coal to ', to_unit_string)
         info.set_last_action_transfer()
+        move_mapper.add_position(info.unit.pos,info.unit)
     elif info.unit.cargo.wood > 0:
         actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.WOOD, info.unit.cargo.wood))
         pr(prefix, "Unit", info.unit.id, '- transfer', info.unit.cargo.wood, 'wood to ', to_unit_string)
         info.set_last_action_transfer()
+        move_mapper.add_position(info.unit.pos,info.unit)
+
 
     if unit_info[to_unit_id].is_role_traveler: unit_info[to_unit_id].clean_unit_role()
     if unit_info[info.unit.id].is_role_returner():
