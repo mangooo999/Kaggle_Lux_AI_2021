@@ -334,7 +334,7 @@ def agent(observation, configuration):
                         continue
                     if info is None:
                         continue
-                    # we also consider expanders to be moved, as their role gets transfered
+                    # we also consider expanders to be moved, as their role gets transferred
                     if not (info.is_role_none() or info.is_role_city_expander()):
                         continue
 
@@ -659,7 +659,7 @@ def agent(observation, configuration):
                 # return home
                 send_unit_home(actions, game_state, info, move_mapper, player, u_prefix, unit, "no cargo, no resource")
             # elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
-            #     transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+            #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
             #                                                           available_resources_tiles, info, in_resource,
             #                                                           near_resource,
             #                                                           player, unit, u_prefix)
@@ -735,11 +735,11 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                             return
 
         # end of game, try to put together 100 to build something
-        transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                              available_resources_tiles, info, in_resource,
-                                                              near_resource, player, unit, u_prefix)
-        if transfered:
-            pr(u_prefix, ' end of game, transfered resource to put together 100')
+        transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                               available_resources_tiles, info, in_resource,
+                                                               near_resource, player, unit, u_prefix)
+        if transferred:
+            pr(u_prefix, ' end of game, transferred resource to put together 100')
             return
 
         # find closest unit with resources:
@@ -1008,7 +1008,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 build_city(actions, info, u_prefix, 'because we are close to enemy')
                 return
             if near_city():
-                 # this is an excellent spot, but is there even a better one, one that join two different cities?
+                # this is an excellent spot, but is there even a better one, one that join two different cities?
                 if game_state_info.turns_to_night > 2:
                     # only if we have then time to build after 2 turns cooldown
                     dummy, num_adjacent_here = MapAnalysis.find_number_of_adjacent_city_tile(unit.pos, player)
@@ -1129,7 +1129,6 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                    'NOT in adjacent city, we have lot of fuel, but no city needs saving')
                         return
 
-
         # IF WE CANNOT BUILD, or we could and have decided not to
         if in_empty() and near_city() and near_wood():
             # stay here, so we can build
@@ -1201,11 +1200,11 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         move_mapper.move_unit_to_pos(actions, info, 'hostile area, from near to res', r.pos)
                         return
 
-            transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                                  available_resources_tiles, info, in_resource,
-                                                                  near_resource,
-                                                                  player, unit, u_prefix)
-            if transfered:
+            transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                   available_resources_tiles, info, in_resource,
+                                                                   near_resource,
+                                                                   player, unit, u_prefix)
+            if transferred:
                 return
 
             if in_resource:
@@ -1231,12 +1230,12 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             return
 
         # if near_resource and in_empty() and unit.get_cargo_space_used() >= 0:
-        #     transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+        #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
         #                                                           available_resources_tiles, info,
         #                                                           in_resource, near_resource,
         #                                                           player, unit, u_prefix)
-        #     if transfered:
-        #         pr(u_prefix, " Near resources, transfered to somebody not near resouces")
+        #     if transferred:
+        #         pr(u_prefix, " Near resources, transferred to somebody not near resouces")
         #         continue
 
         if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
@@ -1253,11 +1252,11 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         find_best_resource(game_state, move_mapper, resources_distance, resource_target_by_unit,
                                            info, available_resources_tiles, u_prefix, unsafe_cities)
                     if direction == DIRECTIONS.CENTER and len(unsafe_cities) == 0:
-                        transfered = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                                              available_resources_tiles, info,
-                                                                              in_resource, near_resource,
-                                                                              player, unit, u_prefix)
-                        if transfered:
+                        transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                               available_resources_tiles, info,
+                                                                               in_resource, near_resource,
+                                                                               player, unit, u_prefix)
+                        if transferred:
                             return
 
                     if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
