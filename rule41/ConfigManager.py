@@ -1,7 +1,7 @@
 class ConfigManager():
     def __init__(self, map_size: int, pr):
         self.cluster_wood_overcrowded = 5
-        self.super_fast_expansion = True
+        self.super_fast_expansion = False
 
         pr("ConfigManager,map size{0}".format(map_size))
         if map_size == 12:
