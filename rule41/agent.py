@@ -633,10 +633,9 @@ def agent(observation, configuration):
     # trace the agent move
     # store all unit current location on move tracker
     for unit in player.units:
-        move_mapper.add_initial_position(unit.pos, unit)
         if not unit.can_act():
             # those units cannot move
-            move_mapper.add_position(unit.pos, unit)
+            move_mapper.add_initial_position(unit.pos, unit)
 
     # map of resource to unit going for them
     resource_target_by_unit = {}
@@ -965,7 +964,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         #   RETURNER
         if info.is_role_returner():
-            pr(u_prefix, ' is returner to', info.target_position)
+            pr(u_prefix, ' is returner')
 
             if len(unsafe_cities) == 0:
                 info.clean_unit_role()
@@ -974,9 +973,9 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     pr(u_prefix, " Returner city2")
                     direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance(),
                                                                         move_mapper,
-                                                                        unsafe_cities, info)
+                                                                        unsafe_cities, info,pr)
                     move_unit_to_or_transfer(actions, direction, info, move_mapper, player, u_prefix, unit,
-                                             'returner')
+                                             'returner '+msg)
                     return 
 
         #   HASSLER
@@ -1344,9 +1343,9 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
                     direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance(),
                                                                         move_mapper,
-                                                                        unsafe_cities, info)
+                                                                        unsafe_cities, info,pr)
 
-                    pr(u_prefix, " Goto city3")
+                    pr(u_prefix, " Goto city3: "+msg)
                     if unit.cargo.fuel() >= 200 and info.is_role_none():
                         info.set_unit_role_returner(u_prefix)
 
@@ -1570,24 +1569,23 @@ def get_closest_unit(actor, pos) -> (Unit, int):
     return res_unit, distance
 
 
-def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsafe_cities, info: UnitInfo) -> Tuple[
+def find_best_city(game_state, city_tile_distance, move_mapper: MoveHelper, unsafe_cities, info: UnitInfo,pr) -> Tuple[
     DIRECTIONS, Optional[Position], str]:
     unit = info.unit
 
-    moved = False
     for city_tile, payload in city_tile_distance.items():
-        if not move_mapper.has_position(city_tile.pos):
-            closest_city_tile = city_tile
-            if closest_city_tile is not None:
-                direction = get_direction_to_city(game_state, info, closest_city_tile.pos, unsafe_cities, move_mapper)
-                if direction != DIRECTIONS.CENTER:
-                    moved = True
-                    return direction, closest_city_tile.pos, " towards closest city distancing and autonomy, size" \
-                           + payload.__str__()
+        if city_tile is None:
+            continue
 
-    if not moved:
-        direction = get_random_step(unit.pos, move_mapper)
-        return direction, None, "randomly (due to city)"
+        direction = get_direction_to_city(game_state, info, city_tile.pos, unsafe_cities, move_mapper)
+        if not move_mapper.has_movement_position(info.unit.pos.translate(direction,1)):
+            closest_city_tile = city_tile
+            if direction != DIRECTIONS.CENTER:
+               return direction, closest_city_tile.pos, " towards closest city"+city_tile.__str__() \
+                       + payload.__str__()
+
+    direction = get_random_step(unit.pos, move_mapper)
+    return direction, None, "randomly (due to city)"
 
 
 def build_city(actions, info: UnitInfo, u_prefix, msg=''):
