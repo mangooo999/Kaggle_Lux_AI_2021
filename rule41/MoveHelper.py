@@ -22,9 +22,11 @@ class MoveHelper:
 
 
     def add_initial_position(self, pos: Position, unit: Unit):
+        # self.pr(self.log_prefix, 'XXX initial',unit.id ,' in', pos)
         self.initial_position_mapper[self.__hash_pos__(pos)] = unit
 
     def add_position(self, pos: Position, unit: Unit):
+        # self.pr(self.log_prefix, 'XXX movement', unit.id, ' in', pos)
         self.movement_mapper[self.__hash_pos__(pos)] = unit
 
     def has_initial_position(self, pos: Position) -> bool:
@@ -70,6 +72,10 @@ class MoveHelper:
 
     def is_position_enemy_city(self, pos: Position) -> bool:
         return MapAnalysis.get_city_id_from_pos(pos, self.opponent) != ''
+
+    def stay(self,unit, reason):
+        self.pr(self.log_prefix+unit.id, '- not moving:', reason)
+        self.add_position(unit.pos, unit)
 
     def move_unit_to_pos(self, actions, info: UnitInfo, reason, pos: Position):
         direction = info.unit.pos.direction_to(pos)

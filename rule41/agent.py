@@ -501,6 +501,7 @@ def agent(observation, configuration):
     # logging
     if game_state.turn == 360:
         prx(t_prefix, "END C=", number_city_tiles, 'u=', len(player.units), 't=', str(time.time() - start_time))
+        prx(t_prefix, "enemy C=", "?", 'u=', len(opponent.units))
     else:
         pr(t_prefix, "INT Cities", number_city_tiles, 'units', len(player.units))
 
@@ -658,11 +659,17 @@ def agent(observation, configuration):
             if unit.get_cargo_space_used() == 0 and len(available_resources_tiles) == 0:
                 # return home
                 send_unit_home(actions, game_state, info, move_mapper, player, u_prefix, unit, "no cargo, no resource")
-            # elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
-            #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-            #                                                           available_resources_tiles, info, in_resource,
-            #                                                           near_resource,
-            #                                                           player, unit, u_prefix)
+            elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
+                adjacent_empty_tiles = LazyWrapper(
+                    lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
+                in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                    available_resources_tiles,
+                    unit.pos)
+
+                transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                         available_resources_tiles, info, in_resource,
+                                                         near_resource,
+                                                         player, unit, u_prefix)
 
     # for i,j in resource_target_by_unit.items():
     #    pr("XXXX resources map ",game_info.turn,i,len(j))
@@ -834,7 +841,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             if game_state_info.turns_to_night > 1:
                 if near_city() and (not in_city()) and near_wood():
                     # if we are next to city and to wood, just stay here
-                    pr(u_prefix, ' expander we are between city and wood do not move')
+                    move_mapper.stay(unit, ' expander we are between city and wood do not move')
                     return
 
                 # if we have the possibility of going in a tile that is like the  above
@@ -888,7 +895,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         and move_mapper.try_to_move_to(actions, info, best_night_spot.pos, " best_night_spot"):
                     return
                 else:
-                    pr(u_prefix, ' it is night, we will stay here')
+                    move_mapper.stay(unit, ' it is night, we will stay here')
                     return
 
             # if we have the possibility of going in a tile that is empty_tile_near_wood_and_city
@@ -914,7 +921,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     return
                 else:
                     # in city, near resource
-                    pr(u_prefix, ' it is night, we are in city, next resource, do not move')
+                    move_mapper.stay(unit, ' it is night, we are in city, next resource, do not move')
                     return
 
         # DAWN
@@ -924,7 +931,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             if near_wood() \
                     and in_empty() \
                     and 0 < unit.get_cargo_space_left() <= 21:
-                pr(u_prefix, ' at dawn, can build next day')
+                move_mapper.stay(unit, ' at dawn, can build next day')
                 return
 
         # ALARM, we tried too many times the same move
@@ -970,6 +977,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                                                         unsafe_cities, info)
                     move_unit_to_or_transfer(actions, direction, info, move_mapper, player, u_prefix, unit,
                                              'returner')
+                    return 
 
         #   HASSLER
         if info.is_role_hassler():
@@ -1120,7 +1128,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                     direction = unit.pos.direction_to(empty)
                                     move_unit_to_or_transfer(actions, direction, info, move_mapper, player,
                                                              u_prefix, unit, 'high resources')
-                                    pr(u_prefix,
+                                    move_mapper.stay(unit,
                                        " we could have built, but better moving far away from resurces")
                                     return
 
@@ -1132,7 +1140,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
         # IF WE CANNOT BUILD, or we could and have decided not to
         if in_empty() and near_city() and near_wood():
             # stay here, so we can build
-            pr(u_prefix, " empty, near city, near wood, stay here")
+            move_mapper.stay(unit, " empty, near city, near wood, stay here")
             return
 
         # if we are next to enemy, try to make sure we do not back off
@@ -1191,7 +1199,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             # we are in wood in a highly hostile area, rule for building already implemented,
             # here we try try to penetrate and not backoff
             if near_wood() and in_empty():
-                pr(u_prefix, "hostile area, empty, near wood, stay here, so we can build")
+                move_mapper.stay(unit,  "hostile area, empty, near wood, stay here, so we can build")
                 return
             if near_wood() and not in_resource:
                 # only try to move near wood
@@ -1226,7 +1234,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 enough_fuel = 400
 
         if near_wood() and in_empty() and unit.get_cargo_space_used() >= 60:
-            pr(u_prefix, " Near wood, in empty, with substantial cargo, stay put")
+            move_mapper.stay(unit, " Near wood, in empty, with substantial cargo, stay put")
             return
 
         # if near_resource and in_empty() and unit.get_cargo_space_used() >= 0:
@@ -1298,7 +1306,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                                  best_adjacent_empty_tile().pos)
                 else:
                     resource_target_by_unit.setdefault((unit.pos.x, unit.pos.y), []).append(unit.id)
-                    pr(u_prefix, " Stay on resources")
+                    move_mapper.stay(unit, " Stay on resources")
                 return
         else:
             if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= info.gathered_last_turn \
