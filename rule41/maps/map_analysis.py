@@ -329,17 +329,6 @@ def is_position_valid(position, game_state) -> bool:
                 or position.x >= game_state.map_width or position.y >= game_state.map_height)
 
 
-def is_position_adjacent_city(player, pos, do_log=False) -> bool:
-    for city in player.cities.values():
-        for city_tile in city.citytiles:
-            if city_tile.pos.is_adjacent(pos):
-                if do_log:
-                    print(pos, "is_position_adjacent_city", city_tile.pos, file=sys.stderr)
-                return True
-
-    return False
-
-
 def get_next3_directions(without_direction: DIRECTIONS) -> [DIRECTIONS]:
     directions: [DIRECTIONS] = get_4_directions()
     directions.remove(without_direction)

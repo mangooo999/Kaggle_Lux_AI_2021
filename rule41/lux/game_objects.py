@@ -1,3 +1,5 @@
+import math
+
 from lux import annotate
 from typing import Dict, List
 
@@ -8,26 +10,6 @@ from .game_constants import GAME_CONSTANTS
 UNIT_TYPES = Constants.UNIT_TYPES
 DIRECTIONS = Constants.DIRECTIONS
 
-class Player:
-    def __init__(self, team):
-        self.team = team
-        self.research_points = 0
-        self.units: list[Unit] = []
-        self.cities: Dict[str, City] = {}
-        self.city_tile_count = 0
-
-        self.units_by_id: Dict[str, Unit] = {}
-
-    def researched_coal(self) -> bool:
-        return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["COAL"]
-
-    def researched_uranium(self) -> bool:
-        return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["URANIUM"]
-
-    def make_index_units_by_id(self):
-        self.units_by_id: Dict[str, Unit] = {}
-        for unit in self.units:
-            self.units_by_id[unit.id] = unit
 
 
 class City:
@@ -210,3 +192,84 @@ class Unit:
 
     def __repr__(self):
         return self.id
+
+
+
+class Player:
+    def __init__(self, team):
+        self.team = team
+        self.research_points = 0
+        self.units: list[Unit] = []
+        self.cities: Dict[str, City] = {}
+        self.city_tile_count = 0
+
+        self.units_by_id: Dict[str, Unit] = {}
+
+    def researched_coal(self) -> bool:
+        return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["COAL"]
+
+    def researched_uranium(self) -> bool:
+        return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["URANIUM"]
+
+    def make_index_units_by_id(self):
+        self.units_by_id: Dict[str, Unit] = {}
+        for unit in self.units:
+            self.units_by_id[unit.id] = unit
+
+    def is_position_adjacent_city(self, pos) -> bool:
+        for city in self.cities.values():
+            for city_tile in city.citytiles:
+                if city_tile.pos.is_adjacent(pos):
+                    return True
+
+        return False
+
+    def get_num_units_and_city_number_around_pos(self, pos: Position, distance=1) -> int:
+        return len(self.get_units_and_city_number_around_pos(pos, distance=distance))
+
+    def get_units_and_city_number_around_pos(self, pos: Position, distance=1) -> [Position]:
+        results = []
+        for city in self.cities.values():
+            for city_tile in city.citytiles:
+                if city_tile.pos.distance_to(pos) <= distance:
+                    results.append(city_tile.pos)
+
+        for unit in self.units:
+            if unit.pos.distance_to(pos) <= distance:
+                results.append(unit.pos)
+
+        return results
+
+    def is_unit_in_pos(self, pos) -> bool:
+        return self.get_unit_in_pos(pos) is not None
+
+    def get_unit_in_pos(self, pos) -> Unit:
+        for unit in self.units:
+            if unit.pos.equals(pos):
+                return unit
+
+        return None
+
+    def get_units_number_around_pos(self, pos, distance) -> int:
+        return self.get_units_around_pos(pos, distance).__len__()
+
+    def get_units_around_pos(self, pos, distance) -> [Unit]:
+        units: [Unit] = []
+        for unit in self.units:
+            if unit.pos.distance_to(pos) <= distance:
+                units.append(unit)
+
+        return units
+
+    def get_closest_unit(self, pos) -> (Unit, int):
+        distance = math.inf
+        res_unit: Unit = None
+        for unit in self.units:
+            d = unit.pos.distance_to(pos)
+            if d <= distance:
+                res_unit = unit
+                distance = d
+                if distance == 0:
+                    break
+
+        return res_unit, distance
