@@ -22,11 +22,11 @@ class MoveHelper:
 
 
     def add_initial_position(self, pos: Position, unit: Unit):
-        self.pr(self.log_prefix, 'XXX initial',unit.id ,' in', pos)
+        # self.pr(self.log_prefix, 'XXX initial',unit.id ,' in', pos)
         self.initial_position_mapper[self.__hash_pos__(pos)] = unit
 
     def add_position(self, pos: Position, unit: Unit):
-        self.pr(self.log_prefix, 'XXX movement', unit.id, ' in', pos)
+        # self.pr(self.log_prefix, 'XXX movement', unit.id, ' in', pos)
         self.movement_mapper[self.__hash_pos__(pos)] = unit
 
     def has_initial_position(self, pos: Position) -> bool:

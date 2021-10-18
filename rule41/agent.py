@@ -240,7 +240,7 @@ def agent(observation, configuration):
 
         for cluster in clusters.get_clusters():
             if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_no_units_no_enemy():
-                r_pos, r_distance = MapAnalysis.get_closest_position_cells(initial_city_pos, cluster.resource_cells)
+                r_pos, r_distance = MapAnalysis.get_closest_position(initial_city_pos, cluster.perimeter_empty)
                 res = cluster.resource_cells.__len__()
                 if res > 2 * len(initial_cluster.resource_cells) and r_distance < 12 and r_distance < distance:
                     pr(t_prefix, 'There seems to be a better cluster', cluster.to_string_light())
