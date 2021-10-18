@@ -424,21 +424,27 @@ def agent(observation, configuration):
             pr(t_prefix, 'super_fast_expansion move_to_closest_cluster')
             move_to_closest_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_eq_gr_units_than_res() and cluster.num_units() > 1:
+        is_this_wood = cluster.res_type == RESOURCE_TYPES.WOOD
+        is_that_wood = best_cluster_cluster.res_type == RESOURCE_TYPES.WOOD
+        is_this_or_that_wood = is_this_wood or is_that_wood
+
+        move_if = is_this_or_that_wood
+
+        if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), cluster.num_resource())
             move_to_best_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > config.cluster_wood_overcrowded:
+        if move_if and cluster.get_equivalent_units() > config.cluster_wood_overcrowded:
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
                'u=', cluster.units)
             move_to_best_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and best_cluster_dist < 4:
+        if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4:
             pr(t_prefix, 'There is a very near uncontested cluster', best_cluster_cluster.id,
                'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
             move_to_best_cluster = True
 
-        if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and cluster.closest_enemy_distance > 9 \
+        if move_if and cluster.get_equivalent_units() > 1 and cluster.closest_enemy_distance > 9 \
                 and best_cluster_cluster.has_no_units_no_incoming() \
                 and best_cluster_cluster.num_enemy_units() * 5 < best_cluster_cluster.get_equivalent_resources():
             pr(t_prefix, 'enemy is very far, and next cluster has no units, no incoming ', best_cluster_cluster.id,
