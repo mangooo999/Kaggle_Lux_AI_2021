@@ -1,0 +1,6 @@
+start 06/10/2021 12:54:57.75 
+1 a    { rank: 1, agentID: 1, name: 'rule28/main.py' },
+1 b    { rank: 1, agentID: 1, name: 'C:/git/luxai/imitate/main.py' },
+2 a    { rank: 1, agentID: 1, name: 'rule28/main.py' },
+2 b    { rank: 1, agentID: 0, name: 'rule28/main.py' },
+3 a3 b4 a4 b

@@ -1,0 +1,7 @@
+start 17/10/2021 11:50:01.44 
+1 a    { rank: 1, agentID: 1, name: 'rule447b/main.py' },
+1 b    { rank: 1, agentID: 0, name: 'rule447b/main.py' },
+2 a    { rank: 1, agentID: 1, name: 'rule447b/main.py' },
+2 b    { rank: 1, agentID: 0, name: 'rule447b/main.py' },
+3 a    { rank: 1, agentID: 1, name: 'rule447b/main.py' },
+3 b

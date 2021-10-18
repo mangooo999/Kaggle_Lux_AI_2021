@@ -1,0 +1,9 @@
+start 13/10/2021  7:19:20.30 
+1 a    { rank: 1, agentID: 0, name: 'rule404/main.py' },
+1 b    { rank: 1, agentID: 1, name: 'rule404/main.py' },
+2 a    { rank: 1, agentID: 0, name: 'rule404/main.py' },
+    { rank: 1, agentID: 1, name: 'rule405x/main.py' }
+2 b    { rank: 1, agentID: 0, name: 'rule405x/main.py' },
+3 a    { rank: 1, agentID: 0, name: 'rule404/main.py' },
+3 b    { rank: 1, agentID: 0, name: 'rule405x/main.py' },
+4 a4 b
