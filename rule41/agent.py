@@ -299,7 +299,7 @@ def agent(observation, configuration):
             # we olny consider wood cluster
             # we olny consider uncontended and empty cluster
             if next_clust.id != cluster.id \
-                    and is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(5), 4) \
+                    and is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(5), game_state_info.steps_until_night) \
                     and next_clust.has_no_units():
                 for unitid in cluster.units:
                     unit = player.units_by_id[unitid]
@@ -319,6 +319,8 @@ def agent(observation, configuration):
                     # TODO we could try to add here the resources if we are sure it doesn't pass from a city
                     # # we only consider reachable clusters before the night
                     if time_distance > game_state_info.steps_until_night:
+                        continue
+                    if not is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(5), time_distance):
                         continue
                     if info is None:
                         continue
@@ -420,15 +422,22 @@ def agent(observation, configuration):
 
         move_to_closest_cluster: bool = False
 
-        if config.super_fast_expansion and cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1 and closest_cluster_cluster is not None:
-            pr(t_prefix, 'super_fast_expansion move_to_closest_cluster')
-            move_to_closest_cluster = True
-
         is_this_wood = cluster.res_type == RESOURCE_TYPES.WOOD
         is_that_wood = best_cluster_cluster.res_type == RESOURCE_TYPES.WOOD
         is_this_or_that_wood = is_this_wood or is_that_wood
 
         move_if = is_this_or_that_wood
+
+        if closest_cluster_cluster is not None:
+            if config.super_fast_expansion and cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1:
+                pr(t_prefix, 'super_fast_expansion move_to_closest_cluster')
+                move_to_closest_cluster = True
+
+            if move_if and cluster.get_equivalent_units() > 1 and closest_cluster_dist < 4:
+                pr(t_prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
+                   'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
+                move_to_closest_cluster = True
+
 
         if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
             pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), cluster.num_resource())
@@ -440,7 +449,7 @@ def agent(observation, configuration):
             move_to_best_cluster = True
 
         if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4:
-            pr(t_prefix, 'There is a very near uncontested cluster', best_cluster_cluster.id,
+            pr(t_prefix, 'There is a very near best uncontested cluster', best_cluster_cluster.id,
                'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
             move_to_best_cluster = True
 

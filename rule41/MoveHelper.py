@@ -7,8 +7,9 @@ from lux import annotate
 import maps.map_analysis as MapAnalysis
 from UnitInfo import UnitInfo
 
+
 class MoveHelper:
-    def __init__(self, player, opponent, turn, pr):
+    def __init__(self, player: Player, opponent: Player, turn, pr):
         """
         initialize state
         """
@@ -19,7 +20,9 @@ class MoveHelper:
         self.turn = turn
         self.log_prefix = "T_{0}".format(str(self.turn))
         self.pr = pr
-
+        self.opponent_units = {}
+        for enemy in opponent.units:
+            self.opponent_units[self.__hash_pos__(enemy.pos)] = enemy
 
     def add_initial_position(self, pos: Position, unit: Unit):
         # self.pr(self.log_prefix, 'XXX initial',unit.id ,' in', pos)
@@ -32,14 +35,17 @@ class MoveHelper:
     def has_initial_position(self, pos: Position) -> bool:
         return self.__hash_pos__(pos) in self.initial_position_mapper
 
+    def has_opponent_position(self, pos: Position) -> bool:
+        return self.__hash_pos__(pos) in self.opponent_units
+
     def has_movement_position(self, pos: Position) -> bool:
         return self.__hash_pos__(pos) in self.movement_mapper
 
     def has_position(self, pos: Position) -> bool:
         return self.has_initial_position(pos) or \
-                self.has_movement_position(pos)
+               self.has_movement_position(pos)
 
-    def get_unit_from_mapper(self,pos) -> Unit:
+    def get_unit_from_mapper(self, pos) -> Unit:
         if self.__hash_pos__(pos) in self.initial_position_mapper:
             return self.initial_position_mapper.get(self.__hash_pos__(pos))
         elif self.__hash_pos__(pos) in self.movement_mapper:
@@ -47,16 +53,21 @@ class MoveHelper:
         else:
             return None
 
-
     def __hash_pos__(self, pos: Position) -> Tuple[int, int]:
         return pos.x, pos.y
 
-    def can_move_to_direction(self, from_pos: Position, direction: DIRECTIONS,game_state) -> bool:
-        return self.can_move_to_pos(from_pos.translate(direction, 1),game_state)
+    def can_move_to_direction(self, from_pos: Position, direction: DIRECTIONS, game_state) -> bool:
+        return self.can_move_to_pos(from_pos.translate(direction, 1), game_state)
 
     def can_move_to_pos(self, pos: Position, game_state, allow_clash_unit: bool = False, msg: str = '') -> bool:
+        # we cannot move on an enemy that cannot move:
+        if self.has_opponent_position(pos):
+            enemy = self.opponent_units.get(self.__hash_pos__(pos))
+            if not enemy.can_act():
+                self.pr(self.log_prefix + msg, 'Collision enemy in', pos, 'with', enemy.id)
+                return False
         # we cannot move if somebody is already going, and it is not a city
-        if ((not allow_clash_unit) and self.has_initial_position(pos)) and not self.is_position_city(pos):
+        elif ((not allow_clash_unit) and self.has_initial_position(pos)) and not self.is_position_city(pos):
             unit: Unit = self.get_unit_from_mapper(pos)
             self.pr(self.log_prefix + msg, 'Collision static in', pos, 'with', unit.id)
             return False
@@ -65,7 +76,7 @@ class MoveHelper:
             self.pr(self.log_prefix + msg, 'Collision dynamic in', pos, 'with', unit.id)
             return False
         else:
-            return MapAnalysis.is_position_valid(pos,game_state) and not self.is_position_enemy_city(pos)
+            return MapAnalysis.is_position_valid(pos, game_state) and not self.is_position_enemy_city(pos)
 
     def is_position_city(self, pos: Position) -> bool:
         return MapAnalysis.get_city_id_from_pos(pos, self.player) != ''
@@ -73,8 +84,8 @@ class MoveHelper:
     def is_position_enemy_city(self, pos: Position) -> bool:
         return MapAnalysis.get_city_id_from_pos(pos, self.opponent) != ''
 
-    def stay(self,unit, reason):
-        self.pr(self.log_prefix+unit.id, '- not moving:', reason)
+    def stay(self, unit, reason):
+        self.pr(self.log_prefix + unit.id, '- not moving:', reason)
         self.add_initial_position(unit.pos, unit)
 
     def move_unit_to_pos(self, actions, info: UnitInfo, reason, pos: Position):
@@ -99,8 +110,7 @@ class MoveHelper:
             self.add_position(next_state_pos, unit)
             info.set_last_action_move(direction, next_state_pos)
             self.pr(self.log_prefix + unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
-               , str(target_far_position or ''))
-
+                    , str(target_far_position or ''))
 
     def try_to_move_to(self, actions, info: UnitInfo, pos: Position, msg: str) -> bool:
         direction = info.unit.pos.direction_to(pos)
@@ -110,6 +120,3 @@ class MoveHelper:
             return True
         else:
             return False
-
-
-
