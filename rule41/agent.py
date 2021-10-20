@@ -905,7 +905,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             best_night_spot = empty_tile_near_wood_and_city(adjacent_empty_tiles(), wood_tiles,
                                                             game_state, player)
             if best_night_spot is not None:
-                enemy_there = len(opponent.get_units_around_pos(best_night_spot.pos, 1)) > 0  # IN OR ADJACENT
+                enemy_there = opponent.is_unit_adjacent(best_night_spot.pos)  # IN OR ADJACENT
                 if (not in_city()) or time_to_dawn <= 1 or enemy_there:
                     if move_mapper.try_to_move_to(actions, info, best_night_spot.pos, " best_night_spot"):
                         return
@@ -962,7 +962,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 move_mapper.move_unit_to(actions, direction, info, " move to traveler pos", info.target_position)
                 return
             else:
-                pr(u_prefix, ' traveller cannot move')
+                pr(u_prefix, ' traveller cannot move:'+direction)
                 if unit.pos.distance_to(info.target_position) <= 1: info.clean_unit_role()
 
         #   RETURNER
@@ -1580,16 +1580,18 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
         next_pos = from_pos.translate(direction, 1)
 
         # if we are trying to move on top of somebody else, skip
-        # pr(t_prefix, ' XXX - try', direction, next_pos,'mapper', move_mapper.move_mapper.keys())
+        # pr(unit.id,' XXX - try', direction, next_pos)
         if move_mapper.can_move_to_pos(next_pos, game_state, allow_clash_unit, unit.id + ' moving to ' + direction):
+            # pr(unit.id, ' XXX - seems ok', direction, next_pos)
             # calculate how many resources there are to gather while walking, and favour those if you have no cargo
             number_of_adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 1))
             is_empty = MapAnalysis.is_cell_empty(next_pos, game_state)
             near_resources = MapAnalysis.is_position_adjacent_to_resource(resource_tiles, next_pos)
             is_city = move_mapper.is_position_city(next_pos)
-            if is_city:
+            if is_city : #and unit.get_cargo_space_used()>0
                 city_id = MapAnalysis.get_city_id_from_pos(next_pos, move_mapper.player)
                 if not city_id in unsafe_cities:
+                    pr(' try to avoid our city because it is not unsafe')
                     continue
             possible_directions.append(
                 (direction,  # 0
@@ -1599,7 +1601,7 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
                  -int(is_city)  # 4
                  ))
         else:
-            # pr(' XXX - skip')
+            # pr(unit.id,' XXX - skip', direction, next_pos)
             continue
 
     if info.unit.get_cargo_space_left() == 0:

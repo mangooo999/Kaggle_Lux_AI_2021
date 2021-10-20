@@ -60,14 +60,16 @@ class MoveHelper:
         return self.can_move_to_pos(from_pos.translate(direction, 1), game_state)
 
     def can_move_to_pos(self, pos: Position, game_state, allow_clash_unit: bool = False, msg: str = '') -> bool:
+        # self.pr(self.log_prefix + msg, 'can_move_to_pos', pos)
         # we cannot move on an enemy that cannot move:
         if self.has_opponent_position(pos):
             enemy = self.opponent_units.get(self.__hash_pos__(pos))
             if not enemy.can_act():
                 self.pr(self.log_prefix + msg, 'Collision enemy in', pos, 'with', enemy.id)
                 return False
+
         # we cannot move if somebody is already going, and it is not a city
-        elif ((not allow_clash_unit) and self.has_initial_position(pos)) and not self.is_position_city(pos):
+        if ((not allow_clash_unit) and self.has_initial_position(pos)) and not self.is_position_city(pos):
             unit: Unit = self.get_unit_from_mapper(pos)
             self.pr(self.log_prefix + msg, 'Collision static in', pos, 'with', unit.id)
             return False
@@ -75,8 +77,15 @@ class MoveHelper:
             unit: Unit = self.get_unit_from_mapper(pos)
             self.pr(self.log_prefix + msg, 'Collision dynamic in', pos, 'with', unit.id)
             return False
-        else:
-            return MapAnalysis.is_position_valid(pos, game_state) and not self.is_position_enemy_city(pos)
+        elif not MapAnalysis.is_position_valid(pos, game_state):
+            self.pr(self.log_prefix + msg, 'cannot move. Invalid pos', pos)
+            return False
+        elif self.is_position_enemy_city(pos):
+            self.pr(self.log_prefix + msg, 'cannot move. Enemy city', pos)
+            return False
+
+        return True
+
 
     def is_position_city(self, pos: Position) -> bool:
         return MapAnalysis.get_city_id_from_pos(pos, self.player) != ''

@@ -240,8 +240,20 @@ class Player:
 
         return results
 
+    def is_unit_adjacent(self, pos) -> bool:
+        for unit in self.units:
+            if unit.pos.is_adjacent(pos):
+                return True
+
+        return False
+
+
     def is_unit_in_pos(self, pos) -> bool:
-        return self.get_unit_in_pos(pos) is not None
+        for unit in self.units:
+            if unit.pos.equals(pos):
+                return True
+
+        return False
 
     def get_unit_in_pos(self, pos) -> Unit:
         for unit in self.units:
