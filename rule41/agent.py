@@ -100,7 +100,7 @@ def adjacent_empty_tile_favor_close_to_city_and_res(pos: Position, empty_tyles, 
         return game_state.map.get_cell_by_pos(result)
 
 
-def get_empty_tile_near_resources(empty_tiles, resource_tiles) -> list[Position]:
+def get_empty_tile_near_resources(empty_tiles, resource_tiles) -> [Position]:
     results = []
     for adjacent_position in empty_tiles:
         if MapAnalysis.is_position_adjacent_to_resource(resource_tiles, adjacent_position):
@@ -953,6 +953,12 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
         # ALARM, we tried too many times the same move
         if info.alarm >= 4 and len(unsafe_cities) > 0:
             pr(u_prefix, ' has tried too many times to go to ', info.last_move_direction)
+            if unit.get_cargo_space_used()>0 and (in_resource or near_resource):
+                transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                       available_resources_tiles, info, in_resource,
+                                                                       near_resource, player, unit, u_prefix)
+                if transferred:
+                    return
             if unit.can_build(game_state.map):
                 build_city(actions, info, u_prefix, ':we tried too many times to go to' + info.last_move_direction)
             else:
@@ -1026,9 +1032,15 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         # build city tiles adjacent of other tiles to make only one city.
         if unit.can_build(game_state.map):
-            if (num_adjacent_enemy_unit() > 0 or is_in_highly_hostile_area()) and unit.cargo.fuel() < 150:
-                build_city(actions, info, u_prefix, 'because we are close to enemy')
-                return
+            #TODO, the num_adjacent_enemy_unit() > 0 condition makes unit build city in the middle of nothing
+            if unit.cargo.fuel() < 150:
+                if num_adjacent_enemy_unit() > 0 and (near_resource or near_city()):
+                    build_city(actions, info, u_prefix, 'because we are close to enemy')
+                    return
+                if is_in_highly_hostile_area():
+                    build_city(actions, info, u_prefix, 'because is_in_highly_hostile_area')
+                    return
+
             if near_city():
                 # this is an excellent spot, but is there even a better one, one that join two different cities?
                 if game_state_info.turns_to_night > 2:
@@ -1596,25 +1608,25 @@ def transfer_all_resources(actions, info: UnitInfo, to_unit_id: str, prefix, pos
         to_unit_string = to_unit_string + pos.__str__()
 
     if info.unit.cargo.uranium > 0:
-        actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium))
-        pr(prefix, "Unit", info.unit.id, '- transfer', info.unit.cargo.uranium, 'uranium to ', to_unit_string)
-        info.set_last_action_transfer()
-        move_mapper.add_position(info.unit.pos, info.unit)
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium, to_unit_id, to_unit_string)
     elif info.unit.cargo.coal > 0:
-        actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.COAL, info.unit.cargo.coal))
-        pr(prefix, "Unit", info.unit.id, '- transfer', info.unit.cargo.coal, 'coal to ', to_unit_string)
-        info.set_last_action_transfer()
-        move_mapper.add_position(info.unit.pos, info.unit)
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.COAL, info.unit.cargo.coal, to_unit_id, to_unit_string)
     elif info.unit.cargo.wood > 0:
-        actions.append(info.unit.transfer(to_unit_id, RESOURCE_TYPES.WOOD, info.unit.cargo.wood))
-        pr(prefix, "Unit", info.unit.id, '- transfer', info.unit.cargo.wood, 'wood to ', to_unit_string)
-        info.set_last_action_transfer()
-        move_mapper.add_position(info.unit.pos, info.unit)
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.WOOD, info.unit.cargo.coal, to_unit_id, to_unit_string)
 
     if unit_info[to_unit_id].is_role_traveler: unit_info[to_unit_id].clean_unit_role()
     if unit_info[info.unit.id].is_role_returner():
         unit_info[info.unit.id].clean_unit_role('Transferred resources, transfer role')
         unit_info[to_unit_id].set_unit_role_returner(to_unit_id)
+
+
+def do_transfer(actions, info, prefix, resource, qty, to_unit_id, to_unit_string):
+    qty = min(qty,unit_info[to_unit_id].unit.get_cargo_space_left())
+    actions.append(info.unit.transfer(to_unit_id, resource, qty))
+    pr(prefix, "Unit", info.unit.id, '- transfer', qty, resource,'to', to_unit_string)
+    info.set_last_action_transfer()
+    unit_info[to_unit_id].add_cargo(resource, qty)
+    move_mapper.add_position(info.unit.pos, info.unit)
 
 
 def can_city_live(city, all_night_turns_lef) -> bool:

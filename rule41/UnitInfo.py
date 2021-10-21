@@ -1,10 +1,10 @@
-from lux.game_map import Position
-from lux.game_objects import Unit
+from lux.game_map import Position, RESOURCE_TYPES
+from lux.game_objects import Unit, Cargo
 import sys
 
 
 class UnitInfo:
-    def __init__(self, unit: Unit,pr):
+    def __init__(self, unit: Unit, pr):
         """
         initialize state
         """
@@ -29,7 +29,8 @@ class UnitInfo:
         self.last_move_before_pos = unit.pos
         self.last_move_expected_pos = None
         self.alarm = 0
-        self.pr=pr
+        self.pr = pr
+        self.transferred_in_cargo = Cargo()
         self.pr(self.log_prefix, 'created')
 
     def update(self, unit: Unit, current_turn):
@@ -39,14 +40,15 @@ class UnitInfo:
         self.current_pos = unit.pos
         self.has_done_action_this_turn = False
         self.current_turn = current_turn
+        self.transferred_in_cargo = Cargo()
         #
         self.gathered_last_turn = unit.get_cargo_space_left() - self.last_free_cargo
         self.last_free_cargo = unit.get_cargo_space_left()
 
-        if self.last_move_expected_pos is not None and self.last_move_turn == current_turn-1:
+        if self.last_move_expected_pos is not None and self.last_move_turn == current_turn - 1:
             if not unit.pos.equals(self.last_move_expected_pos):
-                self.pr(self.log_prefix, 'this unit has not moved as expected to',self.last_move_expected_pos)
-                self.alarm +=1
+                self.pr(self.log_prefix, 'this unit has not moved as expected to', self.last_move_expected_pos)
+                self.alarm += 1
             else:
                 self.alarm = 0
 
@@ -60,7 +62,21 @@ class UnitInfo:
 
         if self.target_position is not None:
             if unit.pos.equals(self.target_position):
-                self.clean_unit_role('reached target position'+self.target_position.__str__())
+                self.clean_unit_role('reached target position' + self.target_position.__str__())
+
+    def add_cargo(self, res, qty):
+        if res == RESOURCE_TYPES.WOOD:
+            self.transferred_in_cargo.wood += qty
+        elif res == RESOURCE_TYPES.COAL:
+            self.transferred_in_cargo.coal += qty
+        elif res == RESOURCE_TYPES.URANIUM:
+            self.transferred_in_cargo.uranium += qty
+
+    def get_cargo_space_used(self) -> int:
+        return self.transferred_in_cargo.get_space_used()
+
+    def get_cargo_space_left(self):
+        100 - self.get_cargo_space_used()
 
     def set_last_action_move(self, direction, to_pos):
         self.last_move = 'm'
@@ -104,7 +120,7 @@ class UnitInfo:
 
     def clean_unit_role(self, msg=''):
         if self.role != '':
-            self.pr(self.log_prefix, 'removing role', self.role,msg)
+            self.pr(self.log_prefix, 'removing role', self.role, msg)
         self.role = ''
         self.target_position = None
         self.build_if_you_can = False

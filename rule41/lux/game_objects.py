@@ -83,6 +83,9 @@ class Cargo:
         self.coal = 0
         self.uranium = 0
 
+    def get_space_used(self) -> int:
+        return self.wood + self.coal + self.uranium;
+
     def __str__(self) -> str:
         return f"Cargo | Wood: {self.wood}, Coal: {self.coal}, Uranium: {self.uranium}"
 
@@ -121,7 +124,7 @@ class Unit:
         return self.type == UNIT_TYPES.CART
 
     def get_cargo_space_used(self) -> int:
-        return self.cargo.wood + self.cargo.coal + self.cargo.uranium;
+        return self.cargo.get_space_used()
 
     def get_cargo_space_left(self):
         """
