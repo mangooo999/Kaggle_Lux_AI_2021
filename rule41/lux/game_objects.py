@@ -36,6 +36,12 @@ class City:
     def get_num_tiles(self) -> int:
         return len(self.citytiles)
 
+    def get_positions(self) -> [Position]:
+        results = []
+        for ct in self.citytiles:
+            results.append(ct.pos)
+        return results
+
 class CityTile:
     def __init__(self, teamid, cityid, x, y, cooldown):
         self.cityid = cityid

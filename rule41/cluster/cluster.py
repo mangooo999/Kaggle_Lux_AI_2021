@@ -113,6 +113,9 @@ class Cluster:
     def num_units(self) -> int:
         return len(self.units)
 
+    def num_units_and_incoming(self) -> int:
+        return len(self.units) + len(self.incoming_explorers)
+
     def num_resource(self) -> int:
         len(self.resource_cells)
 

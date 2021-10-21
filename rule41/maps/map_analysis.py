@@ -386,6 +386,36 @@ def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]
             closest_dist = dist
     return closest_dirs
 
+
+def get_directions_to_city(start_pos, city_id, player) -> [DIRECTIONS]:
+    if city_id in player.cities:
+        return get_directions_to_positions(start_pos, player.cities[city_id].get_positions())
+
+    return [DIRECTIONS.CENTER]
+
+
+def get_directions_to_positions(start_pos, positions) -> [DIRECTIONS]:
+    check_dirs = [
+        DIRECTIONS.NORTH,
+        DIRECTIONS.EAST,
+        DIRECTIONS.SOUTH,
+        DIRECTIONS.WEST,
+    ]
+    closest_dist = math.inf
+    closest_dirs = [DIRECTIONS.CENTER]
+
+    for target_pos in positions:
+        for direction in check_dirs:
+            newpos = start_pos.translate(direction, 1)
+            dist = target_pos.distance_to(newpos)
+            if dist < closest_dist:
+                closest_dirs = [direction]
+                closest_dist = dist
+            elif dist == closest_dist:
+                closest_dirs.append(direction)
+                closest_dist = dist
+    return closest_dirs
+
 def directions_to_no_city(start_pos: 'Position', target_pos: 'Position', player) -> [DIRECTIONS]:
     """
     Return closest position to target_pos from this position, avoiding city tiles from player
