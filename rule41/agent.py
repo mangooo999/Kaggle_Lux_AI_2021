@@ -835,7 +835,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                                                                            available_resources_tiles,
                                                                                            u_prefix))
         resources_distance, adjacent_resources = find_resources_distance(
-            unit.pos, clusters, all_resources_tiles, game_info)
+            unit.pos, clusters, all_resources_tiles, game_info, u_prefix)
         city_tile_distance = LazyWrapper(
             lambda: find_city_tile_distance(unit.pos, player, unsafe_cities, game_state_info))
         adjacent_next_to_resources = LazyWrapper(lambda: get_walkable_that_are_near_resources(
@@ -1335,7 +1335,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 # find the closest resource if it exists to this unit
 
                 pr(u_prefix, " Find resources")
-
+                # pr(u_prefix, " XXXXXXXXXX", resources_distance)
                 if resources_distance is not None and len(resources_distance) > 0:
 
                     # create a move action to the direction of the closest resource tile and add to our actions list
@@ -1834,9 +1834,8 @@ def find_best_resource(game_state, resources_distance, resource_target_by_unit, 
 
 
 # the next snippet all resources distance and return as sorted order.
-def find_resources_distance(pos, clusters: ClusterControl, resource_tiles, game_info: GameInfo) -> Dict[CityTile,
-                                                                                                        Tuple[
-                                                                                                            int, int, DIRECTIONS]]:
+def find_resources_distance(pos, clusters: ClusterControl, resource_tiles, game_info: GameInfo, prefix) \
+        -> Dict[CityTile, Tuple[ int, int, DIRECTIONS]]:
     resources_distance = {}
     adjacent_resources = {}
     for resource_tile in resource_tiles:
@@ -1844,12 +1843,14 @@ def find_resources_distance(pos, clusters: ClusterControl, resource_tiles, game_
         score = 0
         if resource_tile.pos in clusters.resource_pos_to_cluster:
             cluster = clusters.resource_pos_to_cluster[resource_tile.pos]
-            # prx("XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid())
-            # prx("XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
-            # prx("XXX3",game_info.turn,cluster.id, len(cluster.perimeter), len(cluster.walkable_perimeter))
+            # pr(prefix,"XXX1",game_info.turn,resource_tile.pos,resource_tile.resource.type," in ",cluster.id,cluster.get_centroid())
+            # pr("prefix,XXX2",game_info.turn,cluster.to_string_light(),file=sys.stderr)
+            # pr(prefix,"XXX3",game_info.turn,cluster.id, len(cluster.perimeter), len(cluster.walkable_perimeter))
             if len(cluster.perimeter_accessible) == 0:
+                # pr(prefix, "XXX1",resource_tile.pos, "not accessible")
                 score = 2  # not accessible, (and therefore also not walkable)
             elif len(cluster.perimeter_walkable) == 0:
+                # pr(prefix, "XXX1", resource_tile.pos, "not accessible")
                 score = 1  # accessible but not walkable
 
         dist = resource_tile.pos.distance_to(pos)
@@ -1860,14 +1861,14 @@ def find_resources_distance(pos, clusters: ClusterControl, resource_tiles, game_
                 adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
 
         else:
-            expected_resource_additional = (float(dist * 2.0) * float(game_info.get_research_rate(5)))
-            expected_resource_at_distance = float(game_info.reseach_points) + expected_resource_additional
+            expected_research_additional = (float(dist * 2.0) * float(game_info.get_research_rate(5)))
+            expected_research_at_distance = float(game_info.reseach_points) + expected_research_additional
             # check if we are likely to have researched this by the time we arrive
             if resource_tile.resource.type == RESOURCE_TYPES.COAL and \
-                    expected_resource_at_distance < 50.0:
+                    expected_research_at_distance < 50.0:
                 continue
             elif resource_tile.resource.type == RESOURCE_TYPES.URANIUM and \
-                    expected_resource_at_distance < 200.0:
+                    expected_research_at_distance < 200.0:
                 continue
             else:
                 # order by distance asc, resource asc

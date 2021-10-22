@@ -27,6 +27,9 @@ class Cell:
     def has_resource(self):
         return self.resource is not None and self.resource.amount > 0
 
+    def __repr__(self):
+        return f"Cell({self.x},{self.y})"
+
 
 class GameMap:
     def __init__(self, width, height):
