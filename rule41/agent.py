@@ -263,7 +263,9 @@ def agent(observation, configuration):
             distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
             if 3 <= distance_cities <= 5:
                 step_to_enemy = initial_city_pos.translate_towards(initial_enemy_city_pos)
-                if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy):
+                is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(step_to_enemy, game_state)
+                if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy) \
+                        and (is_empty or has_empty_next):
                     pr(t_prefix, "Confrontational first step towards enemy")
                     good_pos_around_city = step_to_enemy
 
