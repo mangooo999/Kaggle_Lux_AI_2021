@@ -1,6 +1,6 @@
 @echo off
 set agent1=C:/git/luxai/light/main.py
-set agent2=rule457/main.py
+set agent2=rule471/main.py
 set num_loops=100
 set storeReplay=false
 set storeLogs=false
@@ -44,7 +44,8 @@ FOR /L %%G IN (1,1,%num_loops%) DO (
 	echo|set /p=" %%G b" >> %log_file%
 	echo|set /p=" b" 
 	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent2% %agent1% | grep "rank: 1" >> %log_file%  	
-	echo "."
+	echo .
+	grep --count %agent1% %log_file%
 )
 
 echo end %DATE% %TIME% >> %log_file%

@@ -261,7 +261,7 @@ def agent(observation, configuration):
         else:
             initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
             distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
-            if 3 <= distance_cities <= 5:
+            if 1 <= distance_cities <= 5:
                 step_to_enemy = initial_city_pos.translate_towards(initial_enemy_city_pos)
                 is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(step_to_enemy, game_state)
                 if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy) \
@@ -492,7 +492,7 @@ def agent(observation, configuration):
                 move_to_best_cluster = True
 
             #TODO improve this, maybe with a min unit count>=2
-            if False and is_this_wood and cluster.autonomy >= 10 and cluster.closest_enemy_distance > 5:
+            if is_this_wood and cluster.autonomy >= 10 and cluster.closest_enemy_distance > 5 and cluster.num_units()>2:
                 pr(prefix, 'This wood city will live one more night, enemy is distant, let move one', best_cluster_dist)
                 move_to_best_cluster = True
 
