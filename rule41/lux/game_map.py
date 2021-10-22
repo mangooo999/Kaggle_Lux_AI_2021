@@ -21,6 +21,8 @@ class Cell:
         self.citytile: CityTile = None
         self.unit: Unit = None
         self.road = 0
+        self.x = x
+        self.y = y
 
     def has_resource(self):
         return self.resource is not None and self.resource.amount > 0

@@ -270,7 +270,7 @@ def agent(observation, configuration):
             if good_pos_around_city is None:
                 x3: list = MapAnalysis.get_resources_around(available_resources_tiles, initial_city_pos, 3)
                 game_info.at_start_resources_within3 = len(x3)
-                pr(t_prefix, "Resources within distance 3 of", initial_city_pos, "initial pos", len(x3))
+                pr(t_prefix, "Resources within distance 3 of initial pos", initial_city_pos, " number=", len(x3))
 
                 possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
                 good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos,
@@ -316,9 +316,13 @@ def agent(observation, configuration):
                     info = None
                     if unitid in unit_info:
                         info = unit_info[unitid]
+                    else:
+                        pr(t_prefix, next_clust.id, unit.id, "cannot find info")
+                        continue
 
                     if info.get_cargo_space_left() == 0:
                         # do not consider units that can build
+                        pr(t_prefix, next_clust.id, unit.id, "get_cargo_space_left=0")
                         continue
 
                     # the distance to reach it
@@ -328,13 +332,14 @@ def agent(observation, configuration):
                     # TODO we could try to add here the resources if we are sure it doesn't pass from a city
                     # # we only consider reachable clusters before the night
                     if time_distance > game_state_info.steps_until_night:
+                        pr(t_prefix, next_clust.id, unit.id, "too far from ", cluster.id,'time_distance ',time_distance)
                         continue
                     if not is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(5), time_distance):
-                        continue
-                    if info is None:
+                        pr(t_prefix, next_clust.id, unit.id, "not minable")
                         continue
                     # we also consider expanders to be moved, as their role gets transferred
                     if not (info.is_role_none() or info.is_role_city_expander()):
+                        pr(t_prefix, next_clust.id, unit.id, "role",info.role)
                         continue
 
                     # from lowest (best), to highest
@@ -436,47 +441,54 @@ def agent(observation, configuration):
         is_this_or_that_wood = is_this_wood or is_that_wood
 
         move_if = is_this_or_that_wood
+        prefix = t_prefix + 'cluster analyses'
+        pr(prefix, 'from :', cluster.to_string_light())
+        pr(prefix, 'move_if :', move_if,'eq un=', cluster.get_equivalent_units(),' enemy dist',cluster.closest_enemy_distance)
+
 
         if closest_cluster_cluster is not None:
+            pr(prefix, 'clos :',closest_cluster_dist, closest_cluster_cluster.to_string_light())
             if config.super_fast_expansion and cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1:
-                pr(t_prefix, 'super_fast_expansion move_to_closest_cluster')
+                pr(prefix, 'super_fast_expansion move_to_closest_cluster')
                 move_to_closest_cluster = True
 
             if move_if and cluster.get_equivalent_units() > 1 and closest_cluster_dist < 4 and \
                     closest_cluster_cluster.get_equivalent_units() == 0:
-                pr(t_prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
+                pr(prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
                    'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
                 move_to_closest_cluster = True
 
+        if closest_cluster_cluster is not None:
+            pr(prefix, 'best :', best_cluster_dist, best_cluster_cluster.to_string_light())
 
-        if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
-            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), cluster.num_resource())
-            move_to_best_cluster = True
+            if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
+                pr(prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), cluster.num_resource())
+                move_to_best_cluster = True
 
-        if move_if and cluster.get_equivalent_units() > config.cluster_wood_overcrowded:
-            pr(t_prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
-               'u=', cluster.units)
-            move_to_best_cluster = True
+            if move_if and cluster.get_equivalent_units() > config.cluster_wood_overcrowded:
+                pr(prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
+                   'u=', cluster.units)
+                move_to_best_cluster = True
 
-        if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4 and \
-                best_cluster_cluster.get_equivalent_units() == 0:
-            pr(t_prefix, 'There is a very near best uncontested cluster', best_cluster_cluster.id,
-               'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
-            move_to_best_cluster = True
+            if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4 and \
+                    best_cluster_cluster.get_equivalent_units() == 0:
+                pr(prefix, 'There is a very near best uncontested cluster', best_cluster_cluster.id,
+                   'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
+                move_to_best_cluster = True
 
-        if move_if and cluster.get_equivalent_units() > 1 and cluster.closest_enemy_distance > 9 \
-                and best_cluster_cluster.has_no_units_no_incoming() \
-                and best_cluster_cluster.num_enemy_units() * 5 < best_cluster_cluster.get_equivalent_resources():
-            pr(t_prefix, 'enemy is very far, and next cluster has no units, no incoming ', best_cluster_cluster.id,
-               'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
-            move_to_best_cluster = True
+            if move_if and cluster.get_equivalent_units() > 1 and cluster.closest_enemy_distance > 9 \
+                    and best_cluster_cluster.has_no_units_no_incoming() \
+                    and best_cluster_cluster.num_enemy_units() * 5 < best_cluster_cluster.get_equivalent_resources():
+                pr(prefix, 'enemy is very far, and next cluster has no units, no incoming ', best_cluster_cluster.id,
+                   'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
+                move_to_best_cluster = True
 
         if move_to_best_cluster:
-            pr(t_prefix, 'try_move_units_cluster best_cluster ', best_cluster_cluster.id)
+            pr(prefix, 'try_move_units_cluster best_cluster ', best_cluster_cluster.id)
             repurpose_unit(best_cluster_cluster, best_cluster_pos, best_cluster_unit, cluster, t_prefix)
 
         elif move_to_closest_cluster:
-            pr(t_prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id)
+            pr(prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id)
             repurpose_unit(closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit, cluster, t_prefix)
 
     # max number of units available
@@ -1250,13 +1262,22 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         return
 
         if near_wood() and in_empty():
-            if info.get_cargo_space_used() >= 60:
-                move_mapper.stay(unit, " Near wood1, in empty, with substantial cargo, stay put")
-                return
-            elif info.get_cargo_space_used() >= 40:
-                #todo only move closer to another wood, next city or to block enemy
-                move_mapper.stay(unit, " Near wood2, in empty, with substantial cargo, stay put")
-                return
+            if info.get_cargo_space_used() >= 40:
+                better_build_spot = empty_tile_near_wood_and_city()
+                if near_city():
+                    move_mapper.stay(unit, " R1 Near wood, city, in empty, with substantial cargo, stay put")
+                    return
+                elif better_build_spot is None:
+                    move_mapper.stay(unit, " R2 Near wood, in empty, with substantial cargo, no better, stay put")
+                    return
+                else:
+                    if move_mapper.try_to_move_to(actions, info, better_build_spot.pos, " R3 better_build_spot"):
+                        return
+                    else:
+                        move_mapper.stay(unit, " R4 cannot move to better_build_spot")
+                        return
+
+
 
         if len(unsafe_cities) == 0:
             enough_fuel = math.inf
@@ -1456,9 +1477,9 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, possible_positio
 
     result = get_walkable_that_are_near_resources(t_prefix, possible_positions, resource_tiles)
     for next_pos, res_2 in result.items():
-        pr(t_prefix, next_pos, res_2)
+
         is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(next_pos, game_state)
-        pr(t_prefix, 'Resources within 2 of', res_2, ';empty', is_empty,
+        pr(t_prefix, next_pos, 'NumRes within two:', res_2, ';empty', is_empty,
            ';emptyNext', has_empty_next)
 
         res_4 = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 4))
@@ -1554,7 +1575,8 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
         if from_pos.equals(city_tile.pos):
             direction = DIRECTIONS.CENTER
         else:
-            directions = MapAnalysis.get_directions_to_city(from_pos, city_id, player)
+            # directions = MapAnalysis.get_directions_to_city(from_pos, city_id, player)
+            directions = MapAnalysis.directions_to(from_pos, city_tile.pos)
             # pr(' XXX - directions_to ', directions)
             possible_directions = []
             for direction in directions:

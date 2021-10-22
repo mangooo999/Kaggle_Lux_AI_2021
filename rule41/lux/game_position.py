@@ -35,6 +35,8 @@ class Position:
             dist = self.distance_to(pos)
             if dist < result:
                 result = dist
+                if result == 0:
+                    return result
 
         return result
 

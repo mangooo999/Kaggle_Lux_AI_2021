@@ -129,7 +129,7 @@ class ClusterControl:
 
 
 
-    def get_closest_cluster(self, player, pos):
+    def get_closest_cluster(self, player, pos:Position):
         closest_cluster_distance = math.inf
         closest_cluster = None
         for k in list(self.clusters.values()):
@@ -137,10 +137,13 @@ class ClusterControl:
                     (k.res_type == RESOURCE_TYPES.COAL and player.researched_coal()) or \
                     (k.res_type == RESOURCE_TYPES.URANIUM and player.researched_uranium()):
 
-                dist = pos.distance_to(k.get_centroid())
+                #dist = pos.distance_to(k.get_centroid())
+                dist = pos.distance_to_mult(k.resource_cells)
                 if dist < closest_cluster_distance:
                     closest_cluster_distance = dist
                     closest_cluster = k
+                    if dist == 0:
+                        break
         return closest_cluster
 
     def get_units_without_clusters(self) -> List[Unit]:
