@@ -491,7 +491,8 @@ def agent(observation, configuration):
                    'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
                 move_to_best_cluster = True
 
-            if is_this_wood and cluster.autonomy >= 10 and cluster.closest_enemy_distance > 5:
+            #TODO improve this, maybe with a min unit count>=2
+            if False and is_this_wood and cluster.autonomy >= 10 and cluster.closest_enemy_distance > 5:
                 pr(prefix, 'This wood city will live one more night, enemy is distant, let move one', best_cluster_dist)
                 move_to_best_cluster = True
 
@@ -1055,7 +1056,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             return
         #   HASSLER ENDS
 
-        # build city tiles adjacent of other tiles to make only one city.
+        # CAN BUILD RULES
         if unit.can_build(game_state.map):
             #TODO, the num_adjacent_enemy_unit() > 0 condition makes unit build city in the middle of nothing
             if unit.cargo.fuel() < 150:
@@ -1068,7 +1069,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
             if near_city():
                 # this is an excellent spot, but is there even a better one, one that join two different cities?
-                if game_state_info.turns_to_night > 2:
+                if game_state_info.turns_to_night > 2 and not (num_adjacent_enemy_unit() > 0 and near_resource):
                     # only if we have then time to build after 2 turns cooldown
                     dummy, num_adjacent_here = MapAnalysis.find_number_of_adjacent_city_tile(unit.pos, player)
                     for adjacent_position in adjacent_empty_tiles():
@@ -1076,11 +1077,25 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         dummy, num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
                                                                                                  player)
                         # pr(u_prefix, "XXXXXXX ", num_adjacent_city, adjacent_position)
+
+                        # one that join two different cities!
                         if num_adjacent_city > num_adjacent_here and move_mapper.can_move_to_pos(adjacent_position,
                                                                                                  game_state):
                             move_mapper.move_unit_to_pos(actions, info,
                                                          " moved to a place where we can build{0} instead".format(
                                                              str(num_adjacent_city))
+                                                         , adjacent_position)
+                            return
+
+                        # one that still leave this perimeter free
+                        there_in_resource, there_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                            available_resources_tiles,
+                            adjacent_position)
+                        if num_adjacent_city == num_adjacent_here and near_resource and not there_near_resource \
+                            and move_mapper.can_move_to_pos(adjacent_position,
+                                                            game_state):
+                            move_mapper.move_unit_to_pos(actions, info,
+                                                        " moved to a place that is also adjacent, but not near res"
                                                          , adjacent_position)
                             return
 
