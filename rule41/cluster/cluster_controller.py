@@ -83,10 +83,7 @@ class ClusterControl:
 
         # first clear them up
         for k in list(self.clusters.keys()):
-            self.clusters[k].units = []
-            self.clusters[k].incoming_explorers = []
-            self.clusters[k].incoming_explorers_position = []
-            self.clusters[k].city_tiles = []
+            self.clusters[k].cleanup()
 
         for u in player.units:
 
@@ -114,7 +111,7 @@ class ClusterControl:
 
                 # if we found one
                 if closest_cluster is not None:
-                    closest_cluster.add_city_tile(city_tile)
+                    closest_cluster.add_city_tile(city_tile, city.get_autonomy_turns())
 
 
         # update closest unit and enemy

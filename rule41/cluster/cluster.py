@@ -21,6 +21,7 @@ class Cluster:
         self.incoming_explorers: List[str] = []
         self.incoming_explorers_position: List[Position] = []
         self.city_tiles: List[CityTile] = []
+        self.min_autonomy: int = 360
         self.enemy_unit: List[str] = []
         self.perimeter: List[Position] = [Position]
         self.perimeter_empty: List[Position] = [Position] # empty (no resources, no city)
@@ -31,6 +32,13 @@ class Cluster:
         self.closest_unit_distance = math.inf
         self.closest_enemy_distance = math.inf
         self.score = 0.
+
+    def cleanup(self):
+        self.units = []
+        self.incoming_explorers = []
+        self.incoming_explorers_position = []
+        self.city_tiles = []
+        self.autonomy = 360
 
     def refresh_score(self) -> int:
         self.score = - int (
@@ -50,16 +58,17 @@ class Cluster:
             self.incoming_explorers.append(unit_id)
             self.incoming_explorers_position.append(pos)
 
-    def add_city_tile(self, ct: CityTile):
+    def add_city_tile(self, ct: CityTile, autonomy:int ):
         if ct not in self.city_tiles:
             self.city_tiles.append(ct)
+        self.autonomy  = min(autonomy,self.autonomy)
 
     def add_enemy_unit(self, unit_id: str):
         if unit_id not in self.enemy_unit:
             self.enemy_unit.append(unit_id)
 
     def to_string_light(self) -> str:
-        return "{0} {1} r={2} f={3} u={4} iu={10} c={5} e={6} ed={7} pl={8} pw={9} sc={11:1.2f}".format(self.id,
+        return "{0} {1} r={2} f={3} u={4} iu={10} eu={13} c={5} ca={12} e={6} ed={7} pl={8} pw={9} sc={11:1.2f}".format(self.id,
                                                                                                         self.get_centroid(),
                                                                                                         len(self.resource_cells),
                                                                                                         self.get_available_fuel(),
@@ -70,7 +79,9 @@ class Cluster:
                                                                                                         len(self.perimeter_accessible),
                                                                                                         len(self.perimeter_walkable),
                                                                                                         len(self.incoming_explorers),
-                                                                                                        self.score
+                                                                                                        self.score,
+                                                                                                        self.autonomy,
+                                                                                                        self.get_equivalent_units()
                                                                                                         )
 
     def is_more_units_than_res(self) -> bool:

@@ -298,9 +298,12 @@ def agent(observation, configuration):
 
     # clusters management
     clust_analyses: dict[str, Sequence[Tuple]] = {}
+    prefix = t_prefix + 'cluster analyses'
     for cluster in clusters.get_clusters():
         pr(t_prefix, 'cluster', cluster.to_string_light())
         clust_analyses[cluster.id] = []
+        if game_state_info.is_night_time():
+            continue
         if len(cluster.units) == 0:
             continue
 
@@ -317,12 +320,16 @@ def agent(observation, configuration):
                     if unitid in unit_info:
                         info = unit_info[unitid]
                     else:
-                        pr(t_prefix, next_clust.id, unit.id, "cannot find info")
+                        pr(prefix, next_clust.id, unit.id, "TCFAIL cannot find info")
                         continue
 
                     if info.get_cargo_space_left() == 0:
                         # do not consider units that can build
-                        pr(t_prefix, next_clust.id, unit.id, "get_cargo_space_left=0")
+                        # pr(prefix, next_clust.id, unit.id, "get_cargo_space_left=0")
+                        continue
+
+                    if len(next_clust.city_tiles)>0 and next_clust.autonomy>=10:
+                        # pr(prefix, next_clust.id, 'skip on city living too long')
                         continue
 
                     # the distance to reach it
@@ -332,20 +339,20 @@ def agent(observation, configuration):
                     # TODO we could try to add here the resources if we are sure it doesn't pass from a city
                     # # we only consider reachable clusters before the night
                     if time_distance > game_state_info.steps_until_night:
-                        pr(t_prefix, next_clust.id, unit.id, "too far from ", cluster.id,'time_distance ',time_distance)
+                        # pr(prefix, next_clust.id, unit.id, "too far from ", cluster.id,'time_distance ',time_distance)
                         continue
                     if not is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(5), time_distance):
-                        pr(t_prefix, next_clust.id, unit.id, "not minable")
+                        # pr(prefix, next_clust.id, unit.id, "not minable")
                         continue
                     # we also consider expanders to be moved, as their role gets transferred
                     if not (info.is_role_none() or info.is_role_city_expander()):
-                        pr(t_prefix, next_clust.id, unit.id, "role",info.role)
+                        # pr(prefix, next_clust.id, unit.id, "role",info.role)
                         continue
 
                     # from lowest (best), to highest
                     score = time_distance + next_clust.score
                     already_incoming = next_clust.incoming_explorers_position.count(r_pos)
-
+                    pr(prefix, next_clust.id," added to possible clusters for", unit.id, 'score', score)
                     clust_analyses[cluster.id].append(
                         (distance,
                          unit,
@@ -441,7 +448,6 @@ def agent(observation, configuration):
         is_this_or_that_wood = is_this_wood or is_that_wood
 
         move_if = is_this_or_that_wood
-        prefix = t_prefix + 'cluster analyses'
         pr(prefix, 'from :', cluster.to_string_light())
         pr(prefix, 'move_if :', move_if,'eq un=', cluster.get_equivalent_units(),' enemy dist',cluster.closest_enemy_distance)
 
@@ -458,7 +464,7 @@ def agent(observation, configuration):
                    'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
                 move_to_closest_cluster = True
 
-        if closest_cluster_cluster is not None:
+        if best_cluster_cluster is not None:
             pr(prefix, 'best :', best_cluster_dist, best_cluster_cluster.to_string_light())
 
             if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
@@ -482,6 +488,11 @@ def agent(observation, configuration):
                 pr(prefix, 'enemy is very far, and next cluster has no units, no incoming ', best_cluster_cluster.id,
                    'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
                 move_to_best_cluster = True
+
+            if is_this_wood and cluster.autonomy >= 10 and cluster.closest_enemy_distance > 5:
+                pr(prefix, 'This wood city will live one more night, enemy is distant, let move one', best_cluster_dist)
+                move_to_best_cluster = True
+
 
         if move_to_best_cluster:
             pr(prefix, 'try_move_units_cluster best_cluster ', best_cluster_cluster.id)
