@@ -73,10 +73,16 @@ class UnitInfo:
             self.transferred_in_cargo.uranium += qty
 
     def get_cargo_space_used(self) -> int:
-        return self.transferred_in_cargo.get_space_used()
+        if self.transferred_in_cargo is not None:
+            return self.transferred_in_cargo.get_space_used() + self.unit.get_cargo_space_used()
+        else:
+            return self.unit.get_cargo_space_used()
 
-    def get_cargo_space_left(self):
-        100 - self.get_cargo_space_used()
+    def get_cargo_space_left(self) -> int:
+        if self.transferred_in_cargo is not None:
+            return 100 - self.get_cargo_space_used()
+        else:
+            return self.unit.get_cargo_space_left()
 
     def set_last_action_move(self, direction, to_pos):
         self.last_move = 'm'

@@ -317,7 +317,7 @@ def agent(observation, configuration):
                     if unitid in unit_info:
                         info = unit_info[unitid]
 
-                    if unit.get_cargo_space_left() == 0:
+                    if info.get_cargo_space_left() == 0:
                         # do not consider units that can build
                         continue
 
@@ -669,7 +669,7 @@ def agent(observation, configuration):
         # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
         if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
             pr(u_prefix, " this unit has not worked")
-            if unit.get_cargo_space_used() == 0 and len(available_resources_tiles) == 0:
+            if info.get_cargo_space_used() == 0 and len(available_resources_tiles) == 0:
                 # return home
                 send_unit_home(actions, game_state, info, player, u_prefix, unit, "no cargo, no resource")
             elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
@@ -716,7 +716,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
         return
 
     if (len(all_resources_tiles) == 0 and unit.cargo.fuel() > 0 and len(unsafe_cities) == 0):
-        pr(u_prefix, ' end of game, with resources ', unit.get_cargo_space_used())
+        pr(u_prefix, ' end of game, with resources ', info.get_cargo_space_used())
         if unit.can_build(game_state.map):
             dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
             if len(cities) == 0:
@@ -850,7 +850,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 info.clean_unit_role()
 
         #   EXPANDER
-        if info.is_role_city_expander() and unit.get_cargo_space_left() > 0 and num_adjacent_enemy_unit() == 0:
+        if info.is_role_city_expander() and info.get_cargo_space_left() > 0 and num_adjacent_enemy_unit() == 0:
             pr(u_prefix, ' is expander')
 
             # all action expander are based on building next turn. We don't build at last day, so skip if day before
@@ -946,14 +946,14 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             pr(u_prefix, "It's dawn")
             if near_wood() \
                     and in_empty() \
-                    and 0 < unit.get_cargo_space_left() <= 21:
+                    and 0 < info.get_cargo_space_left() <= 21:
                 move_mapper.stay(unit, ' at dawn, can build next day')
                 return
 
         # ALARM, we tried too many times the same move
         if info.alarm >= 4 and len(unsafe_cities) > 0:
             pr(u_prefix, ' has tried too many times to go to ', info.last_move_direction)
-            if unit.get_cargo_space_used()>0 and (in_resource or near_resource):
+            if info.get_cargo_space_used()>0 and (in_resource or near_resource):
                 transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                                        available_resources_tiles, info, in_resource,
                                                                        near_resource, player, unit, u_prefix)
@@ -1008,7 +1008,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     build_city(actions, info, u_prefix, 'hassler build next to city, and done!')
                     info.clean_unit_role()
                     return
-                elif unit.get_cargo_space_left() == 0 and best_adjacent_empty_tile() is not None:
+                elif info.get_cargo_space_left() == 0 and best_adjacent_empty_tile() is not None:
 
                     pr(u_prefix, " hassler full and close to empty, trying to move and build",
                        best_adjacent_empty_tile().pos)
@@ -1250,10 +1250,10 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         return
 
         if near_wood() and in_empty():
-            if unit.get_cargo_space_used() >= 60:
+            if info.get_cargo_space_used() >= 60:
                 move_mapper.stay(unit, " Near wood1, in empty, with substantial cargo, stay put")
                 return
-            elif unit.get_cargo_space_used() >= 40:
+            elif info.get_cargo_space_used() >= 40:
                 #todo only move closer to another wood, next city or to block enemy
                 move_mapper.stay(unit, " Near wood2, in empty, with substantial cargo, stay put")
                 return
@@ -1271,7 +1271,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
 
 
-        # if near_resource and in_empty() and unit.get_cargo_space_used() >= 0:
+        # if near_resource and in_empty() and info.get_cargo_space_used() >= 0:
         #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
         #                                                           available_resources_tiles, info,
         #                                                           in_resource, near_resource,
@@ -1280,7 +1280,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
         #         pr(u_prefix, " Near resources, transferred to somebody not near resouces")
         #         continue
 
-        if (not info.is_role_returner()) and unit.get_cargo_space_left() > 0 \
+        if (not info.is_role_returner()) and info.get_cargo_space_left() > 0 \
                 and (unit.cargo.fuel() < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
             if not in_resource:
                 # find the closest resource if it exists to this unit
@@ -1333,7 +1333,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
                 elif resource_type == RESOURCE_TYPES.WOOD and \
                         game_state_info.turns_to_night > 10 \
-                        and unit.get_cargo_space_left() <= 40 \
+                        and info.get_cargo_space_left() <= 40 \
                         and best_adjacent_empty_tile() is not None:
                     move_mapper.move_unit_to_pos(actions, info,
                                                  " towards closest empty (anticipating getting resources, wood)",
@@ -1343,7 +1343,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     move_mapper.stay(unit, " Stay on resources")
                 return
         else:
-            if game_state_info.turns_to_night > 10 and unit.get_cargo_space_left() <= info.gathered_last_turn \
+            if game_state_info.turns_to_night > 10 and info.get_cargo_space_left() <= info.gathered_last_turn \
                     and in_resource and best_adjacent_empty_tile() is not None:
                 # if we are on a resource, and we can move to an empty tile,
                 # then it means we can at least collect 20 next turn on CD and then build
@@ -1351,12 +1351,12 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 move_mapper.move_unit_to_pos(actions, info,
                                              " towards closest empty (anticipating getting resources)",
                                              best_adjacent_empty_tile().pos)
-            elif game_state_info.turns_to_night > 6 and unit.get_cargo_space_left() == 0 \
+            elif game_state_info.turns_to_night > 6 and info.get_cargo_space_left() == 0 \
                     and best_adjacent_empty_tile() is not None:
                 # find the closest empty tile it to build a city
                 move_unit_to_pos_or_transfer(actions, best_adjacent_empty_tile().pos, info,
                                              player, u_prefix, unit, " towards closest empty ")
-            elif unit.get_cargo_space_left() == 0 and unit.cargo.fuel() < 120 and game_state_info.turns_to_night > 10:
+            elif info.get_cargo_space_left() == 0 and unit.cargo.fuel() < 120 and game_state_info.turns_to_night > 10:
                 # we are full mostly with woods, we should try to build
                 for next_pos in MapAnalysis.get_4_positions(unit.pos, game_state):
                     # pr(t_prefix, 'XXXX',next_pos)
@@ -1436,7 +1436,7 @@ def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, avai
                     ((not in_resource) and near_resource and (not friend_in_resource) and friend_near_resource) or \
                     (not (in_resource or near_resource or friend_in_resource or friend_near_resource)):
                 # if both in or near resourse, or none, transfer to who has more
-                if 0 < friend.get_cargo_space_left() < unit.get_cargo_space_left():
+                if 0 < friend.get_cargo_space_left() < info.get_cargo_space_left():
                     transfer_all_resources(actions, info, friend.id, prefix, pos)
                     return True
 
@@ -1521,11 +1521,11 @@ def move_unit_to_or_transfer(actions, direction, info, player, prefix, unit, msg
         transfer_all_resources(actions, info, friend_unit.id, prefix, next_pos)
         return True
 
-    if unit.get_cargo_space_used() > 0:
+    if info.get_cargo_space_used() > 0:
         # check if anybody in the pos we want to go
         if friend_unit is not None:
             if unit_info[friend_unit.id].is_role_none() or unit_info[friend_unit.id].is_role_returner() \
-                    and friend_unit.get_cargo_space_left() >= unit.get_cargo_space_used():
+                    and unit_info[friend_unit.id].get_cargo_space_left() >= info.get_cargo_space_used():
                 pr(prefix, msg, "instead of moving", direction, ", do transfer to", friend_unit.id, ' in ',
                    unit.pos.translate(direction, 1))
                 transfer_all_resources(actions, info, friend_unit.id, prefix, next_pos)
@@ -1576,7 +1576,7 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
             for direction,next_pos in possible_directions:
                 friend = move_mapper.player.get_unit_in_pos(next_pos)
                 if friend is not None:
-                    if friend.get_cargo_space_left()>0 and unit.get_cargo_space_used()>0:
+                    if friend.get_cargo_space_left()>0 and info.get_cargo_space_used()>0:
                         return direction, city_tile.pos, " towards friend " + friend.id
 
             # then check if we can move
@@ -1621,7 +1621,7 @@ def transfer_all_resources(actions, info: UnitInfo, to_unit_id: str, prefix, pos
 
 
 def do_transfer(actions, info, prefix, resource, qty, to_unit_id, to_unit_string):
-    qty = min(qty,unit_info[to_unit_id].unit.get_cargo_space_left())
+    qty = min(qty,unit_info[to_unit_id].get_cargo_space_left())
     actions.append(info.unit.transfer(to_unit_id, resource, qty))
     pr(prefix, "Unit", info.unit.id, '- transfer', qty, resource,'to', to_unit_string)
     info.set_last_action_transfer()
@@ -1658,7 +1658,7 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
             is_empty = MapAnalysis.is_cell_empty(next_pos, game_state)
             near_resources = MapAnalysis.is_position_adjacent_to_resource(resource_tiles, next_pos)
             is_city = move_mapper.is_position_city(next_pos)
-            if is_city and unit.get_cargo_space_used() > 0:
+            if is_city and info.get_cargo_space_used() > 0:
                 city_id = MapAnalysis.get_city_id_from_pos(next_pos, move_mapper.player)
                 if not city_id in unsafe_cities:
                     pr(' try to avoid our city because it is not unsafe, and we have resources')
@@ -1674,13 +1674,13 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
             # pr(unit.id,' XXX - skip', direction, next_pos)
             continue
 
-    if info.unit.get_cargo_space_left() == 0:
-        # if we do not have cargo, favour empty tiles
+    if info.get_cargo_space_left() == 0:
+        # if we have full cargo, favour empty tiles
         possible_directions.sort(key=lambda x: (x[2]))  # sort by it is empty
-    elif info.unit.get_cargo_space_left() <= 20:
+    elif info.get_cargo_space_left() <= 20:
         # if we have 20 only left, moving in an empty near resources, would just do great
         possible_directions.sort(key=lambda x: (x[3]))  # sort by it is empty and near resources
-    elif info.unit.get_cargo_space_left() == 100:
+    elif info.get_cargo_space_left() == 100:
         # no cargo, whatsoever favour cities to travel faster, then more resources
         possible_directions.sort(key=lambda x: (x[4], x[1]))  # sort by it is empty and near resources
     else:
