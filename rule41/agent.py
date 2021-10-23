@@ -539,11 +539,13 @@ def agent(observation, configuration):
 
         if move_to_best_cluster:
             pr(prefix, 'try_move_units_cluster best_cluster ', best_cluster_cluster.id)
-            repurpose_unit(best_cluster_cluster, best_cluster_pos, best_cluster_unit, cluster, t_prefix)
+            repurpose_unit(game_state_info,best_cluster_cluster, best_cluster_pos, best_cluster_unit,
+                           cluster, opponent, t_prefix)
 
         elif move_to_closest_cluster:
             pr(prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id)
-            repurpose_unit(closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit, cluster, t_prefix)
+            repurpose_unit(game_state_info,closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit,
+                           cluster, opponent, t_prefix)
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -589,8 +591,8 @@ def agent(observation, configuration):
     # Find how many and where to create builders
 
     pr(t_prefix, 'actions_available', number_work_we_can_build, 'number_workers_we_want_to_build',
-       number_work_we_want_to_build,'citytiles',units_cap,'unit_ceiling',unit_ceiling,
-       'res',len(available_resources_tiles))
+       number_work_we_want_to_build, 'citytiles', units_cap, 'unit_ceiling', unit_ceiling,
+       'res', len(available_resources_tiles))
 
     ordered_tyles = {}
     if min(number_work_we_can_build, number_work_we_want_to_build) > 0:
@@ -966,7 +968,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             if in_city():
                 if not near_resource:
                     # not near resource
-                    pr(u_prefix, ' it is night, we are in city, not next resource, do not move')
+                    pr(u_prefix, ' it is night, we are in city, not near resource')
                     for pos in adjacent_next_to_resources().keys():
                         if move_mapper.can_move_to_pos(pos, game_state) and not move_mapper.has_position(pos):
                             direction = unit.pos.direction_to(pos)
@@ -1092,25 +1094,20 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         # pr(u_prefix, "XXXXXXX ", num_adjacent_city, adjacent_position)
 
                         # one that join two different cities!
-                        if num_adjacent_city > num_adjacent_here and move_mapper.can_move_to_pos(adjacent_position,
-                                                                                                 game_state):
-                            move_mapper.move_unit_to_pos(actions, info,
-                                                         " moved to a place where we can build{0} instead".format(
-                                                             str(num_adjacent_city))
-                                                         , adjacent_position)
-                            return
+                        if num_adjacent_city > num_adjacent_here:
+                            if move_to_better_or_transfer("can join {0}instead".format(num_adjacent_city),
+                                                          actions, game_state, info, adjacent_position, player, u_prefix):
+                                return
 
                         # one that still leave this perimeter free
                         there_in_resource, there_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
                             available_resources_tiles,
                             adjacent_position)
-                        if num_adjacent_city == num_adjacent_here and near_resource and not there_near_resource \
-                                and move_mapper.can_move_to_pos(adjacent_position,
-                                                                game_state):
-                            move_mapper.move_unit_to_pos(actions, info,
-                                                         " moved to a place that is also adjacent, but not near res"
-                                                         , adjacent_position)
-                            return
+                        if num_adjacent_city == num_adjacent_here and near_resource and not there_near_resource:
+
+                            if move_to_better_or_transfer(" moved to a place that is also adjacent, but not near res",
+                                                      actions, game_state, info, adjacent_position, player, u_prefix):
+                                return
 
                 do_not_build = False
                 if game_state_info.turns_to_night < 4:
@@ -1160,21 +1157,17 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     build_city(actions, info, u_prefix, 'in adjacent city!')
                     return
 
-            else:  # if can build but we are not near city
+            else:  # if CAN BUILD but NOT near city
 
                 # if we can move to a tile where we are adjacent, do and it and build there
                 if best_adjacent_empty_tile() is not None:
                     pr(u_prefix, " check if adjacent empty is more interesting", best_adjacent_empty_tile().pos)
                     direction = unit.pos.direction_to(best_adjacent_empty_tile().pos)
                     next_pos = unit.pos.translate(direction, 1)
-                    # if nobody is already moving there
-                    if not move_mapper.has_position(next_pos):
-                        pr(u_prefix, " and nobody is moving here")
-                        # and if next pos is actually adjacent
-                        if player.is_position_adjacent_city(next_pos):
-                            move_mapper.move_unit_to(actions, direction, info,
-                                                     " we could have build here, but we move close to city instead",
-                                                     next_pos)
+                    # and if next pos is actually adjacent
+                    if player.is_position_adjacent_city(next_pos):
+                        if move_to_better_or_transfer("we move close to city instead",
+                                                      actions, game_state, info, next_pos, player, u_prefix):
                             return
 
             if (not near_city()) and \
@@ -1445,15 +1438,63 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     return
 
 
-def repurpose_unit(best_cluster_cluster, best_cluster_pos, best_cluster_unit, cluster, t_prefix):
-    pr(t_prefix, ' repurposing', best_cluster_unit.id, ' from', cluster.id, best_cluster_cluster.to_string_light())
-    is_expander = unit_info[best_cluster_unit.id].is_role_city_expander()
-    unit_info[best_cluster_unit.id].set_unit_role_explorer(best_cluster_pos)
+def move_to_better_or_transfer(msg, actions, game_state, info, next_pos, player, u_prefix) -> bool:
+    friend_in_best_adjacent = player.get_unit_in_pos(next_pos)
+    if friend_in_best_adjacent is not None:
+        friend_in_best_adjacent_id = friend_in_best_adjacent.id
+        friend_info: UnitInfo = unit_info[friend_in_best_adjacent_id]
+        if friend_info.get_cargo_space_left() > 0 and \
+                (friend_in_best_adjacent.cooldown > 0 or friend_info.last_move_turn < game_state.turn):
+            pr(u_prefix, " friend in best position, we can pass resource to"+msg, friend_in_best_adjacent_id)
+            transfer_all_resources(actions, info, friend_in_best_adjacent_id, u_prefix, next_pos)
+            return True
+    if not move_mapper.has_position(next_pos):
+        # and if next pos is actually adjacent
+        move_mapper.move_unit_to_pos(actions, info," we could have build here, but" + msg, next_pos)
+        return True
+
+    return False
+
+
+def repurpose_unit(game_state_info,new_cluster, best_cluster_pos, selected_unit, cluster, opponent, t_prefix):
+
+    is_expander = unit_info[selected_unit.id].is_role_city_expander()
+    # try to find out what is the best position to move to
+    min_dist = 100
+    closest_pos_to_enemy = None
+    # pr(t_prefix, ' XXXX',new_cluster.id, new_cluster.perimeter_empty)
+    for pos in new_cluster.perimeter_empty:
+        dist = selected_unit.pos.distance_to(pos)
+        time_distance = 2 * dist + selected_unit.cooldown
+        if time_distance > game_state_info.steps_until_night:
+            # skip unreachable
+            continue
+        if pos in new_cluster.incoming_explorers_position:
+            continue
+        e,distance_to_enemy = opponent.get_closest_unit(pos)
+        if distance_to_enemy<=dist:
+            # skip where enemy can arrive first
+            continue
+        if distance_to_enemy<min_dist:
+            min_dist=distance_to_enemy
+            closest_pos_to_enemy= pos
+
+    if closest_pos_to_enemy is not None:
+        # pr(t_prefix, ' XXXX', new_cluster.id, closest_pos_to_enemy,min_dist)
+        best_cluster_pos = closest_pos_to_enemy
+
+    pr(t_prefix, ' repurposing', selected_unit.id, ' from', cluster.id,"to position ",best_cluster_pos," cluster=",
+       new_cluster.to_string_light())
+    # TODO we could try to add here the resources if we are sure it doesn't pass from a city
+    # # we only consider reachable clusters before the night
+
+
+    unit_info[selected_unit.id].set_unit_role_explorer(best_cluster_pos)
     if is_expander:
         # we need to set expander some other unit
         for u in cluster.units:
             if unit_info[u].is_role_none():
-                pr(t_prefix, best_cluster_cluster.id, 'expander repurposed')
+                pr(t_prefix, new_cluster.id, 'expander repurposed')
                 unit_info[u].set_unit_role_expander(t_prefix)
                 break
 
@@ -1513,7 +1554,7 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, possible_positio
     pr(t_prefix, 'get_best_first_move, pos: score, dist, score_aggressive, -res_2, -res_4')
     for next_pos, res_2 in result.items():
 
-        if not move_mapper.can_move_to_pos(next_pos,game_state):
+        if not move_mapper.can_move_to_pos(next_pos, game_state):
             continue
 
         is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(next_pos, game_state)
