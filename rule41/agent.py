@@ -60,16 +60,14 @@ def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
 def prx(*args): pr(*args, f=True)
 
 
-def adjacent_empty_tile_favor_close_to_city_and_res(pos: Position, empty_tyles, game_state, player, opponent,
-                                                    resource_tiles, prefix) -> Optional[Cell]:
+def adjacent_empty_tiles_with_payload(pos: Position, empty_tyles, game_state, player, opponent,
+                                      resource_tiles, prefix) -> {}:
     if len(empty_tyles) == 0:
-        return None
-    elif len(empty_tyles) == 1:
-        return game_state.map.get_cell_by_pos(empty_tyles[0])
+        return {}
     else:
         enemy_unity, enemy_distance = opponent.get_closest_unit(pos)
         enemy_direction = DIRECTIONS.CENTER
-        if 3 <= enemy_distance <= 5:
+        if 2 <= enemy_distance <= 5:
             enemy_direction = pos.direction_to(enemy_unity.pos)
             # pr(prefix, "XXXX0 enemy is at ", enemy_direction, enemy_distance)
 
@@ -92,12 +90,31 @@ def adjacent_empty_tile_favor_close_to_city_and_res(pos: Position, empty_tyles, 
 
         # pr(prefix,"XXXX2 adjacent_empty_tile_favor_close_to_city", results)
         # ordered by number of tiles, so we take last element
-        results = dict(collections.OrderedDict(sorted(results.items(), key=lambda x: x[1], reverse=True)))
-        # pr(prefix,"XXXX3 adjacent_empty_tile_favor_close_to_city", results)
-        result = next(iter(results.keys()))
+        return results
 
-        # pr("Return", result)
-        return game_state.map.get_cell_by_pos(result)
+def adjacent_empty_tiles_favour_city_ct_res_towenemy(results:{}):
+    if len(results.keys()) == 0:
+        return None
+
+    results = dict(collections.OrderedDict(sorted(results.items(), key=lambda x: x[1], reverse=True)))
+    # pr(prefix,"XXXX3 adjacent_empty_tile_favor_close_to_city", results)
+    result = next(iter(results.keys()))
+
+    # pr("Return", result)
+    return game_state.map.get_cell_by_pos(result)
+
+def adjacent_empty_tiles_favour_res_towenemy(results:{}):
+    if len(results.keys()) == 0:
+        return None
+
+    # order by resources, enemy, city, city tiles
+    results = dict(collections.OrderedDict(sorted(results.items(), key=lambda x: (x[1] [2],x[1] [3],x[1] [0],x[1] [1]),
+                                                  reverse=True)))
+    # pr(prefix,"XXXX3 adjacent_empty_tile_favor_close_to_city", results)
+    result = next(iter(results.keys()))
+
+    # pr("Return", result)
+    return game_state.map.get_cell_by_pos(result)
 
 
 def get_empty_tile_near_resources(empty_tiles, resource_tiles) -> [Position]:
@@ -372,6 +389,15 @@ def agent(observation, configuration):
                     if len(next_clust.city_tiles) > 0 and next_clust.autonomy >= 10:
                         # pr(prefix, next_clust.id, 'skip on city living too long')
                         continue
+
+                    if len(opponent.get_units_around_pos(unit.pos, 1)) > 0:
+                        in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                            available_resources_tiles,
+                            unit.pos)
+                        if in_resource or near_resource:
+                            # pr(prefix, next_clust.id, unit.id, "unit in strategic position, facing enemy")
+                            continue
+
 
                     # the distance to reach it
                     r_pos, distance = MapAnalysis.get_closest_to_positions(unit.pos, next_clust.perimeter_empty)
@@ -842,13 +868,19 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
         near_city = LazyWrapper(lambda: player.is_position_adjacent_city(unit.pos))
 
         # adjacent SHORTCUTS
-        best_adjacent_empty_tile = LazyWrapper(lambda: adjacent_empty_tile_favor_close_to_city_and_res(unit.pos,
-                                                                                                       adjacent_empty_tiles(),
-                                                                                                       game_state,
-                                                                                                       player,
-                                                                                                       opponent,
-                                                                                                       available_resources_tiles,
-                                                                                                       u_prefix))
+        best_adjacent_empty_tiles = LazyWrapper(lambda: adjacent_empty_tiles_with_payload(unit.pos,
+                                                                                         adjacent_empty_tiles(),
+                                                                                         game_state,
+                                                                                         player,
+                                                                                         opponent,
+                                                                                         available_resources_tiles,
+                                                                                         u_prefix))
+
+        best_adjacent_empty_tile_near_city = LazyWrapper(
+            lambda: adjacent_empty_tiles_favour_city_ct_res_towenemy(best_adjacent_empty_tiles()))
+        best_adjacent_empty_tile_near_res_towards_enemys = LazyWrapper(
+            lambda: adjacent_empty_tiles_favour_res_towenemy(best_adjacent_empty_tiles()))
+
         resources_distance, adjacent_resources = find_resources_distance(
             unit.pos, clusters, all_resources_tiles, game_info, u_prefix)
         city_tile_distance = LazyWrapper(
@@ -1059,36 +1091,6 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                          'returner ' + msg)
                 return
 
-                #   HASSLER
-        if info.is_role_hassler():
-            pr(u_prefix, ' is hassler')
-            if opponent.is_position_adjacent_city(unit.pos):
-                pr(u_prefix, ' hassler arrived to enemy')
-                if unit.can_build(game_state.map):
-                    build_city(actions, info, u_prefix, 'hassler build next to city, and done!')
-                    info.clean_unit_role()
-                    return
-                elif info.get_cargo_space_left() == 0 and best_adjacent_empty_tile() is not None:
-
-                    pr(u_prefix, " hassler full and close to empty, trying to move and build",
-                       best_adjacent_empty_tile().pos)
-                    direction = unit.pos.direction_to(best_adjacent_empty_tile().pos)
-                    next_pos = unit.pos.translate(direction, 1)
-                    move_mapper.move_unit_to(actions, direction, info,
-                                             " move to build nearby enemy",
-                                             next_pos)
-                    return
-
-            else:
-                enemy_surrounding = MapAnalysis.find_closest_adjacent_enemy_city_tile(unit.pos, opponent)
-                direction = unit.pos.direction_to(enemy_surrounding.pos)
-                # if nobody is already moving there
-                if not move_mapper.has_position(enemy_surrounding.pos):
-                    move_mapper.move_unit_to(actions, direction, info, " move to enemy", enemy_surrounding.pos)
-                    return
-
-            return
-        #   HASSLER ENDS
 
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
@@ -1179,9 +1181,9 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             else:  # if CAN BUILD but NOT near city
 
                 # if we can move to a tile where we are adjacent, do and it and build there
-                if best_adjacent_empty_tile() is not None:
-                    pr(u_prefix, " check if adjacent empty is more interesting", best_adjacent_empty_tile().pos)
-                    direction = unit.pos.direction_to(best_adjacent_empty_tile().pos)
+                if best_adjacent_empty_tile_near_city() is not None:
+                    pr(u_prefix, " check if adjacent empty is more interesting", best_adjacent_empty_tile_near_city().pos)
+                    direction = unit.pos.direction_to(best_adjacent_empty_tile_near_city().pos)
                     next_pos = unit.pos.translate(direction, 1)
                     # and if next pos is actually adjacent
                     if player.is_position_adjacent_city(next_pos):
@@ -1386,6 +1388,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 else:
                     pr(u_prefix, " resources_distance invalid (or empty?)")
             else:
+                # ON RESOURCE
                 resource_type = game_state.map.get_cell(unit.pos.x, unit.pos.y).resource.type
                 pr(u_prefix, " Already on resources:", resource_type)
                 if resource_type != RESOURCE_TYPES.WOOD \
@@ -1402,27 +1405,27 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 elif resource_type == RESOURCE_TYPES.WOOD and \
                         game_state_info.turns_to_night > 10 \
                         and info.get_cargo_space_left() <= 40 \
-                        and best_adjacent_empty_tile() is not None:
+                        and best_adjacent_empty_tile_near_res_towards_enemys() is not None:
                     move_mapper.move_unit_to_pos(actions, info,
                                                  " towards closest empty (anticipating getting resources, wood)",
-                                                 best_adjacent_empty_tile().pos)
+                                                 best_adjacent_empty_tile_near_res_towards_enemys().pos)
                 else:
                     resource_target_by_unit.setdefault((unit.pos.x, unit.pos.y), []).append(unit.id)
                     move_mapper.stay(unit, " Stay on resources")
                 return
         else:
             if game_state_info.turns_to_night > 10 and info.get_cargo_space_left() <= info.gathered_last_turn \
-                    and in_resource and best_adjacent_empty_tile() is not None:
+                    and in_resource and best_adjacent_empty_tile_near_city() is not None:
                 # if we are on a resource, and we can move to an empty tile,
                 # then it means we can at least collect 20 next turn on CD and then build
                 # find the closest empty tile it to build a city
                 move_mapper.move_unit_to_pos(actions, info,
                                              " towards closest empty (anticipating getting resources)",
-                                             best_adjacent_empty_tile().pos)
+                                             best_adjacent_empty_tile_near_city().pos)
             elif game_state_info.turns_to_night > 6 and info.get_cargo_space_left() == 0 \
-                    and best_adjacent_empty_tile() is not None:
+                    and best_adjacent_empty_tile_near_res_towards_enemys() is not None:
                 # find the closest empty tile it to build a city
-                move_unit_to_pos_or_transfer(actions, best_adjacent_empty_tile().pos, info,
+                move_unit_to_pos_or_transfer(actions, best_adjacent_empty_tile_near_res_towards_enemys().pos, info,
                                              player, u_prefix, unit, " towards closest empty ")
             elif info.get_cargo_space_left() == 0 and unit.cargo.fuel() < 120 and game_state_info.turns_to_night > 10:
                 # we are full mostly with woods, we should try to build
