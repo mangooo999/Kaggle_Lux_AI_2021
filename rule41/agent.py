@@ -974,7 +974,26 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                             direction = unit.pos.direction_to(pos)
                             move_mapper.move_unit_to(actions, direction, info, "night, next to resource")
                             return
+
+                    # try to see if we can move via the city to closest resource
+                    if resources_distance is not None and len(resources_distance) > 0:
+                        for resource, resource_dist_info in resources_distance.items():
+                            if resource is not None and not resource.pos.equals(unit.pos):
+                                directions = MapAnalysis.directions_to(unit.pos, resource.pos)
+                                for direction in directions:
+                                    next_pos = unit.pos.translate(direction, 1)
+                                    if not move_mapper.has_position(next_pos):
+                                        if MapAnalysis.is_position_city(next_pos,player):
+                                            move_mapper.move_unit_to(actions, direction, info,
+                                                                     "night, via city closer to resource")
+                                            return
+                                        
+                            # only check closest resource, otherwise it ping pong
+                            break
+
+
                     # could not find find next to resource
+                    move_mapper.stay(unit, ' it is night, not next resource, but we could not find better')
                     return
                 else:
                     # in city, near resource
