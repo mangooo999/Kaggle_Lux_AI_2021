@@ -295,22 +295,26 @@ def agent(observation, configuration):
         else:
             initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
             distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
+            direction_to_enemy = DIRECTIONS.CENTER
             if 1 <= distance_cities <= 5:
-                step_to_enemy = initial_city_pos.translate_towards(initial_enemy_city_pos)
+                direction_to_enemy = initial_city_pos.direction_to(initial_enemy_city_pos)
+                step_to_enemy = initial_city_pos.translate(direction_to_enemy, 1)
                 is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(step_to_enemy, game_state)
+                # if going towards enemy is good enough
                 if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy) \
-                        and (is_empty or has_empty_next):
+                        and (is_empty or has_empty_next) and move_mapper.can_move_to_pos(step_to_enemy, game_state):
                     pr(t_prefix, "Confrontational first step towards enemy")
                     good_pos_around_city = step_to_enemy
 
             if good_pos_around_city is None:
+                # choose first based on 12 cells around
                 x3: list = MapAnalysis.get_resources_around(available_resources_tiles, initial_city_pos, 3)
                 game_info.at_start_resources_within3 = len(x3)
                 pr(t_prefix, "Resources within distance 3 of initial pos", initial_city_pos, " number=", len(x3))
 
                 possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
                 good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos,
-                                                           possible_positions, wood_tiles, initial_enemy_city_pos)
+                                                           possible_positions, wood_tiles, direction_to_enemy)
 
         # END initial calculations
 
@@ -584,8 +588,9 @@ def agent(observation, configuration):
 
     # Find how many and where to create builders
 
-    pr(t_prefix, 'number_work_we_can_build', number_work_we_can_build, 'number_work_we_want_to_build',
-       number_work_we_want_to_build)
+    pr(t_prefix, 'actions_available', number_work_we_can_build, 'number_workers_we_want_to_build',
+       number_work_we_want_to_build,'citytiles',units_cap,'unit_ceiling',unit_ceiling,
+       'res',len(available_resources_tiles))
 
     ordered_tyles = {}
     if min(number_work_we_can_build, number_work_we_want_to_build) > 0:
@@ -1495,22 +1500,23 @@ def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, avai
 
 
 def get_best_first_move(t_prefix, game_state, initial_city_pos, possible_positions, resource_tiles,
-                        initial_enemy_city_pos: Position):
+                        direction_to_enemy):
     first_best_position = None
     first_move = {}
-    distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
-    direction_to_enemy = DIRECTIONS.CENTER
-    direction_from_enemy = DIRECTIONS.CENTER
-    if 3 <= distance_cities <= 4:
-        direction_to_enemy = initial_city_pos.direction_to(initial_enemy_city_pos)
+
+    if direction_to_enemy != DIRECTIONS.CENTER:
         direction_from_enemy = DIRECTIONS.opposite(direction_to_enemy)
+    else:
+        direction_from_enemy = DIRECTIONS.CENTER
 
     result = get_walkable_that_are_near_resources(t_prefix, possible_positions, resource_tiles)
+    pr(t_prefix, 'get_best_first_move, pos: score, dist, score_aggressive, -res_2, -res_4')
     for next_pos, res_2 in result.items():
 
+        if not move_mapper.can_move_to_pos(next_pos,game_state):
+            continue
+
         is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(next_pos, game_state)
-        pr(t_prefix, next_pos, 'NumRes within two:', res_2, ';empty', is_empty,
-           ';emptyNext', has_empty_next)
 
         res_4 = len(MapAnalysis.get_resources_around(resource_tiles, next_pos, 4))
         dist = initial_city_pos.distance_to(next_pos)
@@ -1532,12 +1538,15 @@ def get_best_first_move(t_prefix, game_state, initial_city_pos, possible_positio
             score_aggressive = +1  # discourage from enemy
 
         first_move[next_pos] = (score, dist, score_aggressive, -res_2, -res_4)
-    pr(t_prefix, 'Not Ordered Resources within 2', first_move)
+        pr(t_prefix, 'get_best_first_move', next_pos, first_move[next_pos])
+
+    # pr(t_prefix, 'Not Ordered Resources within 2', first_move)
     if len(first_move.keys()) > 0:
         result = collections.OrderedDict(sorted(first_move.items(), key=lambda x: x[1]))
         pr(t_prefix, 'Ordered Resources within 2', result)
         first_best_position = next(iter(result.keys()))
-        pr(t_prefix, 'first_best_position', first_best_position)
+        pr(t_prefix, 'get_best_first_move: chosen', first_best_position, first_move[first_best_position])
+
     return first_best_position
 
 
