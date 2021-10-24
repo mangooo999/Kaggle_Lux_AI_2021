@@ -783,7 +783,8 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
     pr(u_prefix, ";pos", unit.pos, 'CD=', unit.cooldown, unit.cargo.to_string(), 'fuel=',
        unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role)
 
-    in_city = LazyWrapper(lambda: move_mapper.is_position_city(unit.pos))
+    in_which_city = LazyWrapper(lambda: MapAnalysis.get_city_id_from_pos(unit.pos, player))
+    in_city = LazyWrapper(lambda: in_which_city() != '')
     adjacent_units = LazyWrapper(lambda: player.get_units_around_pos(unit.pos, 1))
     adjacent_empty_tiles = LazyWrapper(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
     adjacent_empty_near_res = LazyWrapper(lambda: get_empty_tile_near_resources(adjacent_empty_tiles(),
@@ -1030,14 +1031,23 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         return
 
             if in_city():
+                is_this_city_safe = in_which_city() not in unsafe_cities
+                if is_this_city_safe:
+                    pr(u_prefix, ' it is night, this city is already safe though')
+                    for pos in adjacent_next_to_resources():
+                        if (not move_mapper.is_position_city(pos)) and move_mapper.can_move_to_pos(pos,game_state):
+                            move_mapper.move_unit_to_pos(actions, info, "go out from city that is already safe", pos)
+                            return
+
                 if not near_resource:
                     # not near resource
                     pr(u_prefix, ' it is night, we are in city, not near resource')
-                    for pos in adjacent_next_to_resources().keys():
-                        if move_mapper.can_move_to_pos(pos, game_state) and not move_mapper.has_position(pos):
-                            direction = unit.pos.direction_to(pos)
-                            move_mapper.move_unit_to(actions, direction, info, "night, next to resource")
-                            return
+                    if not is_this_city_safe:
+                        for pos in adjacent_next_to_resources().keys():
+                            if move_mapper.can_move_to_pos(pos, game_state) and not move_mapper.has_position(pos):
+                                direction = unit.pos.direction_to(pos)
+                                move_mapper.move_unit_to(actions, direction, info, "night, next to resource")
+                                return
 
                     # try to see if we can move via the city to closest resource
                     if resources_distance is not None and len(resources_distance) > 0:
