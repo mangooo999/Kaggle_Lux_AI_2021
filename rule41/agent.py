@@ -527,7 +527,8 @@ def agent(observation, configuration):
                 move_to_closest_cluster = True
 
             if move_if and cluster.get_equivalent_units() > 1 and closest_cluster_dist < 4 and \
-                    closest_cluster_cluster.get_equivalent_units() == 0:
+                    closest_cluster_cluster.get_equivalent_units() == 0 and \
+                    closest_cluster_cluster.num_units_and_incoming() == 0:
                 pr(prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
                    'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
                 move_to_closest_cluster = True
@@ -546,7 +547,8 @@ def agent(observation, configuration):
                 move_to_best_cluster = True
 
             if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4 and \
-                    best_cluster_cluster.get_equivalent_units() == 0:
+                    best_cluster_cluster.get_equivalent_units() == 0 and \
+                    best_cluster_cluster.num_units_and_incoming() == 0:
                 pr(prefix, 'There is a very near best uncontested cluster', best_cluster_cluster.id,
                    'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
                 move_to_best_cluster = True
@@ -1832,7 +1834,7 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
                     continue
 
             is_direction_opposite = DIRECTIONS.opposite(direction) == info.last_move_direction
-            
+
             possible_directions.append(
                 (direction,  # 0
                  -number_of_adjacent_res,  # 1
