@@ -258,18 +258,26 @@ def agent(observation, configuration):
     number_city_tiles = 0
     total_fuel_required = 0
 
+    all_resources_tiles, available_resources_tiles, wood_tiles, total_fuel, available_fuel \
+        = ResourceService.find_all_resources(game_state, player)
+
     # set unsafe cities, record how many available city actions we have
     if len(cities) > 0:
         for city in cities:
             will_live = city.get_autonomy_turns() >= game_state_info.all_night_turns_lef
             will_live_next_night = city.get_autonomy_turns() >= game_state_info.next_night_number_turn
             payload = (city.get_num_tiles(), will_live_next_night)
-            total_fuel_required += city.get_light_upkeep() * game_state_info.all_night_turns_lef
+            total_fule_required_by_city = city.get_light_upkeep() * game_state_info.all_night_turns_lef
+            total_fuel_required += total_fule_required_by_city
             # collect unsafe cities
-            if not will_live:
-                unsafe_cities[city.cityid] = payload
-            if not will_live_next_night:
-                immediately_unsafe_cities[city.cityid] = payload
+
+            if total_fule_required_by_city > total_fuel:
+                pr(t_prefix, city.cityid, 'this city is unsafe, but will not survive till the end')
+            else:
+                if not will_live:
+                    unsafe_cities[city.cityid] = payload
+                if not will_live_next_night:
+                    immediately_unsafe_cities[city.cityid] = payload
 
             # record how many available city actions we have now
             for city_tile in city.citytiles:
@@ -279,8 +287,7 @@ def agent(observation, configuration):
                 if city_tile.cooldown <= 1:
                     available_city_actions_now_and_next += 1
 
-    all_resources_tiles, available_resources_tiles, wood_tiles, total_fuel, available_fuel \
-        = ResourceService.find_all_resources(game_state, player)
+
     pr(t_prefix, 'number_city_tiles=', number_city_tiles, 'total_fuel_required=', total_fuel_required,
        "total_fuel in resources=", total_fuel, 'available_fuel_in_resources_now=', available_fuel)
     if game_state.turn == 0:
@@ -381,8 +388,8 @@ def agent(observation, configuration):
                         pr(prefix, next_clust.id, unit.id, "TCFAIL cannot find info")
                         continue
 
-                    if info.get_cargo_space_left() == 0:
-                        # do not consider units that can build
+                    if info.get_cargo_space_left() == 0 or info.unit.cargo.fuel() > 150:
+                        # do not consider units that can build with wood (fuel=100) or high fuel ones
                         # pr(prefix, next_clust.id, unit.id, "get_cargo_space_left=0")
                         continue
 
@@ -438,8 +445,10 @@ def agent(observation, configuration):
                 and (len(cluster.enemy_unit) < (cluster.get_equivalent_resources() // 4)) \
                 and (cluster.num_units() + len(cluster.incoming_explorers)) >= 3:
             pr(t_prefix, "big cluster", cluster.to_string_light())
+            units_to_pos = []
+            MIN_DIST = 3
+
             for pos in cluster.perimeter_empty:
-                MIN_DIST = 3
                 # not close to friendly
                 if player.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
                     continue
@@ -452,7 +461,6 @@ def agent(observation, configuration):
                 if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
                     continue
 
-                units_to_pos = []
                 for unitid in cluster.units:
                     unit = player.units_by_id[unitid]
                     info = None
@@ -463,17 +471,19 @@ def agent(observation, configuration):
                         if info.is_role_none():
                             dist = unit.pos.distance_to(pos)
                             units_to_pos.append((dist, info, pos))
-                units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
 
-                spread_move = next(iter(units_to_pos), None)
-                if spread_move is not None:
-                    dist = spread_move[0]
-                    i: UnitInfo = spread_move[1]  # infor
-                    u = i.unit
-                    pos = spread_move[2]
-                    pr(t_prefix, "assigning", u.id, "to spread in big cluster", cluster.id, pos)
-                    i.set_unit_role_traveler(pos, dist * 2)
-                    break
+            units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
+            # pr(t_prefix, "XXXXX ", units_to_pos)
+
+            spread_move = next(iter(units_to_pos), None)
+            if spread_move is not None:
+                dist = spread_move[0]
+                info: UnitInfo = spread_move[1]  # infor
+                u = info.unit
+                pos = spread_move[2]
+                pr(t_prefix, "assigning", u.id, "to spread in big cluster", cluster.id, pos)
+                info.set_unit_role_traveler(pos, dist * 2)
+                break
 
         if len(clust_analyses[cluster.id]) == 0:
             continue
@@ -541,7 +551,7 @@ def agent(observation, configuration):
                    cluster.num_resource())
                 move_to_best_cluster = True
 
-            if move_if and cluster.get_equivalent_units() > config.cluster_wood_overcrowded:
+            if is_this_wood and cluster.get_equivalent_units() > config.cluster_wood_overcrowded:
                 pr(prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
                    'u=', cluster.units)
                 move_to_best_cluster = True
