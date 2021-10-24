@@ -1832,8 +1832,7 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
                     continue
 
             is_direction_opposite = DIRECTIONS.opposite(direction) == info.last_move_direction
-            is_direction_opposite = False
-
+            
             possible_directions.append(
                 (direction,  # 0
                  -number_of_adjacent_res,  # 1
