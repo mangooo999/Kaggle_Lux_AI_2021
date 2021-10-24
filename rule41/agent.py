@@ -769,12 +769,14 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
     in_city = LazyWrapper(lambda: move_mapper.is_position_city(unit.pos))
     adjacent_units = LazyWrapper(lambda: player.get_units_around_pos(unit.pos, 1))
     adjacent_empty_tiles = LazyWrapper(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
-    empty_tile_near_resources = LazyWrapper(lambda: get_empty_tile_near_resources(adjacent_empty_tiles(),
+    adjacent_empty_near_res = LazyWrapper(lambda: get_empty_tile_near_resources(adjacent_empty_tiles(),
                                                                                   available_resources_tiles))
+    adjacent_empty_near_res_walkable_near_enemy = LazyWrapper(lambda: get_adjacent_empty_near_res_walkable_near_enemy(
+        adjacent_empty_near_res, game_state, opponent, u_prefix))
     in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(available_resources_tiles,
                                                                                    unit.pos)
-    empty_tile_near_wood_and_city = LazyWrapper(lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(), wood_tiles,
-                                                                                     game_state, player))
+    adjacent_empty_near_wood_and_city = LazyWrapper(lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(), wood_tiles,
+                                                                                         game_state, player))
     # End of game, try to save units that are not going anymore to do anything
     if (len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
             or (game_state.turn >= 350):
@@ -843,13 +845,18 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     friend_unit_with_res = f
 
         if friend_unit_with_res is not None:
-            directions = MapAnalysis.directions_to_no_city(unit.pos, friend_unit_with_res.pos, player)
+            friend_info = unit_info[friend_unit_with_res.id]
+            target_pos = friend_unit_with_res.pos
+            if friend_info.last_move_turn == game_state.turn:
+                #friend already moved
+                target_pos = target_pos.translate(friend_info.last_move_direction,1)
+            directions = MapAnalysis.directions_to_no_city(unit.pos, target_pos, player)
             for direction in directions:
                 if move_mapper.can_move_to_direction(unit.pos, direction, game_state):
                     move_mapper.move_unit_to(actions, direction, info,
                                              'try to move' + direction +
                                              ' closer to ' + friend_unit_with_res.id + ' to put together 100',
-                                             friend_unit_with_res.pos)
+                                             target_pos)
                     return
 
     if (move_mapper.is_position_city(unit.pos) and 2 < game_state.turn < 15 and number_city_tiles == 1
@@ -934,7 +941,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     return
 
                 # if we have the possibility of going in a tile that is like the  above
-                expander_spot = empty_tile_near_wood_and_city()
+                expander_spot = adjacent_empty_near_wood_and_city()
 
                 if expander_spot is not None:
                     if move_mapper.try_to_move_to(actions, info, expander_spot.pos, " expander to perfect pos"):
@@ -978,18 +985,26 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 # empty near a resource, we can stay here, but we could even better go to same near city
 
                 # if we have the possibility of going in a tile that is empty_tile_near_wood_and_city, then go
-                best_night_spot = empty_tile_near_wood_and_city()
+                best_night_spot = adjacent_empty_near_wood_and_city()
 
                 if best_night_spot is not None \
                         and move_mapper.try_to_move_to(actions, info, best_night_spot.pos, " best_night_spot"):
                     return
                 else:
+                    if len(adjacent_enemy_units()) == 0:
+                        #there is nobody around us, but there is somebody around an empty near us, block him
+                        if len(adjacent_empty_near_res_walkable_near_enemy()) > 0:
+                            next_pos = next(iter(adjacent_empty_near_res_walkable_near_enemy()))
+                            move_mapper.move_unit_to(actions, unit.pos.direction_to(next_pos), info,
+                                                     " night block enemy", next_pos)
+                            return
+
                     move_mapper.stay(unit, ' it is night, we will stay here')
                     return
 
             # if we have the possibility of going in a tile that is empty_tile_near_wood_and_city
             # go if not in a city, or if you are in a city, go just last 1 days of night (so we gather and covered)
-            best_night_spot = empty_tile_near_wood_and_city()
+            best_night_spot = adjacent_empty_near_wood_and_city()
 
             if best_night_spot is not None:
                 enemy_there = opponent.is_unit_adjacent(best_night_spot.pos)  # IN OR ADJACENT
@@ -1094,7 +1109,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
-            # TODO, the num_adjacent_enemy_unit() > 0 condition makes unit build city in the middle of nothing
+            
             if unit.cargo.fuel() < 150:
                 if num_adjacent_enemy_unit() > 0 and (near_resource or near_city()):
                     build_city(actions, info, u_prefix, 'because we are close to enemy')
@@ -1270,18 +1285,10 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         else:
             # no enemy or city around us
-            possible_moves = []
-            for pos in empty_tile_near_resources():
-                # look if any walkable empty tile, is near an enemy
-                if not move_mapper.can_move_to_pos(pos, game_state):
-                    continue  # cannot move here, next
-                if opponent.get_num_units_and_city_number_around_pos(pos) == 0:
-                    continue  # this is not close to enemy
-                pr(u_prefix, 'this pos is around enemy and resource ', pos)
-                possible_moves.append(pos)
+
             # not close to an enemy, but we are in a city close to adjacent that is close to enemy:
-            if len(possible_moves) > 0:
-                next_pos = next(iter(possible_moves))
+            if len(adjacent_empty_near_res_walkable_near_enemy()) > 0:
+                next_pos = next(iter(adjacent_empty_near_res_walkable_near_enemy()))
                 move_mapper.move_unit_to(actions, unit.pos.direction_to(next_pos), info, "block enemy",
                                          next_pos)
                 return
@@ -1317,7 +1324,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         if near_wood() and in_empty():
             if info.get_cargo_space_used() >= 40:
-                better_build_spot = empty_tile_near_wood_and_city()
+                better_build_spot = adjacent_empty_near_wood_and_city()
                 if near_city():
                     move_mapper.stay(unit, " R1 Near wood, city, in empty, with substantial cargo, stay put")
                     return
@@ -1458,6 +1465,21 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                              'city' + msg)
                     pr(u_prefix, " Goto city4")
                     return
+
+
+def get_adjacent_empty_near_res_walkable_near_enemy(adjacent_empty_near_res, game_state, opponent, u_prefix) \
+        -> [Position]:
+    possible_moves = []
+    for pos in adjacent_empty_near_res():
+        # look if any walkable empty tile, is near an enemy
+        if not move_mapper.can_move_to_pos(pos, game_state):
+            continue  # cannot move here, next
+        if opponent.get_num_units_and_city_number_around_pos(pos) == 0:
+            continue  # this is not close to enemy
+        pr(u_prefix, 'this pos is around enemy and resource ', pos)
+        possible_moves.append(pos)
+
+    return possible_moves
 
 
 def move_to_better_or_transfer(msg, actions, game_state, info, next_pos, player, u_prefix) -> bool:

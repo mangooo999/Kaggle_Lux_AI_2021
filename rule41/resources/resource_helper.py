@@ -83,17 +83,16 @@ def find_all_resources(game_state, player) -> (List[Cell], List[Cell], List[Cell
             if cell.has_resource():
                 resource_tiles_all.append(cell)
                 if cell.resource.type == RESOURCE_TYPES.WOOD:
+                    total_fuel += cell.resource.amount
                     wood_tiles.append(cell)
                     resource_tiles_available.append(cell)
-                    total_fuel += cell.resource.amount
                     available_fuel += cell.resource.amount
-                if cell.resource.type == RESOURCE_TYPES.COAL:
+                elif cell.resource.type == RESOURCE_TYPES.COAL:
                     total_fuel += cell.resource.amount * 10
                     if player.researched_coal():
                         resource_tiles_available.append(cell)
                         available_fuel += cell.resource.amount * 10
-
-                if cell.resource.type == RESOURCE_TYPES.URANIUM:
+                elif cell.resource.type == RESOURCE_TYPES.URANIUM:
                     total_fuel += cell.resource.amount * 40
                     if player.researched_uranium():
                         resource_tiles_available.append(cell)
