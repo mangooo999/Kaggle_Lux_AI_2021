@@ -721,12 +721,17 @@ def agent(observation, configuration):
     # map of resource to unit going for them
     resource_target_by_unit = {}
 
+    # start with potential builder, so that movement are easier to calculate
     for unit in player.units:
-        get_unit_action(unit, actions, all_resources_tiles,
-                        available_resources_tiles, clusters,
-                        game_state, game_state_info,
-                        number_city_tiles, opponent,
-                        player, resource_target_by_unit, unsafe_cities,
+        if unit.can_build(game_state.map):
+            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles, clusters, game_state,
+                        game_state_info, number_city_tiles, opponent, player, resource_target_by_unit, unsafe_cities,
+                        wood_tiles)
+
+    for unit in player.units:
+        if not unit.can_build(game_state.map):
+            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles, clusters, game_state,
+                        game_state_info, number_city_tiles, opponent, player, resource_target_by_unit, unsafe_cities,
                         wood_tiles)
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
@@ -1109,41 +1114,47 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
-            
+            do_not_move = False # this indicate that we want only to transfer or build, no movements
             if unit.cargo.fuel() < 150:
                 if num_adjacent_enemy_unit() > 0 and (near_resource or near_city()):
-                    build_city(actions, info, u_prefix, 'because we are close to enemy')
-                    return
+                    do_not_move = True
+                    pr(u_prefix, 'do_not_move = True, because we are close to enemy')
                 if is_in_highly_hostile_area():
-                    build_city(actions, info, u_prefix, 'because is_in_highly_hostile_area')
-                    return
+                    do_not_move = True
+                    pr(u_prefix, 'do_not_move = True, because is_in_highly_hostile_area')
 
             if near_city():
                 # this is an excellent spot, but is there even a better one, one that join two different cities?
-                if game_state_info.turns_to_night > 2 and not (num_adjacent_enemy_unit() > 0 and near_resource):
+                if game_state_info.turns_to_night > 2:
                     # only if we have then time to build after 2 turns cooldown
                     dummy, num_adjacent_here = MapAnalysis.find_number_of_adjacent_city_tile(unit.pos, player)
+                    # prx(u_prefix, "XXXX2", adjacent_empty_tiles())
                     for adjacent_position in adjacent_empty_tiles():
-                        # pr(u_prefix, "XXXXXXX ", num_adjacent_here)
                         dummy, num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
                                                                                                  player)
-                        # pr(u_prefix, "XXXXXXX ", num_adjacent_city, adjacent_position)
+                        # prx(u_prefix, "XXX3", adjacent_position,num_adjacent_here, num_adjacent_city)
 
                         # one that join two different cities!
                         if num_adjacent_city > num_adjacent_here:
                             if move_to_better_or_transfer("can join {0}instead".format(num_adjacent_city),
-                                                          actions, game_state, info, adjacent_position, player, u_prefix):
+                                                          actions, game_state, info, adjacent_position, player,
+                                                          u_prefix, do_not_move):
                                 return
 
                         # one that still leave this perimeter free
-                        there_in_resource, there_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                            available_resources_tiles,
-                            adjacent_position)
-                        if num_adjacent_city == num_adjacent_here and near_resource and not there_near_resource:
-
+                        there_in_res, there_near_res = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                            available_resources_tiles, adjacent_position)
+                        if num_adjacent_city == num_adjacent_here and near_resource and not there_near_res:
+                            prx(u_prefix, "XXX5", adjacent_position)
                             if move_to_better_or_transfer(" moved to a place that is also adjacent, but not near res",
-                                                      actions, game_state, info, adjacent_position, player, u_prefix):
+                                                      actions, game_state, info, adjacent_position, player, u_prefix,
+                                                          do_not_move):
                                 return
+
+                if do_not_move:
+                    # we tried to transfer to a better spot, unsucesfully, time to build
+                    build_city(actions, info, u_prefix, 'because of do_not_move')
+                    return
 
                 do_not_build = False
                 if game_state_info.turns_to_night < 4:
@@ -1203,8 +1214,14 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     # and if next pos is actually adjacent
                     if player.is_position_adjacent_city(next_pos):
                         if move_to_better_or_transfer("we move close to city instead",
-                                                      actions, game_state, info, next_pos, player, u_prefix):
+                                                      actions, game_state, info, next_pos, player,
+                                                      u_prefix, do_not_move):
                             return
+
+                    if do_not_move:
+                        # we tried to transfer to a better spot, unsucesfully, time to build
+                        build_city(actions, info, u_prefix, 'because of do_not_move')
+                        return
 
             if (not near_city()) and \
                     (game_state_info.turns_to_night > 1 or
@@ -1482,16 +1499,20 @@ def get_adjacent_empty_near_res_walkable_near_enemy(adjacent_empty_near_res, gam
     return possible_moves
 
 
-def move_to_better_or_transfer(msg, actions, game_state, info, next_pos, player, u_prefix) -> bool:
+def move_to_better_or_transfer(msg, actions, game_state, info, next_pos, player, u_prefix,do_not_move=False) -> bool:
     friend_in_best_adjacent = player.get_unit_in_pos(next_pos)
     if friend_in_best_adjacent is not None:
         friend_in_best_adjacent_id = friend_in_best_adjacent.id
         friend_info: UnitInfo = unit_info[friend_in_best_adjacent_id]
+        pr(u_prefix, "XXX6", friend_info.get_cargo_space_left(), friend_in_best_adjacent.cooldown,friend_info.last_move_turn)
         if friend_info.get_cargo_space_left() > 0 and \
                 (friend_in_best_adjacent.cooldown > 0 or friend_info.last_move_turn < game_state.turn):
             pr(u_prefix, " friend in best position, we can pass resource to"+msg, friend_in_best_adjacent_id)
             transfer_all_resources(actions, info, friend_in_best_adjacent_id, u_prefix, next_pos)
             return True
+    if do_not_move:
+        # we could not transfer, we are done
+        return False
     if not move_mapper.has_position(next_pos):
         # and if next pos is actually adjacent
         move_mapper.move_unit_to_pos(actions, info," we could have build here, but" + msg, next_pos)
@@ -1809,29 +1830,37 @@ def get_direction_to_quick(game_state: Game, info: UnitInfo, target_pos: Positio
                 if not city_id in unsafe_cities:
                     pr(' try to avoid our city because it is not unsafe, and we have resources')
                     continue
+
+            is_direction_opposite = DIRECTIONS.opposite(direction) == info.last_move_direction
+            is_direction_opposite = False
+
             possible_directions.append(
                 (direction,  # 0
                  -number_of_adjacent_res,  # 1
                  -int(is_empty),  # 2
                  -int(is_empty and near_resources),  # 3
-                 -int(is_city)  # 4
+                 -int(is_city),  # 4
+                 int(is_direction_opposite) # 5
                  ))
         else:
             # pr(unit.id,' XXX - skip', direction, next_pos)
             continue
 
+
+
+
     if info.get_cargo_space_left() == 0:
         # if we have full cargo, favour empty tiles
-        possible_directions.sort(key=lambda x: (x[2]))  # sort by it is empty
+        possible_directions.sort(key=lambda x: (x[5], x[2]))  # sort by it is empty
     elif info.get_cargo_space_left() <= 20:
         # if we have 20 only left, moving in an empty near resources, would just do great
-        possible_directions.sort(key=lambda x: (x[3]))  # sort by it is empty and near resources
+        possible_directions.sort(key=lambda x: (x[5], x[3]))  # sort by it is empty and near resources
     elif info.get_cargo_space_left() == 100:
         # no cargo, whatsoever favour cities to travel faster, then more resources
-        possible_directions.sort(key=lambda x: (x[4], x[1]))  # sort by it is empty and near resources
+        possible_directions.sort(key=lambda x: (x[5], x[4], x[1]))  # sort by it is empty and near resources
     else:
         # in any other case (20<cargo<100), just go where more resources
-        possible_directions.sort(key=lambda x: (x[1]))
+        possible_directions.sort(key=lambda x: (x[5], x[1]))
 
     if len(possible_directions) == 0:
         return DIRECTIONS.CENTER
