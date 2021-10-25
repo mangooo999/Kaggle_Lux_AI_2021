@@ -1091,13 +1091,13 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                                                        near_resource, player, unit, u_prefix)
                 if transferred:
                     return
-            if unit.can_build(game_state.map):
-                build_city(actions, info, u_prefix, ':we tried too many times to go to' + info.last_move_direction)
-            else:
-                direction = get_random_step(unit.pos)
-                move_mapper.move_unit_to(actions, direction, info,
-                                         "randomly, too many try to " + info.last_move_direction)
-            return
+            # if unit.can_build(game_state.map):
+            #     build_city(actions, info, u_prefix, ':we tried too many times to go to' + info.last_move_direction)
+            # else:
+            #     direction = get_random_step(unit.pos)
+            #     move_mapper.move_unit_to(actions, direction, info,
+            #                              "randomly, too many try to " + info.last_move_direction)
+            # return
 
         #   TRAVELER
         if info.is_role_traveler():
