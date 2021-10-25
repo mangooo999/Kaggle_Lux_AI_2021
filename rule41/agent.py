@@ -1506,30 +1506,30 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     return
 
         # NO IDEA rules (because nothing worked before)
-        if in_wood:
-            # easy rule, not sure if this is nota already trapped before
-            for pos in adjacent_empty_tiles_with_payload().keys():
-                if move_mapper.try_to_move_to(actions, info, pos, game_state, "No idea. From wood to near wood"):
-                    return
+        # if in_wood:
+        #     # easy rule, not sure if this is nota already trapped before
+        #     for pos in adjacent_empty_tiles_with_payload().keys():
+        #         if move_mapper.try_to_move_to(actions, info, pos, game_state, "No idea. From wood to near wood"):
+        #             return
+        #
+        #     closest_cluster,dist = clusters.get_closest_cluster(player, unit.pos)
+        #     possible_moves = []
+        #
+        #     # order perimeter by distance
+        #     for pos in closest_cluster.perimeter_empty:
+        #         dist = unit.pos.distance_to(pos)
+        #         possible_moves.append((-dist,pos))
+        #     possible_moves.sort(key=lambda x: (x[0]))  # sort by distance
+        #
+        #     for dist,pos in possible_moves:
+        #         directions = MapAnalysis.directions_to(unit.pos, pos)
+        #         if move_mapper.try_to_move_to_directions(actions, info, directions, game_state,
+        #                                                  "No idea. to closest perimeter", pos):
+        #             return
 
-            closest_cluster,dist = clusters.get_closest_cluster(player, unit.pos)
-            possible_moves = []
-
-            # order perimeter by distance
-            for pos in closest_cluster.perimeter_empty:
-                dist = unit.pos.distance_to(pos)
-                possible_moves.append((-dist,pos))
-            possible_moves.sort(key=lambda x: (x[0]))  # sort by distance
-
-            for dist,pos in possible_moves:
-                directions = MapAnalysis.directions_to(unit.pos, pos)
-                if move_mapper.try_to_move_to_directions(actions, info, directions, game_state,
-                                                         "No idea. to closest perimeter", pos):
-                    return
 
 
-
-        move_mapper.stay(unit, " NO IDEA!")
+        # move_mapper.stay(unit, " NO IDEA!")
         pr(u_prefix, " TCFAIL didn't find any rule for this unit")
         # END IF is worker and can act
 
