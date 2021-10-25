@@ -939,7 +939,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
                 if distance <= (game_state_info.turns_to_night + 1) / 2:
                     pr(u_prefix, ' explorer will go to', target_pos, 'dist', distance)
-                    info.set_unit_role_traveler(target_pos, 2 * distance)
+                    info.set_unit_role_traveler(target_pos, 2 * distance,u_prefix)
                 else:
                     pr(u_prefix, ' dist', distance, ' to ', target_pos, 'not compatible with autonomy')
 
@@ -1167,7 +1167,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         there_in_res, there_near_res = MapAnalysis.is_position_in_X_adjacent_to_resource(
                             available_resources_tiles, adjacent_position)
                         if num_adjacent_city == num_adjacent_here and near_resource and not there_near_res:
-                            prx(u_prefix, "XXX5", adjacent_position)
+                            # prx(u_prefix, "XXX5", adjacent_position)
                             if move_to_better_or_transfer(" moved to a place that is also adjacent, but not near res",
                                                       actions, game_state, info, adjacent_position, player, u_prefix,
                                                           do_not_move):
@@ -1423,7 +1423,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         distance_to_res = better_cluster_pos.distance_to(unit.pos)
                         pr(u_prefix, " Found resource not yet researched:", resource_type, "dist",
                            distance_to_res)
-                        info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res)
+                        info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res,u_prefix)
 
                     if better_cluster_pos is not None:
                         # append target to our map
@@ -1526,7 +1526,7 @@ def move_to_better_or_transfer(msg, actions, game_state, info, next_pos, player,
     if friend_in_best_adjacent is not None:
         friend_in_best_adjacent_id = friend_in_best_adjacent.id
         friend_info: UnitInfo = unit_info[friend_in_best_adjacent_id]
-        pr(u_prefix, "XXX6", friend_info.get_cargo_space_left(), friend_in_best_adjacent.cooldown,friend_info.last_move_turn)
+        # pr(u_prefix, "XXX6", friend_info.get_cargo_space_left(), friend_in_best_adjacent.cooldown,friend_info.last_move_turn)
         if friend_info.get_cargo_space_left() > 0 and \
                 (friend_in_best_adjacent.cooldown > 0 or friend_info.last_move_turn < game_state.turn):
             pr(u_prefix, " friend in best position, we can pass resource to"+msg, friend_in_best_adjacent_id)

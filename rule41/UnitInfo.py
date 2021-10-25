@@ -100,9 +100,11 @@ class UnitInfo:
         self.last_move = 't'
         self.has_done_action_this_turn = True
 
-    def set_unit_role_traveler(self, pos: Position, number_turns):
-        self.pr(self.log_prefix, 'set this unit as traveler to', pos, " for number_turns", number_turns)
-        self.set_unit_role('traveler', self.log_prefix)
+    def set_unit_role_traveler(self, pos: Position, number_turns, prefix: str = ''):
+        if prefix=='':
+            prefix=self.log_prefix
+        self.pr(prefix, 'set this unit as traveler to', pos, " for number_turns", number_turns)
+        self.set_unit_role('traveler', prefix)
         self.target_position = pos
         self.role_time_turn_limit = number_turns
 

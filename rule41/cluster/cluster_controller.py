@@ -91,7 +91,7 @@ class ClusterControl:
                 # if explorer\traveler add the target position as cluster reference
                 if unit_info[u.id].is_role_explorer() or unit_info[u.id].is_role_traveler():
                     if unit_info[u.id].target_position is not None:
-                        closest_cluster = self.get_closest_cluster(player, unit_info[u.id].target_position)
+                        closest_cluster,dist = self.get_closest_cluster(player, unit_info[u.id].target_position)
                         if closest_cluster is not None:
                             closest_cluster.add_incoming_explorer(u.id,unit_info[u.id].target_position)
 
@@ -99,15 +99,16 @@ class ClusterControl:
                     continue
 
             # otherwise just the position
-            closest_cluster = self.get_closest_cluster(player, u.pos)
+            closest_cluster,dist = self.get_closest_cluster(player, u.pos)
 
             if closest_cluster is not None:
-                closest_cluster.add_unit(u.id)
+                if dist < 3:
+                    closest_cluster.add_unit(u.id)
 
         for city in player.cities.values():
             for city_tile in city.citytiles:
 
-                closest_cluster = self.get_closest_cluster(player, city_tile.pos)
+                closest_cluster, dist = self.get_closest_cluster(player, city_tile.pos)
 
                 # if we found one
                 if closest_cluster is not None:
@@ -126,7 +127,7 @@ class ClusterControl:
 
 
 
-    def get_closest_cluster(self, player, pos:Position):
+    def get_closest_cluster(self, player, pos:Position) -> (Cluster,int):
         closest_cluster_distance = math.inf
         closest_cluster = None
         for k in list(self.clusters.values()):
@@ -141,7 +142,7 @@ class ClusterControl:
                     closest_cluster = k
                     if dist == 0:
                         break
-        return closest_cluster
+        return closest_cluster, closest_cluster_distance
 
     def get_units_without_clusters(self) -> List[Unit]:
 
