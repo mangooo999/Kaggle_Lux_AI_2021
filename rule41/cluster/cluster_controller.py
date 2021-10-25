@@ -102,7 +102,7 @@ class ClusterControl:
             closest_cluster,dist = self.get_closest_cluster(player, u.pos)
 
             if closest_cluster is not None:
-                if dist < 3:
+                if dist <= 2:
                     closest_cluster.add_unit(u.id)
 
         for city in player.cities.values():

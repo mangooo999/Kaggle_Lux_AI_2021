@@ -21,16 +21,21 @@ class MoveHelper:
         self.log_prefix = "T_{0}".format(str(self.turn))
         self.pr = pr
         self.opponent_units = {}
+        self.__can_move_dictionary__ = {}
         for enemy in opponent.units:
             self.opponent_units[self.__hash_pos__(enemy.pos)] = enemy
 
     def add_initial_position(self, pos: Position, unit: Unit):
         # self.pr(self.log_prefix, 'XXX initial',unit.id ,' in', pos)
         self.initial_position_mapper[self.__hash_pos__(pos)] = unit
+        if pos in self.__can_move_dictionary__:
+            self.__can_move_dictionary__.pop(pos)
 
     def add_position(self, pos: Position, unit: Unit):
         # self.pr(self.log_prefix, 'XXX movement', unit.id, ' in', pos)
         self.movement_mapper[self.__hash_pos__(pos)] = unit
+        if pos in self.__can_move_dictionary__:
+            self.__can_move_dictionary__.pop(pos)
 
     def has_initial_position(self, pos: Position) -> bool:
         return self.__hash_pos__(pos) in self.initial_position_mapper
@@ -56,10 +61,19 @@ class MoveHelper:
     def __hash_pos__(self, pos: Position) -> Tuple[int, int]:
         return pos.x, pos.y
 
-    def can_move_to_direction(self, from_pos: Position, direction: DIRECTIONS, game_state) -> bool:
-        return self.can_move_to_pos(from_pos.translate(direction, 1), game_state)
+    def can_move_to_direction(self, from_pos: Position, direction: DIRECTIONS, game_state, msg='') -> bool:
+        return self.can_move_to_pos(from_pos.translate(direction, 1), game_state, msg=msg)
 
-    def can_move_to_pos(self, pos: Position, game_state, allow_clash_unit: bool = False, msg: str = '') -> bool:
+    def can_move_to_pos(self, pos: Position, game_state, msg: str = '') -> bool:
+        if pos in self.__can_move_dictionary__:
+            return self.__can_move_dictionary__[pos]
+        else:
+            result = self.__can_move_to_pos__(pos,game_state,msg)
+            self.__can_move_dictionary__[pos] = result
+            return result
+
+
+    def __can_move_to_pos__(self, pos: Position, game_state, msg) -> bool:
         # self.pr(self.log_prefix + msg, 'can_move_to_pos', pos)
         # we cannot move on an enemy that cannot move:
         if self.has_opponent_position(pos):
@@ -69,7 +83,7 @@ class MoveHelper:
                 return False
 
         # we cannot move if somebody is already going, and it is not a city
-        if ((not allow_clash_unit) and self.has_initial_position(pos)) and not self.is_position_city(pos):
+        if self.has_initial_position(pos) and not self.is_position_city(pos):
             unit: Unit = self.get_unit_from_mapper(pos)
             self.pr(self.log_prefix + msg, 'Collision static in', pos, 'with', unit.id)
             return False
@@ -121,10 +135,10 @@ class MoveHelper:
             self.pr(self.log_prefix + unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
                     , str(target_far_position or ''))
 
-    def try_to_move_to(self, actions, info: UnitInfo, pos: Position, msg: str) -> bool:
+    def try_to_move_to(self, actions, info: UnitInfo, pos: Position, game_state, msg: str) -> bool:
         direction = info.unit.pos.direction_to(pos)
         # if nobody is already moving there
-        if not self.has_position(pos):
+        if self.can_move_to_direction(info.unit.pos,direction,game_state,msg=msg):
             self.move_unit_to(actions, direction, info, msg, pos)
             return True
         else:
