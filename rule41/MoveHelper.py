@@ -143,3 +143,13 @@ class MoveHelper:
             return True
         else:
             return False
+
+    def try_to_move_to_directions(self, actions, info: UnitInfo, directions, game_state, msg: str,
+                                  target_far_position=None) -> bool:
+        for direction in directions:
+            # if nobody is already moving there
+            if self.can_move_to_direction(info.unit.pos, direction, game_state, msg=msg):
+                self.move_unit_to(actions, direction, info, msg,target_far_position=target_far_position)
+                return True
+
+        return False

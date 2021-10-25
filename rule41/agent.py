@@ -736,13 +736,13 @@ def agent(observation, configuration):
     # start with potential builder, so that movement are easier to calculate
     for unit in player.units:
         if unit.can_build(game_state.map):
-            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles, clusters, game_state,
+            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles,
                         game_state_info, number_city_tiles, opponent, player, resource_target_by_unit, unsafe_cities,
                         wood_tiles)
 
     for unit in player.units:
         if not unit.can_build(game_state.map):
-            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles, clusters, game_state,
+            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles,
                         game_state_info, number_city_tiles, opponent, player, resource_target_by_unit, unsafe_cities,
                         wood_tiles)
 
@@ -774,7 +774,7 @@ def agent(observation, configuration):
     return actions
 
 
-def get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles, clusters, game_state,
+def get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles,
                     game_state_info, number_city_tiles, opponent, player,
                     resource_target_by_unit, unsafe_cities, wood_tiles):
     info: UnitInfo = unit_info[unit.id]
@@ -1506,11 +1506,28 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     return
 
         # NO IDEA rules (because nothing worked before)
-        if in_wood and False:
-            # easy rule, not sure if
+        if in_wood:
+            # easy rule, not sure if this is nota already trapped before
             for pos in adjacent_empty_tiles_with_payload().keys():
                 if move_mapper.try_to_move_to(actions, info, pos, game_state, "No idea. From wood to near wood"):
                     return
+
+            closest_cluster,dist = clusters.get_closest_cluster(player, unit.pos)
+            possible_moves = []
+
+            # order perimeter by distance
+            for pos in closest_cluster.perimeter_empty:
+                dist = unit.pos.distance_to(pos)
+                possible_moves.append((-dist,pos))
+            possible_moves.sort(key=lambda x: (x[0]))  # sort by distance
+
+            for dist,pos in possible_moves:
+                directions = MapAnalysis.directions_to(unit.pos, pos)
+                if move_mapper.try_to_move_to_directions(actions, info, directions, game_state,
+                                                         "No idea. to closest perimeter", pos):
+                    return
+
+
 
         move_mapper.stay(unit, " NO IDEA!")
         pr(u_prefix, " TCFAIL didn't find any rule for this unit")
@@ -1601,11 +1618,7 @@ def send_unit_home(actions, game_state, info, player, u_prefix, unit, msg):
     pr(u_prefix, msg)
     closest_city = find_closest_city_tile_no_logic(unit.pos, player)
     directions = MapAnalysis.directions_to(unit.pos, closest_city)
-    for direction in directions:
-        if move_mapper.can_move_to_direction(unit.pos, direction, game_state):
-            move_mapper.move_unit_to(actions, direction, info, msg, closest_city)
-            return True
-    return False
+    return move_mapper.try_to_move_to_directions(actions,info,directions,game_state,msg,closest_city)
 
 
 def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, available_resources_tiles, info,
