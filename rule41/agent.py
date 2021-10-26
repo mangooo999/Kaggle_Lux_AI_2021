@@ -70,10 +70,10 @@ def get_adjacent_empty_tiles_with_payload(pos: Position, empty_tyles, game_state
         return {}
     else:
         enemy_unity, enemy_distance = opponent.get_closest_unit(pos)
-        enemy_direction = DIRECTIONS.CENTER
+        enemy_directions = [DIRECTIONS.CENTER]
         if 2 <= enemy_distance <= 5:
-            enemy_direction = pos.direction_to(enemy_unity.pos)
-            pr(prefix, "XXXX0 enemy is at ", enemy_unity.pos, 'dir=',enemy_direction, 'dist=',enemy_distance)
+            enemy_directions = MapAnalysis.directions_to(pos, enemy_unity.pos)
+            pr(prefix, "XXXX0 enemy is at ", enemy_unity.pos, 'dir=',enemy_directions, 'dist=',enemy_distance)
 
         # pr(prefix,"Trying to solve which empty one is close to most cities tiles")
         results = {}
@@ -95,14 +95,20 @@ def get_adjacent_empty_tiles_with_payload(pos: Position, empty_tyles, game_state
             if additional_cargo>0:
                 number_turn_to_fill_me_up = cargo_left // additional_cargo
 
-            is_going_toward_enemy = pos.direction_to(adjacent_position) == enemy_direction
+            is_going_toward_enemy = 0
+            direction = pos.direction_to(adjacent_position)
+            if direction in enemy_directions:
+                is_going_toward_enemy = 1 #going towards enemy (good)
+            elif DIRECTIONS.opposite(direction) in enemy_directions:
+                is_going_toward_enemy = -1  # going away from enemy (bad)
+
 
             # adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
             # results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
             results[adjacent_position] = (adjacent_city #0
                                           , adjacent_city_tiles #1
                                           , number_turn_to_fill_me_up #2
-                                          , int(is_going_toward_enemy) #3
+                                          , is_going_toward_enemy #3
                                           , num_adjacent_res #4
                                            )
             pr(prefix,"- XXXX1b",adjacent_position,results[adjacent_position])
