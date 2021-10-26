@@ -1,9 +1,8 @@
 import collections
 import math
-from typing import List, Tuple, Dict
+from typing import List
 from lux.game_map import Cell, Position, RESOURCE_TYPES
-from GameInfo import GameInfo
-from lux.game_objects import CityTile, DIRECTIONS
+from lux.game_objects import Cargo, CityTile, DIRECTIONS
 
 
 
@@ -77,28 +76,32 @@ def find_all_resources(game_state, player) -> (List[Cell], List[Cell], List[Cell
     total_fuel = 0
     available_fuel = 0
     width, height = game_state.map_width, game_state.map_height
+    cargo = Cargo()
     for y in range(height):
         for x in range(width):
             cell = game_state.map.get_cell(x, y)
             if cell.has_resource():
                 resource_tiles_all.append(cell)
                 if cell.resource.type == RESOURCE_TYPES.WOOD:
+                    cargo.wood += cell.resource.amount
                     total_fuel += cell.resource.amount
                     wood_tiles.append(cell)
                     resource_tiles_available.append(cell)
                     available_fuel += cell.resource.amount
                 elif cell.resource.type == RESOURCE_TYPES.COAL:
                     total_fuel += cell.resource.amount * 10
+                    cargo.coal += cell.resource.amount
                     if player.researched_coal():
                         resource_tiles_available.append(cell)
                         available_fuel += cell.resource.amount * 10
                 elif cell.resource.type == RESOURCE_TYPES.URANIUM:
                     total_fuel += cell.resource.amount * 40
+                    cargo.uranium += cell.resource.amount
                     if player.researched_uranium():
                         resource_tiles_available.append(cell)
                         available_fuel += cell.resource.amount * 40
 
-    return resource_tiles_all, resource_tiles_available, wood_tiles, total_fuel, available_fuel
+    return resource_tiles_all, resource_tiles_available, wood_tiles, total_fuel, available_fuel, cargo
 
 
 
