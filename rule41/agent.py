@@ -16,6 +16,7 @@ from UnitInfo import UnitInfo
 from GameInfo import GameInfo
 from MoveHelper import MoveHelper
 from lux.game_objects import CityTile, Unit, City, DIRECTIONS
+from lux.game_constants import GAME_CONSTANTS
 
 from cluster.cluster import Cluster
 import resources.resource_helper as ResourceService
@@ -50,6 +51,9 @@ import builtins as __builtin__
 
 
 # this snippet finds all resources stored on the map and puts them into a list so we can search over them
+
+
+
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
     if True:
         print(*args, sep=sep, file=sys.stderr)
@@ -61,7 +65,7 @@ def prx(*args): pr(*args, f=True)
 
 
 def get_adjacent_empty_tiles_with_payload(pos: Position, empty_tyles, game_state, player, opponent,
-                                      resource_tiles, prefix) -> {}:
+                                      resource_tiles, cargo_left, prefix) -> {}:
     if len(empty_tyles) == 0:
         return {}
     else:
@@ -69,7 +73,7 @@ def get_adjacent_empty_tiles_with_payload(pos: Position, empty_tyles, game_state
         enemy_direction = DIRECTIONS.CENTER
         if 2 <= enemy_distance <= 5:
             enemy_direction = pos.direction_to(enemy_unity.pos)
-            # pr(prefix, "XXXX0 enemy is at ", enemy_direction, enemy_distance)
+            pr(prefix, "XXXX0 enemy is at ", enemy_unity.pos, 'dir=',enemy_direction, 'dist=',enemy_distance)
 
         # pr(prefix,"Trying to solve which empty one is close to most cities tiles")
         results = {}
@@ -78,15 +82,30 @@ def get_adjacent_empty_tiles_with_payload(pos: Position, empty_tyles, game_state
         for adjacent_position in empty_tyles:
             adjacent_city_tiles, adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
                                                                                                player)
-            adjacent_res = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1))
+
+            adjacent_resources = MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 1)
+            num_adjacent_res = len(adjacent_resources)
+            additional_cargo = 0
+            for cell in adjacent_resources:
+                res_cargo = GAME_CONSTANTS["PARAMETERS"]["WORKER_COLLECTION_RATE"][cell.resource.type.upper()]
+                additional_cargo += res_cargo
+                #pr(prefix, "- XXXX1r additional", res_cargo)
+
+            number_turn_to_fill_me_up = math.inf
+            if additional_cargo>0:
+                number_turn_to_fill_me_up = cargo_left // additional_cargo
 
             is_going_toward_enemy = pos.direction_to(adjacent_position) == enemy_direction
 
             # adjacent_res2 = len(MapAnalysis.get_resources_around(resource_tiles, adjacent_position, 2))
             # results[adjacent_position] = (adjacent_city,adjacent_city_tiles, adjacent_res,adjacent_res2)
-            results[adjacent_position] = (adjacent_city, adjacent_city_tiles, adjacent_res, int(is_going_toward_enemy))
-
-            # pr(prefix,"- XXXX1b",adjacent_position,results[adjacent_position])
+            results[adjacent_position] = (adjacent_city #0
+                                          , adjacent_city_tiles #1
+                                          , number_turn_to_fill_me_up #2
+                                          , int(is_going_toward_enemy) #3
+                                          , num_adjacent_res #4
+                                           )
+            pr(prefix,"- XXXX1b",adjacent_position,results[adjacent_position])
 
         # pr(prefix,"XXXX2 adjacent_empty_tile_favor_close_to_city", results)
         # ordered by number of tiles, so we take last element
@@ -108,7 +127,8 @@ def adjacent_empty_tiles_favour_res_towenemy(results:{}):
         return None
 
     # order by resources, enemy, city, city tiles
-    results = dict(collections.OrderedDict(sorted(results.items(), key=lambda x: (x[1] [2],x[1] [3],x[1] [0],x[1] [1]),
+    results = dict(collections.OrderedDict(sorted(results.items(),
+                                                  key=lambda x: (x[1] [2],x[1] [3],x[1] [0],x[1] [1],x[1] [4]),
                                                   reverse=True)))
     # pr(prefix,"XXXX3 adjacent_empty_tile_favor_close_to_city", results)
     result = next(iter(results.keys()))
@@ -899,6 +919,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                                                                          player,
                                                                                          opponent,
                                                                                          available_resources_tiles,
+                                                                                         unit.get_cargo_space_left(),
                                                                                          u_prefix))
 
         best_adjacent_empty_tile_near_city = LazyWrapper(
@@ -1449,7 +1470,8 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 elif resource_type == RESOURCE_TYPES.WOOD and \
                         game_state_info.turns_to_night > 10 \
                         and info.get_cargo_space_left() <= 40 \
-                        and best_adjacent_empty_tile_near_res_towards_enemys() is not None:
+                        and len(adjacent_empty_tiles_with_payload()) > 0:
+
                     move_mapper.move_unit_to_pos(actions, info,
                                                  " towards closest empty (anticipating getting resources, wood)",
                                                  best_adjacent_empty_tile_near_res_towards_enemys().pos)
