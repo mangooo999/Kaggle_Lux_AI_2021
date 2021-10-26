@@ -1336,7 +1336,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                             info.set_unit_role_returner()
                             break
 
-                    if adjacent_resources:
+                    if near_resource:
                         # move away from resource
                         for empty in adjacent_empty_tiles():
                             if move_mapper.can_move_to_pos(empty, game_state):
@@ -1346,7 +1346,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                     move_unit_to_or_transfer(actions, direction, info, player,
                                                              u_prefix, unit, 'high resources')
                                     move_mapper.stay(unit,
-                                                     " we could have built, but better moving far away from resurces")
+                                                     " we could have built, but better moving far away from resources")
                                     return
 
                     if do_build:
