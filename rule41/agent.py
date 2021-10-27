@@ -72,7 +72,7 @@ def get_adjacent_empty_tiles_with_payload(pos: Position, empty_tyles, game_state
         enemy_directions = [DIRECTIONS.CENTER]
         if 2 <= enemy_distance <= 5:
             enemy_directions = MapAnalysis.directions_to(pos, enemy_unity.pos)
-            pr(prefix, "XXXX0 enemy is at ", enemy_unity.pos, 'dir=', enemy_directions, 'dist=', enemy_distance)
+            # pr(prefix, "XXXX0 enemy is at ", enemy_unity.pos, 'dir=', enemy_directions, 'dist=', enemy_distance)
 
         # pr(prefix,"Trying to solve which empty one is close to most cities tiles")
         results = {}
@@ -149,6 +149,35 @@ def get_empty_tile_near_resources(empty_tiles, resource_tiles) -> [Position]:
             results.append(adjacent_position)
             # pr("- ",adjacent_position,number_of_adjacent)
     return results
+
+def empty_near_res(initial_pos, empty_tiles, wood_tiles, game_state) -> Optional[Position]:
+    number_close_to_initial = get_adjacent_empty_next_resources(initial_pos, game_state, wood_tiles)
+    results = []
+    for adjacent_position in empty_tiles:
+        in_res, near_res = MapAnalysis.is_position_in_X_adjacent_to_resource(wood_tiles, adjacent_position)
+        if not near_res:
+            continue
+        if not move_mapper.can_move_to_pos(adjacent_position,game_state):
+            continue
+        num = get_adjacent_empty_next_resources(adjacent_position, game_state, wood_tiles)
+        if num>number_close_to_initial:
+            results.append((num,adjacent_position))
+
+    if len(results)>0:
+        results.sort(key=lambda x: (x[0]))
+        return next(iter(results))[1]
+    else:
+        return None
+
+
+def get_adjacent_empty_next_resources(pos, game_state, wood_tiles):
+    num = 0
+    empty_next_to_adjacent = MapAnalysis.find_all_adjacent_empty_tiles(game_state, pos)
+    for pos in empty_next_to_adjacent:
+        in_res, near_res = MapAnalysis.is_position_in_X_adjacent_to_resource(wood_tiles, pos)
+        if near_res:
+            num += 1
+    return num
 
 
 def empty_tile_near_res_and_city(empty_tiles, wood_tiles, game_state, player) -> Optional[Cell]:
@@ -372,19 +401,24 @@ def agent(observation, configuration):
         good_pos_around_city = None
 
         pr(t_prefix, "check for a better initial cluster, this cluster res=", len(initial_cluster.resource_cells))
+        initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
         for cluster in clusters.get_clusters():
             if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_no_units_no_enemy():
-                r_pos, r_distance = MapAnalysis.get_closest_position(initial_city_pos, cluster.perimeter_empty)
+                r_pos, r_distance = MapAnalysis.get_closest_positions(initial_city_pos, cluster.perimeter_empty)
                 res = cluster.resource_cells.__len__()
                 if res > 2 * len(initial_cluster.resource_cells) and r_distance < 12 and r_distance < distance:
                     pr(t_prefix, 'There seems to be a better cluster', cluster.to_string_light())
-                    better_cluster_pos = r_pos
                     distance = r_distance
+                    lambda_positions = []
+                    for pos in r_pos:
+                        lambda_positions.append((pos.distance_to(initial_enemy_city_pos), pos))
+                    lambda_positions.sort(key=lambda x: (x[0]))
+
+                    better_cluster_pos = next(iter(lambda_positions))[1]
 
         if better_cluster_pos is not None:
             good_pos_around_city = better_cluster_pos
         else:
-            initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
             distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
             direction_to_enemy = DIRECTIONS.CENTER
             if 1 <= distance_cities <= 5:
@@ -860,9 +894,11 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
         adjacent_empty_near_res, game_state, opponent, u_prefix))
     in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(available_resources_tiles,
                                                                                    unit.pos)
-    adjacent_empty_near_wood_and_city = Lazy(
-        lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(), wood_tiles,
+    adjacent_empty_near_wood_and_city = Lazy(lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(), wood_tiles,
                                              game_state, player))
+    adjacent_empty_near_wood_near_empty = Lazy(lambda: empty_near_res(unit.pos,adjacent_empty_tiles(), wood_tiles,
+                                             game_state))
+
     # End of game, try to save units that are not going anymore to do anything
     if (len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
             or (game_state.turn >= 350):
@@ -1435,8 +1471,13 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     move_mapper.stay(unit, " R1 Near wood, city, in empty, with substantial cargo, stay put")
                     return
                 elif better_build_spot is None:
-                    move_mapper.stay(unit, " R2 Near wood, in empty, with substantial cargo, no better, stay put")
-                    return
+                    if adjacent_empty_near_wood_near_empty() is not None:
+                        move_mapper.move_unit_to_pos(actions, info, 'R3 Near wood, move to a more strategic pos',
+                                                     adjacent_empty_near_wood_near_empty())
+                        return
+                    else:
+                        move_mapper.stay(unit, " R2 Near wood, in empty, with substantial cargo, no better, stay put")
+                        return
                 else:
                     if move_mapper.try_to_move_to(actions, info, better_build_spot.pos, game_state, "R3 build_spot"):
                         return

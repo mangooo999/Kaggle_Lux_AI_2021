@@ -221,6 +221,20 @@ def get_closest_position(position: Position, positions: [Position]) -> (Position
 
     return closest_pos, closest_distance
 
+def get_closest_positions(position: Position, positions: [Position]) -> ([Position], int):
+    closest_pos = []
+    closest_distance = math.inf
+
+    for pos in positions:
+        distance = position.distance_to(pos)
+        # print(' XXXX get_closest_position', pos, distance, file=sys.stderr)
+        if distance < closest_distance:
+            closest_pos = [pos]
+            closest_distance = distance
+        elif distance == closest_distance:
+            closest_pos.append(pos)
+
+    return closest_pos, closest_distance
 
 def get_closest_position_cells(position: Position, cells: [Cell]) -> (Position, int):
     closest_pos = None
