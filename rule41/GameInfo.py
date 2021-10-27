@@ -25,8 +25,26 @@ class ResearchStats:
             sum_research += r
         return sum_research
 
-    def get_research_rate(self, n: int) -> float:
+    def get_research_rate(self) -> float:
+        return self.get_research_rate_exp()
+
+    def get_research_rate_flat(self, n: int =5) -> float:
         return float(self.get_increase_last_n_turns(n)) / float(n)
+
+    def get_research_rate_exp(self, n: int = 8) -> float:
+        sum_research = 0.0
+        sum_weights = 0.0
+        i = 0.0
+        for r in itertools.islice(self.increase_points_sequence, n):
+            i += 1.0
+            weight = 1.0 / (2.0 + i)
+            sum_research += weight * float(r)
+            sum_weights += weight
+
+        return sum_research / sum_weights
+
+    def log_research_stats(self, pr, log_prefix, prefix):
+        pr(log_prefix, prefix, 'research_points', self.points, ' research_rate', self.get_research_rate())
 
 
 class GameInfo:
@@ -46,7 +64,7 @@ class GameInfo:
         self.research.update(player)
         self.opponent_research.update(opponent)
         self.turn = game_state.turn
-        self.log_research_stats(5)
+        self.log_research_stats()
         self.log_prefix = 'GameInfo#' + self.turn.__str__()
         self.research_this_turn = 0
 
@@ -61,18 +79,15 @@ class GameInfo:
         self.pr(msg)
         self.research_this_turn += 1
 
-    def get_research_rate(self, n: int) -> float:
-        return self.research.get_research_rate(n)
+    def get_research_rate(self) -> float:
+        return self.research.get_research_rate()
 
-    def get_opponent_research_rate(self, n: int) -> float:
-        return self.opponent_research.get_research_rate(n)
+    def get_opponent_research_rate(self) -> float:
+        return self.opponent_research.get_research_rate()
 
-    def log_research_stats(self, n: int):
-        self.pr(self.log_prefix, 'research_points', self.research.points, ' research_rate',
-                self.get_research_rate(n),
-                'opp_research_points', self.opponent_research.points, ' opp_research_rate',
-                self.get_opponent_research_rate(n)
-                )
+    def log_research_stats(self):
+        self.research.log_research_stats(self.pr, self.log_prefix, "US ")
+        self.opponent_research.log_research_stats(self.pr, self.log_prefix, "OPP")
 
     def get_total_reseach(self):
         return self.research.points + self.research_this_turn

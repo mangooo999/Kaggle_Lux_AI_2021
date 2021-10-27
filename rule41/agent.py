@@ -480,7 +480,7 @@ def agent(observation, configuration):
             # we olny consider wood cluster
             # we olny consider uncontended and empty cluster
             if next_clust.id != cluster.id \
-                    and is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(5),
+                    and is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(),
                                             game_state_info.steps_until_night) \
                     and next_clust.has_no_units():
                 for unitid in cluster.units:
@@ -518,7 +518,7 @@ def agent(observation, configuration):
                     if time_distance > game_state_info.steps_until_night:
                         # pr(prefix, next_clust.id, unit.id, "too far from ", cluster.id,'time_distance ',time_distance)
                         continue
-                    if not is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(5),
+                    if not is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(),
                                                time_distance):
                         # pr(prefix, next_clust.id, unit.id, "not minable")
                         continue
@@ -1593,7 +1593,7 @@ def get_unit_action(unit, actions, resources,
                 if resources_distance() is not None and len(resources_distance()) > 0:
 
                     # create a move action to the direction of the closest resource tile and add to our actions list
-                    direction, better_cluster_pos, msg, resource_type = \
+                    direction, res_pos, msg, resource_type = \
                         find_best_resource(game_state, resources_distance(), resource_target_by_unit,
                                            info, resources.available_resources_tiles, u_prefix, unsafe_cities)
                     if direction == DIRECTIONS.CENTER and len(unsafe_cities) == 0:
@@ -1603,21 +1603,24 @@ def get_unit_action(unit, actions, resources,
                                                                                in_resource, near_resource,
                                                                                player, u_prefix)
                         if transferred:
+                            pr(u_prefix, " Transfered!")
                             return
 
+                    pr(u_prefix, " Find resources2, resource_type ",resource_type)
                     if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                             (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
                         # this is a not researched yet resource, force to go there, so there is no jitter
-                        distance_to_res = better_cluster_pos.distance_to(unit.pos)
-                        pr(u_prefix, " Found resource not yet researched:", resource_type, "dist",
+                        distance_to_res = res_pos.distance_to(unit.pos)
+                        pr(u_prefix, " Found resource not yet researched:", resource_type, res_pos, "dist",
                            distance_to_res)
-                        info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
+                        game_info.research.log_research_stats(pr,u_prefix,'US')
+                        # info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
 
-                    if better_cluster_pos is not None:
+                    if res_pos is not None:
                         # append target to our map
-                        resource_target_by_unit.setdefault((better_cluster_pos.x, better_cluster_pos.y), []).append(
+                        resource_target_by_unit.setdefault((res_pos.x, res_pos.y), []).append(
                             unit.id)
-                    move_mapper.move_unit_to(actions, direction, info, msg, better_cluster_pos)
+                    move_mapper.move_unit_to(actions, direction, info, msg, res_pos)
                     return
                 else:
                     pr(u_prefix, " resources_distance invalid (or empty?)")
@@ -2010,7 +2013,7 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
                 else:
                     # pr(' XXX - skip')
                     continue
-    
+
     direction = get_random_step(unit.pos)
     return direction, None, "randomly (due to city)", None, False
 
@@ -2198,7 +2201,7 @@ def find_best_resource(game_state, resources_distance, resource_target_by_unit, 
                     direction = get_direction_to_quick(game_state, info, resource.pos, resources,
                                                        unsafe_cities)
                     if direction != DIRECTIONS.CENTER:
-                        return direction, resource.pos, " towards closest resource ", resource_dist_info[2]
+                        return direction, resource.pos, " towards closest resource ", resource.resource.type
 
     if len(unsafe_cities) == 0:
         return DIRECTIONS.CENTER, None, "stay where we are as we cannot go to resources, but no unsafe cities", ""
@@ -2235,7 +2238,7 @@ def find_resources_distance(pos, clusters: ClusterControl, resource_tiles, game_
                 adjacent_resources[resource_tile] = (resource_tile.resource.amount, resource_tile.resource.type)
 
         else:
-            expected_research_additional = (float(dist * 2.0) * float(game_info.get_research_rate(5)))
+            expected_research_additional = (float(dist * 2.0) * float(game_info.get_research_rate()))
             expected_research_at_distance = float(game_info.research.points) + expected_research_additional
             # check if we are likely to have researched this by the time we arrive
             if resource_tile.resource.type == RESOURCE_TYPES.COAL and \
