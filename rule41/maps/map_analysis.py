@@ -279,6 +279,13 @@ def get_resources_around(resource_tiles: List[Cell], pos: Position, max_dist) ->
 
     return resources
 
+def get_adjacent_resources(resource_tiles: List[Cell], pos: Position) -> List[Cell]:
+    resources = []
+    for r in resource_tiles:
+        if pos.distance_to(r.pos) == 1:
+            resources.append(r)
+
+    return resources
 
 # snippet to find the all city tiles, cities distance and sort them.
 def find_number_of_adjacent_city_tile(pos, player) -> (int, int):
