@@ -919,7 +919,7 @@ def agent(observation, configuration):
 
 def get_unit_action(unit, actions, resources,
                     game_state_info, number_city_tiles, opponent, player,
-                    resource_target_by_unit, unsafe_cities):
+                    resource_target_by_unit, unsafe_cities, can_swap = True):
     info: UnitInfo = unit_info[unit.id]
     u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
 
@@ -1267,7 +1267,37 @@ def get_unit_action(unit, actions, resources,
                 return
             else:
                 pr(u_prefix, ' traveller cannot move:' + str(direction))
-                if unit.pos.distance_to(info.target_position) <= 1: info.clean_unit_role()
+                if unit.pos.distance_to(info.target_position) <= 1:
+                    info.clean_unit_role()
+                elif can_swap:
+                    #see if we can swap roles
+                    directions = MapAnalysis.directions_to(unit.pos, info.target_position)
+                    for direction in directions:
+                        pos = unit.pos.translate(direction,1)
+                        if not move_mapper.can_move_to_pos(pos,game_state):
+                            friend = player.get_unit_in_pos(pos)
+                            if friend is not None:
+                                friend_info = unit_info[friend.id]
+                                if friend_info.is_role_none():
+                                    friend_info.set_unit_role_traveler(info.target_position,info.role_time_turn_limit,
+                                                                       u_prefix, " swapped with unit "+unit.id)
+                                    info.clean_unit_role()
+                                    break
+                                elif friend_info.is_role_traveler():
+                                    friend_target = friend_info.target_position
+                                    friend_limit_turns = friend_info.role_time_turn_limit
+                                    friend_info.set_unit_role_traveler(info.target_position, info.role_time_turn_limit,
+                                                                       u_prefix, " swapped with unit " + unit.id)
+                                    info.set_unit_role_traveler(friend_target,friend_limit_turns,
+                                                                       u_prefix, " swapped with unit " + friend.id)
+                                    #repeat process for this unit with new role
+                                    pr(u_prefix,"repeat get_unit_action")
+                                    get_unit_action(unit, actions, resources,
+                                                    game_state_info, number_city_tiles, opponent, player,
+                                                    resource_target_by_unit, unsafe_cities, can_swap = False)
+                                    break
+
+
 
         #   RETURNER
         if info.is_role_returner():
