@@ -172,6 +172,11 @@ class Cluster:
             self.perimeter_empty
         )
 
+    # def get_perimeter_strategic_points(self, all_resources):
+    #     for pos in self.perimeter:
+
+
+
     def update(self,
                game_state,
                player: Player, opponent: Player, unit_info: DefaultDict[str, UnitInfo]

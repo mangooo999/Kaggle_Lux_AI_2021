@@ -5,6 +5,45 @@ from lux.game_map import Cell, Position, RESOURCE_TYPES
 from lux.game_objects import Cargo, CityTile, DIRECTIONS
 
 
+class Resources:
+    def __init__(self, game_state, player):
+
+        width, height = game_state.map_width, game_state.map_height
+
+        self.all_resources_tiles: List[Cell] = []
+        self.available_resources_tiles: List[Cell] = []
+        self.wood_tiles: List[Cell] = []
+        self.coal_tiles: List[Cell] = []
+        self.uranium_tiles: List[Cell] = []
+        self.total_fuel = 0
+        self.available_fuel = 0
+        self.cargo = Cargo()
+        for y in range(height):
+            for x in range(width):
+                cell = game_state.map.get_cell(x, y)
+                if cell.has_resource():
+                    self.all_resources_tiles.append(cell)
+                    if cell.resource.type == RESOURCE_TYPES.WOOD:
+                        self.wood_tiles.append(cell)
+                        self.cargo.wood += cell.resource.amount
+                        self.total_fuel += cell.resource.amount
+                        self.available_resources_tiles.append(cell)
+                        self.available_fuel += cell.resource.amount
+                    elif cell.resource.type == RESOURCE_TYPES.COAL:
+                        self.coal_tiles.append(cell)
+                        self.cargo.coal += cell.resource.amount
+                        self.total_fuel += cell.resource.amount * 10
+                        if player.researched_coal():
+                            self.available_resources_tiles.append(cell)
+                            self.available_fuel += cell.resource.amount * 10
+                    elif cell.resource.type == RESOURCE_TYPES.URANIUM:
+                        self.uranium_tiles.append(cell)
+                        self.cargo.uranium += cell.resource.amount
+                        self.total_fuel += cell.resource.amount * 40
+                        if player.researched_uranium():
+                            self.available_resources_tiles.append(cell)
+                            self.available_fuel += cell.resource.amount * 40
+
 
 def get_resources(game_state) -> List[Cell]:
     '''
@@ -69,39 +108,7 @@ def get_resource_cells_by_positions(
     return resource_cells
 
 
-def find_all_resources(game_state, player) -> (List[Cell], List[Cell], List[Cell]):
-    resource_tiles_all: List[Cell] = []
-    resource_tiles_available: List[Cell] = []
-    wood_tiles: List[Cell] = []
-    total_fuel = 0
-    available_fuel = 0
-    width, height = game_state.map_width, game_state.map_height
-    cargo = Cargo()
-    for y in range(height):
-        for x in range(width):
-            cell = game_state.map.get_cell(x, y)
-            if cell.has_resource():
-                resource_tiles_all.append(cell)
-                if cell.resource.type == RESOURCE_TYPES.WOOD:
-                    cargo.wood += cell.resource.amount
-                    total_fuel += cell.resource.amount
-                    wood_tiles.append(cell)
-                    resource_tiles_available.append(cell)
-                    available_fuel += cell.resource.amount
-                elif cell.resource.type == RESOURCE_TYPES.COAL:
-                    total_fuel += cell.resource.amount * 10
-                    cargo.coal += cell.resource.amount
-                    if player.researched_coal():
-                        resource_tiles_available.append(cell)
-                        available_fuel += cell.resource.amount * 10
-                elif cell.resource.type == RESOURCE_TYPES.URANIUM:
-                    total_fuel += cell.resource.amount * 40
-                    cargo.uranium += cell.resource.amount
-                    if player.researched_uranium():
-                        resource_tiles_available.append(cell)
-                        available_fuel += cell.resource.amount * 40
 
-    return resource_tiles_all, resource_tiles_available, wood_tiles, total_fuel, available_fuel, cargo
 
 
 

@@ -133,7 +133,7 @@ def adjacent_empty_tiles_favour_res_towenemy(results: {}):
 
     # order by resources, enemy, city, city tiles
     results = dict(collections.OrderedDict(sorted(results.items(),
-                                                  key=lambda x: (x[1] [2],x[1] [3],x[1] [0],x[1] [1]),
+                                                  key=lambda x: (x[1][2], x[1][3], x[1][0], x[1][1]),
                                                   reverse=True)))
     # pr(prefix,"XXXX3 adjacent_empty_tile_favor_close_to_city", results)
     result = next(iter(results.keys()))
@@ -150,6 +150,7 @@ def get_empty_tile_near_resources(empty_tiles, resource_tiles) -> [Position]:
             # pr("- ",adjacent_position,number_of_adjacent)
     return results
 
+
 def empty_near_res(initial_pos, empty_tiles, wood_tiles, game_state) -> Optional[Position]:
     number_close_to_initial = get_adjacent_empty_next_resources(initial_pos, game_state, wood_tiles)
     results = []
@@ -157,13 +158,13 @@ def empty_near_res(initial_pos, empty_tiles, wood_tiles, game_state) -> Optional
         in_res, near_res = MapAnalysis.is_position_in_X_adjacent_to_resource(wood_tiles, adjacent_position)
         if not near_res:
             continue
-        if not move_mapper.can_move_to_pos(adjacent_position,game_state):
+        if not move_mapper.can_move_to_pos(adjacent_position, game_state):
             continue
         num = get_adjacent_empty_next_resources(adjacent_position, game_state, wood_tiles)
-        if num>number_close_to_initial:
-            results.append((num,adjacent_position))
+        if num > number_close_to_initial:
+            results.append((num, adjacent_position))
 
-    if len(results)>0:
+    if len(results) > 0:
         results.sort(key=lambda x: (x[0]))
         return next(iter(results))[1]
     else:
@@ -250,7 +251,7 @@ def get_random_step(from_pos: Position) -> DIRECTIONS:
     return DIRECTIONS.CENTER
 
 
-game_state = None
+game_state : Game= None
 unit_info: DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo(pr)
 clusters: ClusterControl
@@ -314,24 +315,23 @@ def agent(observation, configuration):
     total_fuel_required = 0
     fuel_with_units = 0
 
-    all_resources_tiles, available_resources_tiles, wood_tiles, total_fuel, available_fuel, cargo_available\
-        = ResourceService.find_all_resources(game_state, player)
+    resources = ResourceService.Resources(game_state, player)
 
     # count how much fuel our unit have
     for unit in player.units:
         fuel_with_units += unit.cargo.fuel()
 
     if enemy_units == 0:
-        fuel_we_expect = total_fuel
+        fuel_we_expect = resources.total_fuel
     else:
         fuel_we_expect = 0
 
         # add wood
         ratio = float(units) / float(units + enemy_units)
-        fuel_we_expect += int(ratio * float(cargo_available.wood * 1.))
-        # pr(t_prefix, 'XXX wood r=', ratio, int(ratio * float(cargo_available.wood)), 'of', cargo_available.wood)
+        fuel_we_expect += int(ratio * float(resources.cargo.wood * 1.))
+        # pr(t_prefix, 'XXX wood r=', ratio, int(ratio * float(cargo.wood)), 'of', cargo.wood)
 
-        #add coal
+        # add coal
         if player.researched_coal() and opponent.researched_coal():
             ratio = float(units) / float(units + enemy_units)
         else:
@@ -339,10 +339,10 @@ def agent(observation, configuration):
             en_rate = min(game_info.opponent_research.points + 1, 50) * enemy_units
             ratio = float(us_rate) / float(us_rate + en_rate)
 
-        fuel_we_expect += int(ratio * float(cargo_available.coal * 10.))
-        # pr(t_prefix, 'XXX coal r=', ratio, int(ratio * float(cargo_available.coal)), 'of', cargo_available.coal)
+        fuel_we_expect += int(ratio * float(resources.cargo.coal * 10.))
+        # pr(t_prefix, 'XXX coal r=', ratio, int(ratio * float(cargo.coal)), 'of', cargo.coal)
 
-        #add uranium
+        # add uranium
         if player.researched_uranium() and opponent.researched_uranium():
             ratio = float(units) / float(units + enemy_units)
         else:
@@ -350,11 +350,11 @@ def agent(observation, configuration):
             en_rate = min(game_info.opponent_research.points + 1, 200) * enemy_units
             ratio = float(us_rate) / float(us_rate + en_rate)
 
-        fuel_we_expect += int(ratio * float(cargo_available.uranium * 40.))
-        # pr(t_prefix, 'XXX coal r=', ratio, int(ratio * float(cargo_available.uranium)), 'of', cargo_available.uranium)
+        fuel_we_expect += int(ratio * float(resources.cargo.uranium * 40.))
+        # pr(t_prefix, 'XXX coal r=', ratio, int(ratio * float(cargo.uranium)), 'of', cargo.uranium)
 
-    pr(t_prefix, 'units', units, enemy_units,'res',game_info.research.points,game_info.opponent_research.points
-       , 'fuel_we_expect', fuel_we_expect, 'of', total_fuel)
+    pr(t_prefix, 'units', units, enemy_units, 'res', game_info.research.points, game_info.opponent_research.points
+       , 'fuel_we_expect', fuel_we_expect, 'of', resources.total_fuel)
 
     fuel_we_expect = fuel_we_expect + fuel_with_units
 
@@ -385,7 +385,7 @@ def agent(observation, configuration):
                     available_city_actions_now_and_next += 1
 
     pr(t_prefix, 'number_city_tiles=', number_city_tiles, 'total_fuel_required=', total_fuel_required,
-       "total_fuel=", total_fuel, 'available_fuel=', available_fuel, "fuel_units=", fuel_with_units)
+       "total_fuel=", resources.total_fuel, 'available_fuel=', resources.available_fuel, "fuel_units=", fuel_with_units)
     if game_state.turn == 0:
         # initial calculations
         initial_city_pos = list(player.cities.values())[0].citytiles[0].pos
@@ -426,20 +426,20 @@ def agent(observation, configuration):
                 step_to_enemy = initial_city_pos.translate(direction_to_enemy, 1)
                 is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(step_to_enemy, game_state)
                 # if going towards enemy is good enough
-                if MapAnalysis.is_position_adjacent_to_resource(wood_tiles, step_to_enemy) \
+                if MapAnalysis.is_position_adjacent_to_resource(resources.wood_tiles, step_to_enemy) \
                         and (is_empty or has_empty_next) and move_mapper.can_move_to_pos(step_to_enemy, game_state):
                     pr(t_prefix, "Confrontational first step towards enemy")
                     good_pos_around_city = step_to_enemy
 
             if good_pos_around_city is None:
                 # choose first based on 12 cells around
-                x3: list = MapAnalysis.get_resources_around(available_resources_tiles, initial_city_pos, 3)
+                x3: list = MapAnalysis.get_resources_around(resources.available_resources_tiles, initial_city_pos, 3)
                 game_info.at_start_resources_within3 = len(x3)
                 pr(t_prefix, "Resources within distance 3 of initial pos", initial_city_pos, " number=", len(x3))
 
                 possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
                 good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos,
-                                                           possible_positions, wood_tiles, direction_to_enemy)
+                                                           possible_positions, resources.wood_tiles, direction_to_enemy)
 
         # END initial calculations
 
@@ -500,8 +500,7 @@ def agent(observation, configuration):
 
                     if len(opponent.get_units_around_pos(unit.pos, 1)) > 0:
                         in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                            available_resources_tiles,
-                            unit.pos)
+                            resources.available_resources_tiles, unit.pos)
                         if in_resource or near_resource:
                             # pr(prefix, next_clust.id, unit.id, "unit in strategic position, facing enemy")
                             continue
@@ -688,7 +687,7 @@ def agent(observation, configuration):
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
 
-    unit_ceiling = int(min(float(units_cap), max(float(len(available_resources_tiles)) * 1.8, 5)))
+    unit_ceiling = int(min(float(units_cap), max(float(len(resources.available_resources_tiles)) * 1.8, 5)))
 
     # logging
     if game_state.turn == 360:
@@ -698,7 +697,7 @@ def agent(observation, configuration):
         pr(t_prefix, "INT Cities", number_city_tiles, 'units', len(player.units))
 
     # todo move print in game_state_info class
-    pr(t_prefix, 'resources', len(available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
+    pr(t_prefix, 'resources', len(resources.available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
        'research', player.research_points, ' avail city points', available_city_actions)
 
     if (not player.researched_uranium()) and player.research_points + available_city_actions >= 200:
@@ -719,7 +718,7 @@ def agent(observation, configuration):
     number_work_we_can_build = available_city_actions - do_research_points
     number_work_we_want_to_build = unit_ceiling - units
 
-    if len(available_resources_tiles) == 0 and game_info.still_can_do_reseach():
+    if len(resources.available_resources_tiles) == 0 and game_info.still_can_do_reseach():
         number_work_we_want_to_build = 0
 
     # last ten turn, just build in case it is a tie
@@ -730,9 +729,9 @@ def agent(observation, configuration):
 
     pr(t_prefix, 'actions_available', number_work_we_can_build, 'number_workers_we_want_to_build',
        number_work_we_want_to_build, 'citytiles', units_cap, 'unit_ceiling', unit_ceiling,
-       'res', len(available_resources_tiles))
+       'res', len(resources.available_resources_tiles))
 
-    ordered_tyles = {}
+    ordered_tiles = {}
     if min(number_work_we_can_build, number_work_we_want_to_build) > 0:
 
         # choose in which tiles we want to create workers
@@ -744,9 +743,10 @@ def agent(observation, configuration):
             for city_tile in city.citytiles:
                 if city_tile.can_act():
                     units_around = MapAnalysis.get_units_around(player, city_tile.pos, 2)
-                    res_around = len(MapAnalysis.get_resources_around(available_resources_tiles, city_tile.pos, 3))
+                    res_around = len(
+                        MapAnalysis.get_resources_around(resources.available_resources_tiles, city_tile.pos, 3))
                     dummy, closest_resource = MapAnalysis.get_closest_position_cells(city_tile.pos,
-                                                                                     available_resources_tiles)
+                                                                                     resources.available_resources_tiles)
                     has_res_around = res_around > 0
                     score1 = 0
                     score2 = closest_resource
@@ -780,7 +780,7 @@ def agent(observation, configuration):
                             score1 = 5
                             score2 = closest_resource
 
-                    ordered_tyles[(
+                    ordered_tiles[(
                         score1,
                         score2,
                         closest_resource,
@@ -788,11 +788,11 @@ def agent(observation, configuration):
                         float(units_around) / float(res_around + 1))
                     ] = city_tile
 
-        ordered_tyles = collections.OrderedDict(sorted(ordered_tyles.items(), key=lambda x: x[0]))
-        pr(t_prefix, "Ordered cities we want to create workers ", ordered_tyles)
+        ordered_tiles = collections.OrderedDict(sorted(ordered_tiles.items(), key=lambda x: x[0]))
+        pr(t_prefix, "Ordered cities we want to create workers ", ordered_tiles)
 
     while min(number_work_we_can_build, number_work_we_want_to_build) > 0:
-        for city_tile in ordered_tyles.values():
+        for city_tile in ordered_tiles.values():
             # let's create one more unit in the last created city tile if we can
             actions.append(city_tile.build_worker())
             pr(t_prefix, city_tile.pos, "- created worker")
@@ -808,7 +808,7 @@ def agent(observation, configuration):
                         # we are turn<30, we need to prioritise spawning in the right city rather than research
                         # if we have resources around here, but no units, do not research
                         near_resource = MapAnalysis.is_position_adjacent_to_resource_distance(
-                            available_resources_tiles, city_tile.pos, 2)
+                            resources.available_resources_tiles, city_tile.pos, 2)
                         near_units = player.get_units_number_around_pos(city_tile.pos, 2)
                         if near_resource and near_units == 0:
                             pr(t_prefix,
@@ -836,17 +836,15 @@ def agent(observation, configuration):
     # start with potential builder, so that movement are easier to calculate
     for unit in player.units:
         if unit.can_build(game_state.map):
-            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles,
+            get_unit_action(unit, actions, resources,
                             game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
-                            unsafe_cities,
-                            wood_tiles)
+                            unsafe_cities)
 
     for unit in player.units:
         if not unit.can_build(game_state.map):
-            get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles,
+            get_unit_action(unit, actions, resources,
                             game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
-                            unsafe_cities,
-                            wood_tiles)
+                            unsafe_cities)
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
     for unit in player.units:
@@ -855,17 +853,17 @@ def agent(observation, configuration):
         # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
         if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
             pr(u_prefix, " this unit has not worked")
-            if info.get_cargo_space_used() == 0 and len(available_resources_tiles) == 0:
+            if info.get_cargo_space_used() == 0 and len(resources.available_resources_tiles) == 0:
                 # return home
                 send_unit_home(actions, game_state, info, player, u_prefix, unit, "no cargo, no resource")
             elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
                 adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
                 in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                    available_resources_tiles,
+                    resources.available_resources_tiles,
                     unit.pos)
 
                 transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                         available_resources_tiles, info, in_resource,
+                                                         resources.available_resources_tiles, info, in_resource,
                                                          near_resource,
                                                          player, unit, u_prefix)
 
@@ -875,9 +873,9 @@ def agent(observation, configuration):
     return actions
 
 
-def get_unit_action(unit, actions, all_resources_tiles, available_resources_tiles,
+def get_unit_action(unit, actions, resources,
                     game_state_info, number_city_tiles, opponent, player,
-                    resource_target_by_unit, unsafe_cities, wood_tiles):
+                    resource_target_by_unit, unsafe_cities):
     info: UnitInfo = unit_info[unit.id]
     u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
 
@@ -889,24 +887,26 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
     adjacent_units = Lazy(lambda: player.get_units_around_pos(unit.pos, 1))
     adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
     adjacent_empty_near_res = Lazy(lambda: get_empty_tile_near_resources(adjacent_empty_tiles(),
-                                                                                available_resources_tiles))
+                                                                         resources.available_resources_tiles))
     adjacent_empty_near_res_walkable_near_enemy = Lazy(lambda: get_adjacent_empty_near_res_walkable_near_enemy(
         adjacent_empty_near_res, game_state, opponent, u_prefix))
-    in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(available_resources_tiles,
+    in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.available_resources_tiles,
                                                                                    unit.pos)
-    adjacent_empty_near_wood_and_city = Lazy(lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(), wood_tiles,
+    adjacent_empty_near_wood_and_city = Lazy(
+        lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(), resources.wood_tiles,
                                              game_state, player))
-    adjacent_empty_near_wood_near_empty = Lazy(lambda: empty_near_res(unit.pos,adjacent_empty_tiles(), wood_tiles,
-                                             game_state))
+    adjacent_empty_near_wood_near_empty = Lazy(
+        lambda: empty_near_res(unit.pos, adjacent_empty_tiles(), resources.wood_tiles,
+                               game_state))
 
     # End of game, try to save units that are not going anymore to do anything
-    if (len(all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
+    if (len(resources.all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
             or (game_state.turn >= 350):
         # those units are not useful anymore, return home
         send_unit_home(actions, game_state, info, player, u_prefix, unit, "nothing to do, go home")
         return
 
-    if (len(all_resources_tiles) == 0 and unit.cargo.fuel() > 0 and len(unsafe_cities) == 0):
+    if (len(resources.all_resources_tiles) == 0 and unit.cargo.fuel() > 0 and len(unsafe_cities) == 0):
         pr(u_prefix, ' end of game, with resources ', info.get_cargo_space_used())
         if unit.can_build(game_state.map):
             dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
@@ -950,7 +950,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         # end of game, try to put together 100 to build something
         transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                               available_resources_tiles, info, in_resource,
+                                                               resources.available_resources_tiles, info, in_resource,
                                                                near_resource, player, unit, u_prefix)
         if transferred:
             pr(u_prefix, ' end of game, transferred resource to put together 100')
@@ -994,30 +994,31 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         # near SHORTCUTS
         near_city = Lazy(lambda: player.is_position_adjacent_city(unit.pos))
-        in_wood, near_wood = MapAnalysis.is_position_in_X_adjacent_to_resource(wood_tiles, unit.pos)
+        in_wood, near_wood = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.wood_tiles, unit.pos)
 
         # adjacent SHORTCUTS
         adjacent_empty_tiles_with_payload = Lazy(lambda: get_adjacent_empty_tiles_with_payload(unit.pos,
-                                                                                                      adjacent_empty_tiles(),
-                                                                                                      game_state,
-                                                                                                      player,
-                                                                                                      opponent,
-                                                                                                      available_resources_tiles,
-                                                                                                      unit.get_cargo_space_left(),
-                                                                                                      u_prefix))
+                                                                                               adjacent_empty_tiles(),
+                                                                                               game_state,
+                                                                                               player,
+                                                                                               opponent,
+                                                                                               resources.available_resources_tiles,
+                                                                                               unit.get_cargo_space_left(),
+                                                                                               u_prefix))
 
         best_adjacent_empty_tile_near_city = Lazy(
             lambda: adjacent_empty_tiles_favour_city_ct_res_towenemy(adjacent_empty_tiles_with_payload()))
         best_adjacent_empty_tile_near_res_towards_enemys = Lazy(
             lambda: adjacent_empty_tiles_favour_res_towenemy(adjacent_empty_tiles_with_payload()))
 
-        resources_distance = Lazy(lambda: find_resources_distance(unit.pos, clusters, all_resources_tiles,
-                                                                         game_info, u_prefix))
-        adjacent_resources = Lazy(lambda: MapAnalysis.get_adjacent_resources(available_resources_tiles,unit.pos))
+        resources_distance = Lazy(lambda: find_resources_distance(unit.pos, clusters, resources.all_resources_tiles,
+                                                                  game_info, u_prefix))
+        adjacent_resources = Lazy(
+            lambda: MapAnalysis.get_adjacent_resources(resources.available_resources_tiles, unit.pos))
         city_tile_distance = Lazy(
             lambda: find_city_tile_distance(unit.pos, player, unsafe_cities, game_state_info))
         adjacent_next_to_resources = Lazy(lambda: get_walkable_that_are_near_resources(
-            u_prefix, MapAnalysis.get_4_positions(unit.pos, game_state), available_resources_tiles))
+            u_prefix, MapAnalysis.get_4_positions(unit.pos, game_state), resources.available_resources_tiles))
 
         # enemy SHORTCUTS
         adjacent_enemy_units = Lazy(lambda: opponent.get_units_around_pos(unit.pos, 1))
@@ -1193,7 +1194,8 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
             pr(u_prefix, ' has tried too many times to go to ', info.last_move_direction)
             if info.get_cargo_space_used() > 0 and (in_resource or near_resource):
                 transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                                       available_resources_tiles, info, in_resource,
+                                                                       resources.available_resources_tiles, info,
+                                                                       in_resource,
                                                                        near_resource, player, unit, u_prefix)
                 if transferred:
                     return
@@ -1214,13 +1216,13 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                 return
 
             direction = get_direction_to_quick(game_state, info, info.target_position,
-                                               available_resources_tiles, unsafe_cities)
+                                               resources.available_resources_tiles, unsafe_cities)
             if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction,
                                                                                     game_state):
                 move_mapper.move_unit_to(actions, direction, info, " move to traveler pos", info.target_position)
                 return
             else:
-                pr(u_prefix, ' traveller cannot move:' + direction)
+                pr(u_prefix, ' traveller cannot move:' + str(direction))
                 if unit.pos.distance_to(info.target_position) <= 1: info.clean_unit_role()
 
         #   RETURNER
@@ -1268,7 +1270,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
                         # one that still leave this perimeter free
                         there_in_res, there_near_res = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                            available_resources_tiles, adjacent_position)
+                            resources.available_resources_tiles, adjacent_position)
                         if num_adjacent_city == num_adjacent_here and near_resource and not there_near_res:
                             # prx(u_prefix, "XXX5", adjacent_position)
                             if move_to_better_or_transfer(" moved to a place that is also adjacent, but not near res",
@@ -1299,9 +1301,9 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                                                 )
                                     harvested_fuel = turns * \
                                                      MapAnalysis.get_max_fuel_harvest_in_pos(
-                                                         available_resources_tiles, t.pos)
-                                    expected_autonomy = (
-                                                                c.fuel + unit.cargo.fuel() + harvested_fuel) // c.get_light_upkeep()
+                                                         resources.available_resources_tiles, t.pos)
+                                    expected_autonomy = (c.fuel + unit.cargo.fuel() + harvested_fuel) \
+                                                        // c.get_light_upkeep()
                                     # prx(u_prefix, "XXXX1",c.cityid,c.fuel,unit.cargo.fuel(), harvested_fuel,
                                     #                       "//",c.get_light_upkeep(),"=", expected_autonomy)
                                     # prx(u_prefix, "XXXX1 auton+",harvested_fuel," =", c.cityid, c.get_num_tiles(), expected_autonomy)
@@ -1375,11 +1377,12 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         # move away from resource
                         for empty in adjacent_empty_tiles():
                             if move_mapper.can_move_to_pos(empty, game_state):
-                                if not MapAnalysis.is_position_adjacent_to_resource(available_resources_tiles,
+                                if not MapAnalysis.is_position_adjacent_to_resource(resources.available_resources_tiles,
                                                                                     empty):
                                     direction = unit.pos.direction_to(empty)
                                     move_unit_to_or_transfer(actions, direction, info, player,
-                                                             u_prefix, unit, " we could have built, but better moving far away from resurces")
+                                                             u_prefix, unit,
+                                                             " we could have built, but better moving far away from resurces")
                                     return
 
                     if do_build:
@@ -1409,7 +1412,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     for pos in adjacent_empty_tiles():
                         if pos in enemy_positions:
                             continue
-                        if not MapAnalysis.is_position_adjacent_to_resource(wood_tiles, pos):
+                        if not MapAnalysis.is_position_adjacent_to_resource(resources.wood_tiles, pos):
                             continue
 
                         if move_mapper.can_move_to_pos(pos, game_state):
@@ -1450,7 +1453,8 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                         return
 
             transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                                   available_resources_tiles, info, in_resource,
+                                                                   resources.available_resources_tiles, info,
+                                                                   in_resource,
                                                                    near_resource,
                                                                    player, unit, u_prefix)
             if transferred:
@@ -1497,7 +1501,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
 
         # if near_resource and in_empty() and info.get_cargo_space_used() >= 0:
         #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-        #                                                           available_resources_tiles, info,
+        #                                                           resources.available_resources_tiles, info,
         #                                                           in_resource, near_resource,
         #                                                           player, unit, u_prefix)
         #     if transferred:
@@ -1516,10 +1520,11 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     # create a move action to the direction of the closest resource tile and add to our actions list
                     direction, better_cluster_pos, msg, resource_type = \
                         find_best_resource(game_state, resources_distance(), resource_target_by_unit,
-                                           info, available_resources_tiles, u_prefix, unsafe_cities)
+                                           info, resources.available_resources_tiles, u_prefix, unsafe_cities)
                     if direction == DIRECTIONS.CENTER and len(unsafe_cities) == 0:
                         transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                                               available_resources_tiles, info,
+                                                                               resources.available_resources_tiles,
+                                                                               info,
                                                                                in_resource, near_resource,
                                                                                player, unit, u_prefix)
                         if transferred:
@@ -1552,7 +1557,7 @@ def get_unit_action(unit, actions, all_resources_tiles, available_resources_tile
                     move_mapper.move_unit_to(actions, info.last_move_direction, info, 'move a bit further')
                 elif resource_type != RESOURCE_TYPES.WOOD and player.is_unit_in_pos(info.last_move_before_pos):
                     transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                             available_resources_tiles, info,
+                                                             resources.available_resources_tiles, info,
                                                              in_resource,
                                                              near_resource, player, unit, u_prefix)
 
