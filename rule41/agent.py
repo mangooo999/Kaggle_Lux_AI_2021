@@ -251,7 +251,7 @@ def get_random_step(from_pos: Position) -> DIRECTIONS:
     return DIRECTIONS.CENTER
 
 
-game_state : Game= None
+game_state: Game = None
 unit_info: DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo(pr)
 clusters: ClusterControl
@@ -316,8 +316,6 @@ def agent(observation, configuration):
     total_fuel_required = 0
     fuel_with_units = 0
 
-
-
     # count how much fuel our unit have
     for unit in player.units:
         fuel_with_units += unit.cargo.fuel()
@@ -362,16 +360,21 @@ def agent(observation, configuration):
     # set unsafe cities, record how many available city actions we have
     if len(cities) > 0:
         for city in cities:
-            will_live = city.get_autonomy_turns() >= game_state_info.all_night_turns_lef
-            will_live_next_night = city.get_autonomy_turns() >= game_state_info.next_night_number_turn
+            autonomy = city.get_autonomy_turns()
+            will_live = autonomy >= game_state_info.all_night_turns_lef
+            will_live_next_night = autonomy >= game_state_info.next_night_number_turn
             payload = (city.get_num_tiles(), will_live_next_night)
             total_fuel_required_by_city = city.get_light_upkeep() * game_state_info.all_night_turns_lef
             total_fuel_required += total_fuel_required_by_city
             # collect unsafe cities
-
+            pr(t_prefix, city.cityid, 'size', len(city.citytiles), 'fuel_required=', total_fuel_required_by_city,
+               '(expected=', fuel_we_expect, ') Autonomy=', autonomy, '; LiveNextNight=', will_live_next_night,
+               '; LiveForever=', will_live)
             if total_fuel_required_by_city > fuel_we_expect:
-                pr(t_prefix, city.cityid, 'fuel_we_expect city unsafe but will not survive', total_fuel_required)
+                pr(t_prefix, city.cityid, 'size', len(city.citytiles),
+                   'fuel_we_expect city unsafe but will not survive', total_fuel_required, '<', fuel_we_expect)
             else:
+
                 if not will_live:
                     unsafe_cities[city.cityid] = payload
                 if not will_live_next_night:
@@ -543,8 +546,8 @@ def agent(observation, configuration):
         spread_move = None
         if cluster.res_type == RESOURCE_TYPES.WOOD \
                 and (cluster.get_equivalent_resources() > 5) \
-                and (cluster.num_units()>2)\
-                and len(cluster.perimeter_strategic)>0:
+                and (cluster.num_units() > 2) \
+                and len(cluster.perimeter_strategic) > 0:
             pr(t_prefix, "medium cluster with strategic", cluster.to_string_light())
             pr(t_prefix, cluster.id, cluster.perimeter_strategic)
             units_to_pos = []
@@ -577,7 +580,7 @@ def agent(observation, configuration):
             units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
             spread_move = next(iter(units_to_pos), None)
             if spread_move is not None:
-                pr(t_prefix, "medium cluster can move to",spread_move)
+                pr(t_prefix, "medium cluster can move to", spread_move)
 
         if spread_move is None \
                 and cluster.res_type == RESOURCE_TYPES.WOOD \
@@ -882,13 +885,13 @@ def agent(observation, configuration):
         if unit.can_build(game_state.map):
             get_unit_action(unit, actions, resources,
                             game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
-                            unsafe_cities)
+                            unsafe_cities, immediately_unsafe_cities)
 
     for unit in player.units:
         if not unit.can_build(game_state.map):
             get_unit_action(unit, actions, resources,
                             game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
-                            unsafe_cities)
+                            unsafe_cities, immediately_unsafe_cities)
 
     # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
     for unit in player.units:
@@ -908,8 +911,7 @@ def agent(observation, configuration):
 
                 transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                          resources.available_resources_tiles, info, in_resource,
-                                                         near_resource,
-                                                         player, unit, u_prefix)
+                                                         near_resource, player, u_prefix)
 
     # for i,j in resource_target_by_unit.items():
     #    pr("XXXX resources map ",game_info.turn,i,len(j))
@@ -919,7 +921,7 @@ def agent(observation, configuration):
 
 def get_unit_action(unit, actions, resources,
                     game_state_info, number_city_tiles, opponent, player,
-                    resource_target_by_unit, unsafe_cities, can_swap = True):
+                    resource_target_by_unit, unsafe_cities, immediately_unsafe_cities, can_swap=True):
     info: UnitInfo = unit_info[unit.id]
     u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
 
@@ -995,7 +997,7 @@ def get_unit_action(unit, actions, resources,
         # end of game, try to put together 100 to build something
         transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                                resources.available_resources_tiles, info, in_resource,
-                                                               near_resource, player, unit, u_prefix)
+                                                               near_resource, player, u_prefix)
         if transferred:
             pr(u_prefix, ' end of game, transferred resource to put together 100')
             return
@@ -1240,7 +1242,7 @@ def get_unit_action(unit, actions, resources,
                 transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                                        resources.available_resources_tiles, info,
                                                                        in_resource,
-                                                                       near_resource, player, unit, u_prefix)
+                                                                       near_resource, player, u_prefix)
                 if transferred:
                     return
             # if unit.can_build(game_state.map):
@@ -1270,17 +1272,17 @@ def get_unit_action(unit, actions, resources,
                 if unit.pos.distance_to(info.target_position) <= 1:
                     info.clean_unit_role()
                 elif can_swap:
-                    #see if we can swap roles
+                    # see if we can swap roles
                     directions = MapAnalysis.directions_to(unit.pos, info.target_position)
                     for direction in directions:
-                        pos = unit.pos.translate(direction,1)
-                        if not move_mapper.can_move_to_pos(pos,game_state):
+                        pos = unit.pos.translate(direction, 1)
+                        if not move_mapper.can_move_to_pos(pos, game_state):
                             friend = player.get_unit_in_pos(pos)
                             if friend is not None:
                                 friend_info = unit_info[friend.id]
                                 if friend_info.is_role_none():
-                                    friend_info.set_unit_role_traveler(info.target_position,info.role_time_turn_limit,
-                                                                       u_prefix, " swapped with unit "+unit.id)
+                                    friend_info.set_unit_role_traveler(info.target_position, info.role_time_turn_limit,
+                                                                       u_prefix, " swapped with unit " + unit.id)
                                     info.clean_unit_role()
                                     break
                                 elif friend_info.is_role_traveler():
@@ -1288,16 +1290,15 @@ def get_unit_action(unit, actions, resources,
                                     friend_limit_turns = friend_info.role_time_turn_limit
                                     friend_info.set_unit_role_traveler(info.target_position, info.role_time_turn_limit,
                                                                        u_prefix, " swapped with unit " + unit.id)
-                                    info.set_unit_role_traveler(friend_target,friend_limit_turns,
-                                                                       u_prefix, " swapped with unit " + friend.id)
-                                    #repeat process for this unit with new role
-                                    pr(u_prefix,"repeat get_unit_action")
+                                    info.set_unit_role_traveler(friend_target, friend_limit_turns,
+                                                                u_prefix, " swapped with unit " + friend.id)
+                                    # repeat process for this unit with new role
+                                    pr(u_prefix, "repeat get_unit_action")
                                     get_unit_action(unit, actions, resources,
                                                     game_state_info, number_city_tiles, opponent, player,
-                                                    resource_target_by_unit, unsafe_cities, can_swap = False)
+                                                    resource_target_by_unit, unsafe_cities, immediately_unsafe_cities,
+                                                    can_swap=False)
                                     break
-
-
 
         #   RETURNER
         if info.is_role_returner():
@@ -1307,8 +1308,8 @@ def get_unit_action(unit, actions, resources,
                 info.clean_unit_role()
             else:
                 pr(u_prefix, " Returner city2", unsafe_cities)
-                direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance(),
-                                                                    unsafe_cities, info, player, pr)
+                direction, city_pos, msg, city_id, is_transfer = find_best_city(game_state, city_tile_distance(),
+                                                                                unsafe_cities, info, player, pr)
                 move_unit_to_or_transfer(actions, direction, info, player, u_prefix, unit,
                                          'returner ' + msg)
                 return
@@ -1530,7 +1531,7 @@ def get_unit_action(unit, actions, resources,
                                                                    resources.available_resources_tiles, info,
                                                                    in_resource,
                                                                    near_resource,
-                                                                   player, unit, u_prefix)
+                                                                   player, u_prefix)
             if transferred:
                 return
 
@@ -1577,7 +1578,7 @@ def get_unit_action(unit, actions, resources,
         #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
         #                                                           resources.available_resources_tiles, info,
         #                                                           in_resource, near_resource,
-        #                                                           player, unit, u_prefix)
+        #                                                           player, u_prefix)
         #     if transferred:
         #         pr(u_prefix, " Near resources, transferred to somebody not near resouces")
         #         continue
@@ -1600,7 +1601,7 @@ def get_unit_action(unit, actions, resources,
                                                                                resources.available_resources_tiles,
                                                                                info,
                                                                                in_resource, near_resource,
-                                                                               player, unit, u_prefix)
+                                                                               player, u_prefix)
                         if transferred:
                             return
 
@@ -1633,7 +1634,7 @@ def get_unit_action(unit, actions, resources,
                     transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                              resources.available_resources_tiles, info,
                                                              in_resource,
-                                                             near_resource, player, unit, u_prefix)
+                                                             near_resource, player, u_prefix)
 
                 elif resource_type == RESOURCE_TYPES.WOOD and \
                         game_state_info.turns_to_night > 10 \
@@ -1681,16 +1682,32 @@ def get_unit_action(unit, actions, resources,
                                                          next_pos)
                             return
 
-            elif not info.is_role_hassler():
+            else:
                 pr(u_prefix, " Goto city; fuel=", unit.cargo.fuel())
                 # find closest city tile and move towards it to drop resources to a it to fuel the city
                 if len(unsafe_cities) > 0:
                     pr(u_prefix, " Goto city2", unsafe_cities)
 
-                    direction, better_cluster_pos, msg = find_best_city(game_state, city_tile_distance(),
-                                                                        unsafe_cities, info, player, pr)
+                    direction, city_pos, msg, city_id, is_transfer = \
+                        find_best_city(game_state, city_tile_distance(), unsafe_cities, info, player, pr)
 
-                    pr(u_prefix, " Goto city3: " + msg)
+                    is_city_immediately_danger = city_id in immediately_unsafe_cities
+                    pr(u_prefix, " Goto city3:", city_id, 'critical=', is_city_immediately_danger, msg)
+                    if city_pos is not None:
+                        distance_to_city = unit.pos.distance_to(city_pos)
+                        if near_resource and unit.get_cargo_space_left() > 5:
+                            if (not is_city_immediately_danger) or \
+                                    (
+                                            is_city_immediately_danger and game_state_info.turns_to_night > 2 * distance_to_city + 5):
+                                # just try to transfer do not move
+                                pr(u_prefix, " City is not critical (or critical and close enough to return before "
+                                             "the night), just stay here as much as possible to gather resources")
+                                transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                         resources.available_resources_tiles, info,
+                                                                         in_resource,
+                                                                         near_resource, player, u_prefix)
+                                return
+
                     if unit.cargo.fuel() >= 200 and info.is_role_none():
                         info.set_unit_role_returner(u_prefix)
 
@@ -1812,7 +1829,7 @@ def send_unit_home(actions, game_state, info, player, u_prefix, unit, msg):
 
 
 def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, available_resources_tiles, info,
-                                             in_resource, near_resource, player, unit, prefix) -> bool:
+                                             in_resource, near_resource, player, prefix) -> bool:
     for pos in adjacent_empty_tiles():
         friend = player.get_unit_in_pos(pos)
         if friend is not None:
@@ -1943,7 +1960,7 @@ def move_unit_to_or_transfer(actions, direction, info, player, prefix, unit, msg
 
 
 def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo, player, pr) \
-        -> Tuple[DIRECTIONS, Optional[Position], str]:
+        -> Tuple[DIRECTIONS, Optional[Position], str, str, bool]:
     unit = info.unit
 
     for city_tile, payload in city_tile_distance.items():
@@ -1980,7 +1997,7 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
                 friend = move_mapper.player.get_unit_in_pos(next_pos)
                 if friend is not None:
                     if friend.get_cargo_space_left() > 0 and info.get_cargo_space_used() > 0:
-                        return direction, city_tile.pos, " towards friend " + friend.id
+                        return direction, city_tile.pos, " towards friend " + friend.id, city_id, True
 
             # then check if we can move
             for direction, next_pos in possible_directions:
@@ -1989,13 +2006,13 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
                 msg = unit.id + ' moving to ' + direction
                 if move_mapper.can_move_to_pos(next_pos, game_state, msg=msg):
                     return direction, city_tile.pos, " towards closest city" + city_tile.__str__() \
-                           + payload.__str__()
+                           + payload.__str__(), city_id, False
                 else:
                     # pr(' XXX - skip')
                     continue
-
+    
     direction = get_random_step(unit.pos)
-    return direction, None, "randomly (due to city)"
+    return direction, None, "randomly (due to city)", None, False
 
 
 def build_city(actions, info: UnitInfo, u_prefix, msg=''):
