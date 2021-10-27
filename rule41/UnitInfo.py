@@ -154,3 +154,6 @@ class UnitInfo:
 
     def set_build_if_you_can(self):
         self.build_if_you_can = True
+
+    def __repr__(self):
+        return "Info("+self.unit.id+")"

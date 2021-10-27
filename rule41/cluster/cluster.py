@@ -258,18 +258,22 @@ class Cluster:
         elif self.res_type == RESOURCE_TYPES.COAL:
             sequence_next = resources.uranium_tiles
 
-        for r in sequence_next:
-            if self.perimeter_strategic is None:
-                perimeter_pos, distance = self.get_closest_distance_to_perimeter(r.pos)
-            else:
-                perimeter_pos, distance = MapAnalysis.get_closest_position(r.pos, self.perimeter_strategic.keys())
+        if self.perimeter_strategic is None:
+            tile_to_check = self.perimeter
+        else:
+            tile_to_check = self.perimeter_strategic.keys()
 
+        for p in tile_to_check:
+            res_pos, distance = MapAnalysis.get_closest_position_cells(p,sequence_next)
+            # pr("XXX1 ",self.id,p,' to ',res_pos,'d',distance)
             if distance<3:
-                results[perimeter_pos] = (
+                results[p] = (
                     distance,
-                    r.pos
+                    res_pos
                 )
+
         self.perimeter_strategic = results
+        # pr("XXX2 ", self.id, self.perimeter_strategic)
 
     def update_closest(self, player: Player, opponent: Player):
 

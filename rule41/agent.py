@@ -540,7 +540,47 @@ def agent(observation, configuration):
     for cluster in clusters.get_clusters():
 
         # big cluster, try to spread our units in empty perimeter
+        spread_move = None
         if cluster.res_type == RESOURCE_TYPES.WOOD \
+                and (cluster.get_equivalent_resources() > 5) \
+                and (cluster.num_units()>2)\
+                and len(cluster.perimeter_strategic)>0:
+            pr(t_prefix, "medium cluster with strategic", cluster.to_string_light())
+            pr(t_prefix, cluster.id, cluster.perimeter_strategic)
+            units_to_pos = []
+            MIN_DIST = 2
+
+            for pos in cluster.perimeter_strategic:
+                # not close to friendly
+                if player.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
+                    continue
+
+                # not close to enemies
+                if opponent.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
+                    continue
+
+                # not close to other traveller
+                if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
+                    continue
+
+                for unitid in cluster.units:
+                    unit = player.units_by_id[unitid]
+                    info = None
+                    if unitid in unit_info:
+                        info = unit_info[unitid]
+                    if info is not None:
+                        # pr("XXX",info.unit.id,info.role)
+                        if info.is_role_none():
+                            dist = unit.pos.distance_to(pos)
+                            units_to_pos.append((dist, info, pos))
+
+            units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
+            spread_move = next(iter(units_to_pos), None)
+            if spread_move is not None:
+                pr(t_prefix, "medium cluster can move to",spread_move)
+
+        if spread_move is None \
+                and cluster.res_type == RESOURCE_TYPES.WOOD \
                 and (cluster.get_equivalent_resources() > 8) \
                 and (len(cluster.enemy_unit) < (cluster.get_equivalent_resources() // 4)) \
                 and (cluster.num_units() + len(cluster.incoming_explorers)) >= 3:
@@ -577,13 +617,16 @@ def agent(observation, configuration):
 
             spread_move = next(iter(units_to_pos), None)
             if spread_move is not None:
-                dist = spread_move[0]
-                info: UnitInfo = spread_move[1]  # infor
-                u = info.unit
-                pos = spread_move[2]
-                pr(t_prefix, "assigning", u.id, "to spread in big cluster", cluster.id, pos)
-                info.set_unit_role_traveler(pos, dist * 2)
-                break
+                pr(t_prefix, "big cluster can move to", spread_move)
+
+        if spread_move is not None:
+            dist = spread_move[0]
+            info: UnitInfo = spread_move[1]  # infor
+            u = info.unit
+            pos = spread_move[2]
+            pr(t_prefix, "assigning", u.id, "to spread in big cluster", cluster.id, pos)
+            info.set_unit_role_traveler(pos, dist * 2)
+            break
 
         if len(clust_analyses[cluster.id]) == 0:
             continue

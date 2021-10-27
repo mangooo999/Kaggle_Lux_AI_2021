@@ -30,6 +30,18 @@ class Cell:
     def __repr__(self):
         return f"Cell({self.x},{self.y})"
 
+    def distance_to(self, pos: 'Position') -> int:
+        """
+        Returns Manhattan (L1/grid) distance to pos
+        """
+        return self.pos.distance_to(pos)
+
+    def distance_to_mult(self, positions: '[Position]') -> int:
+        """
+        Returns Manhattan (L1/grid) distance to multiple pos
+        """
+        return self.pos.distance_to_mult(positions)
+
 
 class GameMap:
     def __init__(self, width, height):
