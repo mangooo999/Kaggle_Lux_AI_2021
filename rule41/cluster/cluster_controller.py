@@ -65,15 +65,15 @@ class ClusterControl:
 
         return None
 
-    def update(self, game_state, player: Player, opponent: Player, unit_info: DefaultDict[str, UnitInfo]):
+    def update(self, game_state, resources, player: Player, opponent: Player, unit_info: DefaultDict[str, UnitInfo]):
 
         # function_start_time = time.process_time()
 
         # update cell distribution
         for k in list(self.clusters.keys()):
             self.clusters[k].update(
-                game_state,
-                player, opponent, unit_info
+                game_state, resources,
+                player, opponent, unit_info, self.pr
             )
             if len(self.clusters[k].resource_cells) == 0:
                 self.pr("T_" + str(game_state.turn), "cluster", k, "terminated")
@@ -121,9 +121,12 @@ class ClusterControl:
 
         for k in list(self.clusters.keys()):
             self.clusters[k].refresh_score()
+            # self.pr("T_" + str(game_state.turn), "XXXX perimeter_strategic", k, self.clusters[k].perimeter_strategic)
 
         # ms = "{:10.2f}".format(1000. * (time.process_time() - function_start_time))
         # print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
+
+
 
 
 

@@ -298,7 +298,8 @@ def agent(observation, configuration):
 
     # The first thing we do is updating the cluster.
     # Refer to the cluster class for its attributes.
-    clusters.update(game_state, player, opponent, unit_info)
+    resources = ResourceService.Resources(game_state, player)
+    clusters.update(game_state, resources, player, opponent, unit_info)
 
     # current number of units
     units = len(player.units)
@@ -315,7 +316,7 @@ def agent(observation, configuration):
     total_fuel_required = 0
     fuel_with_units = 0
 
-    resources = ResourceService.Resources(game_state, player)
+
 
     # count how much fuel our unit have
     for unit in player.units:

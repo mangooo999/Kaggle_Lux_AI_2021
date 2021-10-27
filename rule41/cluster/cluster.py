@@ -7,10 +7,13 @@ from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
 import maps.map_analysis as MapAnalysis
 import resources.resource_helper as ResourceService
+from resources.resource_helper import Resources
 
 # from missions.mission import Mission
 from lux.game_objects import Player, CityTile
 from UnitInfo import UnitInfo
+
+
 
 
 class Cluster:
@@ -27,6 +30,7 @@ class Cluster:
         self.perimeter_empty: List[Position] = [Position] # empty (no resources, no city)
         self.perimeter_accessible: List[Position] = [Position] # no enemy city
         self.perimeter_walkable: List[Position] = [Position] # no enemy city, no enemy units
+        self.perimeter_strategic: {} = None
         self.res_type: RESOURCE_TYPES = resource_type
         self.closest_unit = ''
         self.closest_unit_distance = math.inf
@@ -172,14 +176,8 @@ class Cluster:
             self.perimeter_empty
         )
 
-    # def get_perimeter_strategic_points(self, all_resources):
-    #     for pos in self.perimeter:
-
-
-
-    def update(self,
-               game_state,
-               player: Player, opponent: Player, unit_info: DefaultDict[str, UnitInfo]
+    def update(self, game_state, resources,
+               player: Player, opponent: Player, unit_info: DefaultDict[str, UnitInfo], pr
                ):
         '''
         This is to update the cluster information.
@@ -236,6 +234,42 @@ class Cluster:
                 accessible_perimeter_now.append(p)
 
         self.perimeter_walkable = accessible_perimeter_now
+
+        self.update_perimeter_strategic_points(resources, pr)
+        # pr("XXX results", self.id, self.perimeter_strategic)
+
+
+    def update_perimeter_strategic_points(self, resources: Resources, pr):
+
+        if self.perimeter_strategic is not None:
+            if len(self.perimeter_strategic) == 0:
+                # cannot grow, only reduce
+                return
+
+        if self.res_type == RESOURCE_TYPES.URANIUM:
+            self.perimeter_strategic = {}
+            return
+
+        results = {}
+        sequence_next = []
+
+        if self.res_type == RESOURCE_TYPES.WOOD:
+            sequence_next = resources.coal_tiles
+        elif self.res_type == RESOURCE_TYPES.COAL:
+            sequence_next = resources.uranium_tiles
+
+        for r in sequence_next:
+            if self.perimeter_strategic is None:
+                perimeter_pos, distance = self.get_closest_distance_to_perimeter(r.pos)
+            else:
+                perimeter_pos, distance = MapAnalysis.get_closest_position(r.pos, self.perimeter_strategic.keys())
+
+            if distance<3:
+                results[perimeter_pos] = (
+                    distance,
+                    r.pos
+                )
+        self.perimeter_strategic = results
 
     def update_closest(self, player: Player, opponent: Player):
 
