@@ -322,7 +322,7 @@ def agent(observation, configuration):
     # count how much fuel our unit have
     for unit in player.units:
         fuel_with_units += unit.cargo.fuel()
-    pr(t_prefix,'u=',units,enemy_units,'ct=',num_city_tiles,num_enemy_city_tiles)
+    pr(t_prefix, 'u=', units, enemy_units, 'ct=', num_city_tiles, num_enemy_city_tiles)
 
     weight_us = min(units, num_city_tiles)
     weight_them = min(enemy_units, num_enemy_city_tiles)
@@ -409,19 +409,19 @@ def agent(observation, configuration):
 
     select_city = False
     if total_fuel_required_by_unsafe > grand_total_fuel:
-        pr(t_prefix,"cannot save all cities FOR SURE", total_fuel_required_by_unsafe, ">", grand_total_fuel)
+        pr(t_prefix, "cannot save all cities FOR SURE", total_fuel_required_by_unsafe, ">", grand_total_fuel)
         select_city = True
 
     elif total_fuel_required_by_unsafe > fuel_we_expect:
-        pr(t_prefix,"cannot save all cities EXPECTED", total_fuel_required_by_unsafe, ">", fuel_we_expect)
+        pr(t_prefix, "cannot save all cities EXPECTED", total_fuel_required_by_unsafe, ">", fuel_we_expect)
         select_city = True
 
     if select_city:
         for cityid, city_payload in unsafe_cities.items():
             total_fuel_required_by_city = city_payload[2]
             size = city_payload[0]
-            pr(t_prefix,'select_city',cityid,city_payload, total_fuel_required_by_city/size)
-        #TODO SELECT CITY TO KILL
+            pr(t_prefix, 'select_city', cityid, city_payload, total_fuel_required_by_city / size)
+        # TODO SELECT CITY TO KILL
 
     pr(t_prefix, "Unsafe cities            ", unsafe_cities)
     pr(t_prefix, "Immediately Unsafe cities", immediately_unsafe_cities)
@@ -720,8 +720,8 @@ def agent(observation, configuration):
 
             if move_if and cluster.get_equivalent_units() > 1 and closest_cluster_dist < 4 and \
                     closest_cluster_cluster.get_equivalent_units() == 0 and \
-                    closest_cluster_cluster.num_units_and_incoming() == 0\
-                    and closest_cluster_cluster.enemy_unit == 0 :
+                    closest_cluster_cluster.num_units_and_incoming() == 0 \
+                    and closest_cluster_cluster.enemy_unit == 0:
                 pr(prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
                    'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
                 move_to_closest_cluster = True
@@ -1161,11 +1161,11 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
             # time_to_dawn differs from game_state_info.turns_to_dawn as it could be even 11 on turn before night
             time_to_dawn = 10 + game_state_info.steps_until_night
-            num_units_here = player.get_units_number_around_pos(unit.pos,0) - \
-                                    move_mapper.get_num_unit_move_from_here(unit.pos)
+            num_units_here = player.get_units_number_around_pos(unit.pos, 0) - \
+                             move_mapper.get_num_unit_move_from_here(unit.pos)
 
             pr(u_prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
-               'inCity:', in_city(), 'empty:', in_empty(), 'nearwood:', near_wood,'unitsHere=',num_units_here)
+               'inCity:', in_city(), 'empty:', in_empty(), 'nearwood:', near_wood, 'unitsHere=', num_units_here)
 
             # search for adjacent cities in danger
             if game_state_info.is_night_time() and unit.cargo.fuel() > 0 and not in_city():
@@ -1260,7 +1260,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                             # only check closest resource, otherwise it ping pong
                             break
 
-                    #search any resource or near resource we can go next to enemy
+                    # search any resource or near resource we can go next to enemy
 
                     # could not find find next to resource
                     move_mapper.stay(unit, ' it is night, not next resource, but we could not find better')
@@ -1353,7 +1353,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
             else:
                 pr(u_prefix, " Returner city2", unsafe_cities)
                 direction, city_pos, msg, city_id, is_transfer = find_best_city(game_state, city_tile_distance(),
-                                                                                unsafe_cities, info, player, pr)
+                                                                                unsafe_cities, info, player,
+                                                                                in_resource, near_resource,
+                                                                                resources.available_resources_tiles, pr)
                 move_unit_to_or_transfer(actions, direction, info, player, u_prefix, unit,
                                          'returner ' + msg)
                 return
@@ -1366,13 +1368,13 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
             elif (not (info.is_role_traveler() or info.is_role_explorer())) \
                     and this_cluster.closest_enemy_distance > 5 \
                     and this_cluster.res_type == RESOURCE_TYPES.WOOD \
-                    and this_cluster.num_resource() > 5\
-                    and game_state_info.turns_to_night >= 4 * (config.distance_wood_coal_to_move_building-1) + 2:
+                    and this_cluster.num_resource() > 5 \
+                    and game_state_info.turns_to_night >= 4 * (config.distance_wood_coal_to_move_building - 1) + 2:
 
                 res_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, resources.coal_tiles)
                 if 1 < distance <= config.distance_wood_coal_to_move_building:
                     pr(u_prefix, unit.pos, "CAN BUILD and close to coal", distance, res_pos, ' turn_to_night=',
-                        game_state_info.turns_to_night)
+                       game_state_info.turns_to_night)
 
                     if 4 * (distance - 1) + 2 > game_state_info.turns_to_night:
                         pr(u_prefix, "aborting, not enough turns to night to do this")
@@ -1678,22 +1680,29 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                             pr(u_prefix, " Transfered!")
                             return
 
-                    pr(u_prefix, " Find resources2, resource_type ", resource_type)
-                    if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
-                            (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
-                        # this is a not researched yet resource, force to go there, so there is no jitter
-                        distance_to_res = res_pos.distance_to(unit.pos)
-                        pr(u_prefix, " Found resource not yet researched:", resource_type, res_pos, "dist",
-                           distance_to_res)
-                        game_info.research.log_research_stats(pr, u_prefix, 'US')
-                        # info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
-
                     if res_pos is not None:
+                        distance_to_res = res_pos.distance_to(unit.pos)
+                        pr(u_prefix, " Find resources2, resource_type ", resource_type, "dist=", distance_to_res)
+                        if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
+                                (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
+                            # this is a not researched yet resource, force to go there, so there is no jitter
+                            pr(u_prefix, " Found resource not yet researched:", resource_type, res_pos, "dist",
+                               distance_to_res)
+                            game_info.research.log_research_stats(pr, u_prefix, 'US')
+                            # info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
+
+                        # next_pos = unit.pos.translate(direction,1)
+                        # if near_resource and next_pos not in adjacent_next_to_resources():
+                        #     pr(u_prefix, "Direction calculated would bring us outside resource")
+                        #     move_mapper.stay(unit,"looking for resources, but already on one")
+                        #     return
+
+
                         # append target to our map
                         resource_target_by_unit.setdefault((res_pos.x, res_pos.y), []).append(
                             unit.id)
-                    move_mapper.move_unit_to(actions, direction, info, msg, res_pos)
-                    return
+                        move_mapper.move_unit_to(actions, direction, info, msg, res_pos)
+                        return
                 else:
                     pr(u_prefix, " resources_distance invalid (or empty?)")
             else:
@@ -1764,10 +1773,12 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                     pr(u_prefix, " Goto city2", unsafe_cities)
 
                     direction, city_pos, msg, city_id, is_transfer = \
-                        find_best_city(game_state, city_tile_distance(), unsafe_cities, info, player, pr)
+                        find_best_city(game_state, city_tile_distance(), unsafe_cities, info, player, in_resource,
+                                       near_resource, resources.available_resources_tiles, pr)
 
                     is_city_immediately_danger = city_id in immediately_unsafe_cities
-                    pr(u_prefix, " Goto city3:", city_id, 'critical=', is_city_immediately_danger, msg)
+                    pr(u_prefix, " Goto city3:", city_id, 'dir=', direction,
+                       'critical=', is_city_immediately_danger, msg)
                     if city_pos is not None:
                         distance_to_city = unit.pos.distance_to(city_pos)
                         if near_resource and unit.get_cargo_space_left() > 5:
@@ -1779,15 +1790,13 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                                              "the night), just stay here as much as possible to gather resources")
                                 transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                                          resources.available_resources_tiles, info,
-                                                                         in_resource,
-                                                                         near_resource, player, u_prefix)
+                                                                         in_resource, near_resource, player, u_prefix)
                                 return
 
                     if unit.cargo.fuel() >= 200 and info.is_role_none():
                         info.set_unit_role_returner(u_prefix)
 
-                    move_unit_to_or_transfer(actions, direction, info, player, u_prefix, unit,
-                                             'city' + msg)
+                    move_unit_to_or_transfer(actions, direction, info, player, u_prefix, unit, 'city' + msg)
                     pr(u_prefix, " Goto city4")
                     return
 
@@ -2041,7 +2050,8 @@ def move_unit_to_or_transfer(actions, direction, info, player, prefix, unit, msg
     return False
 
 
-def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo, player, pr) \
+def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo, player, in_resource, near_resource,
+                   available_resources_tiles, pr) \
         -> Tuple[DIRECTIONS, Optional[Position], str, str, bool]:
     unit = info.unit
 
@@ -2052,9 +2062,7 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
         unit = info.unit
         from_pos = unit.pos
         city_id = payload[3]
-        if from_pos.equals(city_tile.pos):
-            direction = DIRECTIONS.CENTER
-        else:
+        if not from_pos.equals(city_tile.pos):
             # directions = MapAnalysis.get_directions_to_city(from_pos, city_id, player)
             directions = MapAnalysis.directions_to(from_pos, city_tile.pos)
             # pr(' XXX - directions_to ', directions)
@@ -2079,7 +2087,16 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
                 friend = move_mapper.player.get_unit_in_pos(next_pos)
                 if friend is not None:
                     if friend.get_cargo_space_left() > 0 and info.get_cargo_space_used() > 0:
-                        return direction, city_tile.pos, " towards friend " + friend.id, city_id, True
+                        friend_in_resource, friend_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                            available_resources_tiles, friend.pos)
+                        if (in_resource and not friend_in_resource) or \
+                                ((not in_resource) and near_resource and not (
+                                        friend_near_resource or friend_in_resource)) or \
+                                (in_resource and friend_in_resource) or \
+                                ((not in_resource) and near_resource and (
+                                not friend_in_resource) and friend_near_resource) or \
+                                (not (in_resource or near_resource or friend_in_resource or friend_near_resource)):
+                            return direction, city_tile.pos, " towards friend " + friend.id, city_id, True
 
             # then check if we can move
             for direction, next_pos in possible_directions:
