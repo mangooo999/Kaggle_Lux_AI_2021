@@ -693,7 +693,7 @@ def agent(observation, configuration):
             pr(prefix, 'best :', best_cluster_dist, best_cluster_cluster.to_string_light())
 
             if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
-                pr(prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(),
+                pr(prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(),'r=',
                    cluster.num_resource())
                 move_to_best_cluster = True
 
@@ -854,7 +854,7 @@ def agent(observation, configuration):
                     if game_state.turn < 30:  # TODO maybe this should be based on how close is the unit to build
                         # we are turn<30, we need to prioritise spawning in the right city rather than research
                         # if we have resources around here, but no units, do not research
-                        near_resource = MapAnalysis.is_position_adjacent_to_resource_distance(
+                        near_resource = MapAnalysis.is_position_within_distance_to_resource(
                             resources.available_resources_tiles, city_tile.pos, 2)
                         near_units = player.get_units_number_around_pos(city_tile.pos, 2)
                         if near_resource and near_units == 0:
@@ -919,7 +919,7 @@ def agent(observation, configuration):
     return actions
 
 
-def get_unit_action(unit, actions, resources,
+def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                     game_state_info, number_city_tiles, opponent, player,
                     resource_target_by_unit, unsafe_cities, immediately_unsafe_cities, can_swap=True):
     info: UnitInfo = unit_info[unit.id]
@@ -932,6 +932,7 @@ def get_unit_action(unit, actions, resources,
     in_city = Lazy(lambda: in_which_city() != '')
     adjacent_units = Lazy(lambda: player.get_units_around_pos(unit.pos, 1))
     adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
+    adjacent_empty_tiles_walkable = Lazy(lambda: get_walkables(adjacent_empty_tiles(), game_state, u_prefix))
     adjacent_empty_near_res = Lazy(lambda: get_empty_tile_near_resources(adjacent_empty_tiles(),
                                                                          resources.available_resources_tiles))
     adjacent_empty_near_res_walkable_near_enemy = Lazy(lambda: get_adjacent_empty_near_res_walkable_near_enemy(
@@ -944,6 +945,10 @@ def get_unit_action(unit, actions, resources,
     adjacent_empty_near_wood_near_empty = Lazy(
         lambda: empty_near_res(unit.pos, adjacent_empty_tiles(), resources.wood_tiles,
                                game_state))
+
+    this_cluster :Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
+    if this_cluster is not None:
+        pr(u_prefix, 'this cluster ', this_cluster.to_string_light())
 
     # End of game, try to save units that are not going anymore to do anything
     if (len(resources.all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
@@ -1316,6 +1321,37 @@ def get_unit_action(unit, actions, resources,
 
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
+
+            # if this_cluster is None:
+            #     pr(u_prefix, "This cluster is None")
+            # elif (not (info.is_role_traveler() or info.is_role_explorer())) \
+            #         and this_cluster.closest_enemy_distance > 6 \
+            #         and this_cluster.res_type == RESOURCE_TYPES.WOOD \
+            #         and this_cluster.num_resource() > 5\
+            #         and game_state_info.turns_to_night > 2:
+            #
+            #     res_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, resources.coal_tiles)
+            #     pr(u_prefix, unit.pos, "CAN BUILD and close to coal", distance, res_pos, ' turn_to_night=',
+            #        game_state_info.turns_to_night)
+            #     # pr("XXX1 ",self.id,p,' to ',res_pos,'d',distance)
+            #     if 1 < distance <= (game_state_info.turns_to_night / 4) - 2:
+            #         city_tile = find_closest_city_tile_no_logic(res_pos, player)
+            #         if city_tile.distance_to(res_pos) < distance:
+            #             pr(u_prefix, "aborting, there is already a city closer", city_tile)
+            #             # there is already a city that is closer, do not bother
+            #         else:
+            #             for empty in adjacent_empty_tiles_walkable():
+            #                 res_pos, new_distance = MapAnalysis.get_closest_position_cells(empty, resources.coal_tiles)
+            #                 pr("XXX1 ",empty,new_distance)
+            #                 if new_distance<distance:
+            #                     pr(u_prefix, "CAN BUILD, Move closer to coal")
+            #                     move_mapper.move_unit_to_pos(actions, info, 'CAN BUILD, Move closer to coal', empty)
+            #                     return
+            #
+            #     pr(u_prefix, unit.pos, "CAN BUILD and close to coal, aborted")
+
+
+
             do_not_move = False  # this indicate that we want only to transfer or build, no movements
             if unit.cargo.fuel() < 150:
                 if num_adjacent_enemy_unit() > 0 and (near_resource or near_city()):
@@ -1745,6 +1781,14 @@ def get_unit_action(unit, actions, resources,
         pr(u_prefix, " TCFAIL didn't find any rule for this unit")
         # END IF is worker and can act
 
+def get_walkables(positions: [Position], game_state, u_prefix) -> [Position]:
+    possible_moves = []
+    for pos in positions:
+        if not move_mapper.can_move_to_pos(pos, game_state):
+            continue  # cannot move here, next
+        possible_moves.append(pos)
+
+    return possible_moves
 
 def get_adjacent_empty_near_res_walkable_near_enemy(adjacent_empty_near_res, game_state, opponent, u_prefix) \
         -> [Position]:

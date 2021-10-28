@@ -21,7 +21,8 @@ class ClusterControl:
         we assume they are in the same cluster.
         '''
         self.clusters: DefaultDict[str, Cluster] = defaultdict(Cluster)
-        self.pr=pr
+        self.unit_to_clusters = {}
+        self.pr = pr
 
         resource_cells = ResourceService.get_resources(game_state)
 
@@ -82,6 +83,7 @@ class ClusterControl:
         # attribute friendly unit to the closer cluster
 
         # first clear them up
+        self.unit_to_clusters = {}
         for k in list(self.clusters.keys()):
             self.clusters[k].cleanup()
 
@@ -104,6 +106,7 @@ class ClusterControl:
             if closest_cluster is not None:
                 if dist <= 2:
                     closest_cluster.add_unit(u.id)
+                    self.unit_to_clusters[u.id] = closest_cluster.id
 
         for city in player.cities.values():
             for city_tile in city.citytiles:
@@ -159,6 +162,14 @@ class ClusterControl:
                 units_without_clusters.append(unit)
 
         return units_without_clusters
+
+    def get_unit_cluster(self,u_prefix, unit_id: str) -> Cluster:
+        try:
+            return self.clusters[self.unit_to_clusters[unit_id]]
+        except:
+            return None
+
+
 
 # def get_citytiles_without_clusters(citytiles, cluster):
 #     citytiles_with_cluster = []

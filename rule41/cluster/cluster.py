@@ -132,7 +132,7 @@ class Cluster:
         return len(self.units) + len(self.incoming_explorers)
 
     def num_resource(self) -> int:
-        len(self.resource_cells)
+        return len(self.resource_cells)
 
     def num_enemy_units(self) -> int:
         return len(self.enemy_unit)
