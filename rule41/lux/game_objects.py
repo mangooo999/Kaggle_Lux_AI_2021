@@ -214,6 +214,13 @@ class Player:
 
         self.units_by_id: Dict[str, Unit] = {}
 
+    def get_num_city_tiles(self) -> int:
+        num=0
+        for city in self.cities.values():
+            num += len(city.citytiles)
+
+        return num
+
     def researched_coal(self) -> bool:
         return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["COAL"]
 

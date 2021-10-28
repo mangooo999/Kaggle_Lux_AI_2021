@@ -304,6 +304,9 @@ def agent(observation, configuration):
     # current number of units
     units = len(player.units)
     enemy_units = len(opponent.units)
+    num_city_tiles = player.get_num_city_tiles()
+    num_enemy_city_tiles = opponent.get_num_city_tiles()
+
     unit_number = 0
 
     cities = list(player.cities.values())
@@ -319,23 +322,26 @@ def agent(observation, configuration):
     # count how much fuel our unit have
     for unit in player.units:
         fuel_with_units += unit.cargo.fuel()
+    pr(t_prefix,'u=',units,enemy_units,'ct=',num_city_tiles,num_enemy_city_tiles)
 
-    if enemy_units == 0:
+    weight_us = min(units, num_city_tiles)
+    weight_them = min(enemy_units, num_enemy_city_tiles)
+    if weight_them == 0:
         fuel_we_expect = resources.total_fuel
     else:
         fuel_we_expect = 0
 
         # add wood
-        ratio = float(units) / float(units + enemy_units)
+        ratio = float(weight_us) / float(weight_us + weight_them)
         fuel_we_expect += int(ratio * float(resources.cargo.wood * 1.))
         # pr(t_prefix, 'XXX wood r=', ratio, int(ratio * float(cargo.wood)), 'of', cargo.wood)
 
         # add coal
         if player.researched_coal() and opponent.researched_coal():
-            ratio = float(units) / float(units + enemy_units)
+            ratio = float(weight_us) / float(weight_us + weight_them)
         else:
-            us_rate = min(game_info.research.points + 1, 50) * units
-            en_rate = min(game_info.opponent_research.points + 1, 50) * enemy_units
+            us_rate = min(game_info.research.points + 1, 50) * weight_us
+            en_rate = min(game_info.opponent_research.points + 1, 50) * weight_them
             ratio = float(us_rate) / float(us_rate + en_rate)
 
         fuel_we_expect += int(ratio * float(resources.cargo.coal * 10.))
@@ -343,16 +349,16 @@ def agent(observation, configuration):
 
         # add uranium
         if player.researched_uranium() and opponent.researched_uranium():
-            ratio = float(units) / float(units + enemy_units)
+            ratio = float(weight_us) / float(weight_us + weight_them)
         else:
-            us_rate = min(game_info.research.points + 1, 200) * units
-            en_rate = min(game_info.opponent_research.points + 1, 200) * enemy_units
+            us_rate = min(game_info.research.points + 1, 200) * weight_us
+            en_rate = min(game_info.opponent_research.points + 1, 200) * weight_them
             ratio = float(us_rate) / float(us_rate + en_rate)
 
         fuel_we_expect += int(ratio * float(resources.cargo.uranium * 40.))
         # pr(t_prefix, 'XXX coal r=', ratio, int(ratio * float(cargo.uranium)), 'of', cargo.uranium)
 
-    pr(t_prefix, 'units', units, enemy_units, 'res', game_info.research.points, game_info.opponent_research.points
+    pr(t_prefix, 'units', weight_us, weight_them, 'res', game_info.research.points, game_info.opponent_research.points
        , 'fuel_we_expect', fuel_we_expect, 'of', resources.total_fuel)
 
     fuel_we_expect = fuel_we_expect + fuel_with_units
@@ -363,16 +369,17 @@ def agent(observation, configuration):
             autonomy = city.get_autonomy_turns()
             will_live = autonomy >= game_state_info.all_night_turns_lef
             will_live_next_night = autonomy >= game_state_info.next_night_number_turn
-            payload = (city.get_num_tiles(), will_live_next_night)
             total_fuel_required_by_city = city.get_light_upkeep() * game_state_info.all_night_turns_lef
             total_fuel_required += total_fuel_required_by_city
+            payload = (city.get_num_tiles(), will_live_next_night, total_fuel_required_by_city)
             # collect unsafe cities
             pr(t_prefix, city.cityid, 'size', len(city.citytiles), 'fuel_required=', total_fuel_required_by_city,
                '(expected=', fuel_we_expect, ') Autonomy=', autonomy, '; LiveNextNight=', will_live_next_night,
                '; LiveForever=', will_live)
             if total_fuel_required_by_city > fuel_we_expect:
                 pr(t_prefix, city.cityid, 'size', len(city.citytiles),
-                   'fuel_we_expect city unsafe but will not survive', total_fuel_required, '<', fuel_we_expect)
+                   'fuel_we_expect city unsafe but will NOT survive', total_fuel_required_by_city, '<', fuel_we_expect,
+                   'in the number of nights left', game_state_info.all_night_turns_lef)
             else:
 
                 if not will_live:
@@ -389,7 +396,25 @@ def agent(observation, configuration):
                     available_city_actions_now_and_next += 1
 
     pr(t_prefix, 'number_city_tiles=', number_city_tiles, 'total_fuel_required=', total_fuel_required,
+       'fuel_we_expect=', fuel_we_expect,
        "total_fuel=", resources.total_fuel, 'available_fuel=', resources.available_fuel, "fuel_units=", fuel_with_units)
+
+    # check if the fuel required in unsafe is too much (note that unsafe fuel can be less than total fuel required)
+    total_fuel_required_by_unsafe = 0
+    for city_payload in unsafe_cities.values():
+        total_fuel_required_by_city = city_payload[2]
+        total_fuel_required_by_unsafe += total_fuel_required_by_city
+
+    grand_total_fuel = resources.total_fuel + fuel_with_units
+
+    if total_fuel_required_by_unsafe > fuel_we_expect:
+        pr(t_prefix,"cannot save all cities EXPECTED", total_fuel_required_by_unsafe, ">", fuel_we_expect)
+    if total_fuel_required_by_unsafe > grand_total_fuel:
+        pr(t_prefix,"cannot save all cities FOR SURE", total_fuel_required_by_unsafe, ">", grand_total_fuel)
+
+    pr(t_prefix, "Unsafe cities            ", unsafe_cities)
+    pr(t_prefix, "Immediately Unsafe cities", immediately_unsafe_cities)
+
     if game_state.turn == 0:
         # initial calculations
         initial_city_pos = list(player.cities.values())[0].citytiles[0].pos
@@ -684,7 +709,8 @@ def agent(observation, configuration):
 
             if move_if and cluster.get_equivalent_units() > 1 and closest_cluster_dist < 4 and \
                     closest_cluster_cluster.get_equivalent_units() == 0 and \
-                    closest_cluster_cluster.num_units_and_incoming() == 0:
+                    closest_cluster_cluster.num_units_and_incoming() == 0\
+                    and closest_cluster_cluster.enemy_unit == 0 :
                 pr(prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
                    'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
                 move_to_closest_cluster = True
@@ -705,7 +731,8 @@ def agent(observation, configuration):
 
             if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4 and \
                     best_cluster_cluster.get_equivalent_units() == 0 and \
-                    best_cluster_cluster.num_units_and_incoming() == 0:
+                    best_cluster_cluster.num_units_and_incoming() == 0 and \
+                    best_cluster_cluster.enemy_unit == 0:
                 pr(prefix, 'There is a very near best uncontested cluster', best_cluster_cluster.id,
                    'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
                 move_to_best_cluster = True
@@ -867,9 +894,6 @@ def agent(observation, configuration):
                     if game_info.still_can_do_reseach():
                         # let's do research
                         game_info.do_research(actions, city_tile, str(city_tile.pos) + " research")
-
-    pr(t_prefix, "Unsafe cities            ", unsafe_cities)
-    pr(t_prefix, "Immediately Unsafe cities", immediately_unsafe_cities)
 
     # trace the agent move
     # store all unit current location on move tracker
@@ -1328,12 +1352,10 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                     and this_cluster.closest_enemy_distance > 5 \
                     and this_cluster.res_type == RESOURCE_TYPES.WOOD \
                     and this_cluster.num_resource() > 5\
-                    and game_state_info.turns_to_night >= 6: # 4 * (distance-1)+2 when distance = 2
-
-
+                    and game_state_info.turns_to_night >= 4 * (config.distance_wood_coal_to_move_building-1) + 2:
 
                 res_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, resources.coal_tiles)
-                if 1 < distance <= 2:
+                if 1 < distance <= config.distance_wood_coal_to_move_building:
                     pr(u_prefix, unit.pos, "CAN BUILD and close to coal", distance, res_pos, ' turn_to_night=',
                         game_state_info.turns_to_night)
 
