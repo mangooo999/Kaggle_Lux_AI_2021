@@ -371,7 +371,7 @@ def agent(observation, configuration):
             will_live_next_night = autonomy >= game_state_info.next_night_number_turn
             total_fuel_required_by_city = city.get_light_upkeep() * game_state_info.all_night_turns_lef
             total_fuel_required += total_fuel_required_by_city
-            payload = (city.get_num_tiles(), will_live_next_night, total_fuel_required_by_city)
+            payload = (city.get_num_tiles(), will_live_next_night, int(total_fuel_required_by_city), city.cityid)
             # collect unsafe cities
             pr(t_prefix, city.cityid, 'size', len(city.citytiles), 'fuel_required=', total_fuel_required_by_city,
                '(expected=', fuel_we_expect, ') Autonomy=', autonomy, '; LiveNextNight=', will_live_next_night,
@@ -407,10 +407,21 @@ def agent(observation, configuration):
 
     grand_total_fuel = resources.total_fuel + fuel_with_units
 
-    if total_fuel_required_by_unsafe > fuel_we_expect:
-        pr(t_prefix,"cannot save all cities EXPECTED", total_fuel_required_by_unsafe, ">", fuel_we_expect)
+    select_city = False
     if total_fuel_required_by_unsafe > grand_total_fuel:
         pr(t_prefix,"cannot save all cities FOR SURE", total_fuel_required_by_unsafe, ">", grand_total_fuel)
+        select_city = True
+
+    elif total_fuel_required_by_unsafe > fuel_we_expect:
+        pr(t_prefix,"cannot save all cities EXPECTED", total_fuel_required_by_unsafe, ">", fuel_we_expect)
+        select_city = True
+
+    if select_city:
+        for cityid, city_payload in unsafe_cities.items():
+            total_fuel_required_by_city = city_payload[2]
+            size = city_payload[0]
+            pr(t_prefix,'select_city',cityid,city_payload, total_fuel_required_by_city/size)
+        #TODO SELECT CITY TO KILL
 
     pr(t_prefix, "Unsafe cities            ", unsafe_cities)
     pr(t_prefix, "Immediately Unsafe cities", immediately_unsafe_cities)
@@ -1150,7 +1161,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
             # time_to_dawn differs from game_state_info.turns_to_dawn as it could be even 11 on turn before night
             time_to_dawn = 10 + game_state_info.steps_until_night
-            num_units_here = player.get_units_number_around_pos(unit.pos,0)
+            num_units_here = player.get_units_number_around_pos(unit.pos,0) - \
+                                    move_mapper.get_num_unit_move_from_here(unit.pos)
+
             pr(u_prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
                'inCity:', in_city(), 'empty:', in_empty(), 'nearwood:', near_wood,'unitsHere=',num_units_here)
 
@@ -1211,7 +1224,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
 
             if in_city():
                 is_this_city_safe = in_which_city() not in unsafe_cities
-                if is_this_city_safe:
+                if is_this_city_safe or num_units_here > 1:
                     pr(u_prefix, ' it is night, this city is already safe though')
                     for pos in adjacent_empty_near_res_walkable():
                         move_mapper.move_unit_to_pos(actions, info, "R1 go out from city that is already safe", pos)
@@ -1246,6 +1259,8 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
 
                             # only check closest resource, otherwise it ping pong
                             break
+
+                    #search any resource or near resource we can go next to enemy
 
                     # could not find find next to resource
                     move_mapper.stay(unit, ' it is night, not next resource, but we could not find better')

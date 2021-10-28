@@ -15,6 +15,7 @@ class MoveHelper:
         """
         self.initial_position_mapper = {}
         self.movement_mapper = {}
+        self.move_from_here = {} # a dictionary of pos - int moving out
         self.player = player
         self.opponent = opponent
         self.turn = turn
@@ -134,6 +135,10 @@ class MoveHelper:
             info.set_last_action_move(direction, next_state_pos)
             self.pr(self.log_prefix + unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
                     , str(target_far_position or ''))
+            self.move_from_here[unit.pos] = self.get_num_unit_move_from_here(unit.pos) + 1
+
+    def get_num_unit_move_from_here(self,pos):
+        return self.move_from_here.get(pos,0)
 
     def try_to_move_to(self, actions, info: UnitInfo, pos: Position, game_state, msg: str) -> bool:
         direction = info.unit.pos.direction_to(pos)
