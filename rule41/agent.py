@@ -693,11 +693,12 @@ def agent(observation, configuration):
             pr(prefix, 'best :', best_cluster_dist, best_cluster_cluster.to_string_light())
 
             if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
-                pr(prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(),'r=',
+                pr(prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), 'r=',
                    cluster.num_resource())
                 move_to_best_cluster = True
 
-            if is_this_wood and cluster.get_equivalent_units() > config.cluster_wood_overcrowded:
+            if is_this_wood and cluster.get_equivalent_units() > config.cluster_wood_overcrowded and \
+                    cluster.num_units() > cluster.num_enemy_units():
                 pr(prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
                    'u=', cluster.units)
                 move_to_best_cluster = True
@@ -970,19 +971,18 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
     adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
     adjacent_empty_tiles_walkable = Lazy(lambda: get_walkables(adjacent_empty_tiles(), game_state, u_prefix))
     adjacent_empty_near_res_walkable = Lazy(lambda: get_empty_tile_near_resources(adjacent_empty_tiles_walkable(),
-                                                                         resources.available_resources_tiles))
+                                                                                  resources.available_resources_tiles))
     adjacent_empty_near_res_walkable_near_enemy = Lazy(lambda: get_near_enemy(
         adjacent_empty_near_res_walkable(), game_state, opponent, u_prefix))
     in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.available_resources_tiles,
                                                                                    unit.pos)
     adjacent_empty_near_wood_and_city = Lazy(lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(),
-                                            resources.wood_tiles, game_state, player))
-    adjacent_empty_near_wood_near_empty = Lazy( lambda: empty_near_res(unit.pos, adjacent_empty_tiles(),
-                                                                       resources.wood_tiles, game_state))
+                                                                                  resources.wood_tiles, game_state,
+                                                                                  player))
+    adjacent_empty_near_wood_near_empty = Lazy(lambda: empty_near_res(unit.pos, adjacent_empty_tiles(),
+                                                                      resources.wood_tiles, game_state))
 
-
-
-    this_cluster :Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
+    this_cluster: Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
     if this_cluster is not None:
         pr(u_prefix, 'this cluster ', this_cluster.to_string_light())
 
@@ -1077,7 +1077,6 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
 
         in_wood, near_wood = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.wood_tiles, unit.pos)
 
-
         #   EXPLORER
         if info.is_role_explorer():
             pr(u_prefix, ' is explorer ', info.target_position)
@@ -1127,9 +1126,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
             # time_to_dawn differs from game_state_info.turns_to_dawn as it could be even 11 on turn before night
             time_to_dawn = 10 + game_state_info.steps_until_night
-
+            num_units_here = player.get_units_number_around_pos(unit.pos,0)
             pr(u_prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
-               'inCity:', in_city(), 'empty:', in_empty(), 'nearwood:', near_wood)
+               'inCity:', in_city(), 'empty:', in_empty(), 'nearwood:', near_wood,'unitsHere=',num_units_here)
 
             # search for adjacent cities in danger
             if game_state_info.is_night_time() and unit.cargo.fuel() > 0 and not in_city():
@@ -1180,10 +1179,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
             # if we have the possibility of going in a tile that is empty_tile_near_wood_and_city
             # go if not in a city, or if you are in a city, go just last 1 days of night (so we gather and covered)
             best_night_spot = adjacent_empty_near_wood_and_city()
-
             if best_night_spot is not None:
                 enemy_there = opponent.is_unit_adjacent(best_night_spot.pos)  # IN OR ADJACENT
-                if (not in_city()) or time_to_dawn <= 1 or enemy_there:
+                if (not in_city()) or time_to_dawn <= 2 or enemy_there or num_units_here > 1:
                     if move_mapper.try_to_move_to(actions, info, best_night_spot.pos, game_state, " best_night_spot"):
                         return
 
@@ -1192,9 +1190,13 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                 if is_this_city_safe:
                     pr(u_prefix, ' it is night, this city is already safe though')
                     for pos in adjacent_empty_near_res_walkable():
-                        move_mapper.move_unit_to_pos(actions, info, "go out from city that is already safe", pos)
+                        move_mapper.move_unit_to_pos(actions, info, "R1 go out from city that is already safe", pos)
                         return
 
+                    for pos in adjacent_next_to_resources():
+                        if (not move_mapper.is_position_city(pos)) and move_mapper.can_move_to_pos(pos, game_state):
+                            move_mapper.move_unit_to_pos(actions, info, "R2 go out from city that is already safe", pos)
+                            return
 
                 if not near_resource:
                     # not near resource
@@ -1320,35 +1322,37 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
 
-            # if this_cluster is None:
-            #     pr(u_prefix, "This cluster is None")
-            # elif (not (info.is_role_traveler() or info.is_role_explorer())) \
-            #         and this_cluster.closest_enemy_distance > 6 \
-            #         and this_cluster.res_type == RESOURCE_TYPES.WOOD \
-            #         and this_cluster.num_resource() > 5\
-            #         and game_state_info.turns_to_night > 2:
-            #
-            #     res_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, resources.coal_tiles)
-            #     pr(u_prefix, unit.pos, "CAN BUILD and close to coal", distance, res_pos, ' turn_to_night=',
-            #        game_state_info.turns_to_night)
-            #     # pr("XXX1 ",self.id,p,' to ',res_pos,'d',distance)
-            #     if 1 < distance <= (game_state_info.turns_to_night / 4) - 2:
-            #         city_tile = find_closest_city_tile_no_logic(res_pos, player)
-            #         if city_tile.distance_to(res_pos) < distance:
-            #             pr(u_prefix, "aborting, there is already a city closer", city_tile)
-            #             # there is already a city that is closer, do not bother
-            #         else:
-            #             for empty in adjacent_empty_tiles_walkable():
-            #                 res_pos, new_distance = MapAnalysis.get_closest_position_cells(empty, resources.coal_tiles)
-            #                 pr("XXX1 ",empty,new_distance)
-            #                 if new_distance<distance:
-            #                     pr(u_prefix, "CAN BUILD, Move closer to coal")
-            #                     move_mapper.move_unit_to_pos(actions, info, 'CAN BUILD, Move closer to coal', empty)
-            #                     return
-            #
-            #     pr(u_prefix, unit.pos, "CAN BUILD and close to coal, aborted")
+            if this_cluster is None:
+                pr(u_prefix, "This cluster is None")
+            elif (not (info.is_role_traveler() or info.is_role_explorer())) \
+                    and this_cluster.closest_enemy_distance > 5 \
+                    and this_cluster.res_type == RESOURCE_TYPES.WOOD \
+                    and this_cluster.num_resource() > 5\
+                    and game_state_info.turns_to_night >= 6: # 4 * (distance-1)+2 when distance = 2
 
 
+
+                res_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, resources.coal_tiles)
+                if 1 < distance <= 2:
+                    pr(u_prefix, unit.pos, "CAN BUILD and close to coal", distance, res_pos, ' turn_to_night=',
+                        game_state_info.turns_to_night)
+
+                    if 4 * (distance - 1) + 2 > game_state_info.turns_to_night:
+                        pr(u_prefix, "aborting, not enough turns to night to do this")
+                    else:
+                        city_tile = find_closest_city_tile_no_logic(res_pos, player)
+                        if city_tile.distance_to(res_pos) < distance:
+                            pr(u_prefix, "aborting, there is already a city closer", city_tile)
+                            # there is already a city that is closer, do not bother
+                        else:
+                            for empty in adjacent_empty_tiles_walkable():
+                                res_pos, new_dist = MapAnalysis.get_closest_position_cells(empty, resources.coal_tiles)
+                                if new_dist < distance:
+                                    pr(u_prefix, "CAN BUILD, Move closer to coal", new_dist, empty)
+                                    move_mapper.move_unit_to_pos(actions, info, 'CAN BUILD, Move closer to coal', empty)
+                                    return
+
+                    pr(u_prefix, unit.pos, "CAN BUILD and close to coal, aborted")
 
             do_not_move = False  # this indicate that we want only to transfer or build, no movements
             if unit.cargo.fuel() < 150:
@@ -1637,14 +1641,14 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                             pr(u_prefix, " Transfered!")
                             return
 
-                    pr(u_prefix, " Find resources2, resource_type ",resource_type)
+                    pr(u_prefix, " Find resources2, resource_type ", resource_type)
                     if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                             (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
                         # this is a not researched yet resource, force to go there, so there is no jitter
                         distance_to_res = res_pos.distance_to(unit.pos)
                         pr(u_prefix, " Found resource not yet researched:", resource_type, res_pos, "dist",
                            distance_to_res)
-                        game_info.research.log_research_stats(pr,u_prefix,'US')
+                        game_info.research.log_research_stats(pr, u_prefix, 'US')
                         # info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
 
                     if res_pos is not None:
@@ -1776,6 +1780,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         pr(u_prefix, " TCFAIL didn't find any rule for this unit")
         # END IF is worker and can act
 
+
 def get_walkables(positions: [Position], game_state, u_prefix) -> [Position]:
     possible_moves = []
     for pos in positions:
@@ -1784,6 +1789,7 @@ def get_walkables(positions: [Position], game_state, u_prefix) -> [Position]:
         possible_moves.append(pos)
 
     return possible_moves
+
 
 def get_near_enemy(positions, game_state, opponent, u_prefix) \
         -> [Position]:
