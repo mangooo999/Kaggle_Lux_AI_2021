@@ -1691,11 +1691,11 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                             game_info.research.log_research_stats(pr, u_prefix, 'US')
                             # info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
 
-                        # next_pos = unit.pos.translate(direction,1)
-                        # if near_resource and next_pos not in adjacent_next_to_resources():
-                        #     pr(u_prefix, "Direction calculated would bring us outside resource")
-                        #     move_mapper.stay(unit,"looking for resources, but already on one")
-                        #     return
+                        next_pos = unit.pos.translate(direction,1)
+                        if near_resource and next_pos not in adjacent_next_to_resources():
+                            pr(u_prefix, "Direction calculated would bring us outside resource")
+                            move_mapper.stay(unit,"looking for resources, but already on one")
+                            return
 
 
                         # append target to our map
