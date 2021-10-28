@@ -26,18 +26,18 @@ class ResearchStats:
         return sum_research
 
     def get_research_rate(self) -> float:
-        return self.get_research_rate_exp()
+        return self.get_research_rate_flat()
 
     def get_research_rate_flat(self, n: int =5) -> float:
         return float(self.get_increase_last_n_turns(n)) / float(n)
 
-    def get_research_rate_exp(self, n: int = 8) -> float:
+    def get_research_rate_exp(self, n: int = 12) -> float:
         sum_research = 0.0
         sum_weights = 0.0
         i = 0.0
         for r in itertools.islice(self.increase_points_sequence, n):
             i += 1.0
-            weight = 1.0 / (2.0 + i)
+            weight = 1.0 / (4.0 + i)
             sum_research += weight * float(r)
             sum_weights += weight
 
