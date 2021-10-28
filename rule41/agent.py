@@ -928,23 +928,59 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
     pr(u_prefix, ";pos", unit.pos, 'CD=', unit.cooldown, unit.cargo.to_string(), 'fuel=',
        unit.cargo.fuel(), 'canBuildHere', unit.can_build(game_state.map), 'role', info.role)
 
+    # SHORTCUTS
+    # in SHORTCUTS
+    in_empty = Lazy(lambda: MapAnalysis.is_cell_empty(unit.pos, game_state))
+
+    # near SHORTCUTS
+    near_city = Lazy(lambda: player.is_position_adjacent_city(unit.pos))
+    # adjacent SHORTCUTS
+    adjacent_empty_tiles_with_payload = Lazy(lambda: get_adjacent_empty_tiles_with_payload(unit.pos,
+                                                                                           adjacent_empty_tiles(),
+                                                                                           game_state,
+                                                                                           player,
+                                                                                           opponent,
+                                                                                           resources.available_resources_tiles,
+                                                                                           unit.get_cargo_space_left(),
+                                                                                           u_prefix))
+
+    best_adjacent_empty_tile_near_city = Lazy(
+        lambda: adjacent_empty_tiles_favour_city_ct_res_towenemy(adjacent_empty_tiles_with_payload()))
+    best_adjacent_empty_tile_near_res_towards_enemys = Lazy(
+        lambda: adjacent_empty_tiles_favour_res_towenemy(adjacent_empty_tiles_with_payload()))
+
+    resources_distance = Lazy(lambda: find_resources_distance(unit.pos, clusters, resources.all_resources_tiles,
+                                                              game_info, u_prefix))
+    adjacent_resources = Lazy(
+        lambda: MapAnalysis.get_adjacent_resources(resources.available_resources_tiles, unit.pos))
+    city_tile_distance = Lazy(
+        lambda: find_city_tile_distance(unit.pos, player, unsafe_cities, game_state_info))
+    adjacent_next_to_resources = Lazy(lambda: get_walkable_that_are_near_resources(
+        u_prefix, MapAnalysis.get_4_positions(unit.pos, game_state), resources.available_resources_tiles))
+
+    # enemy SHORTCUTS
+    adjacent_enemy_units = Lazy(lambda: opponent.get_units_around_pos(unit.pos, 1))
+    num_adjacent_enemy_unit = Lazy(lambda: len(adjacent_enemy_units()))
+    num_hostiles_within2 = Lazy(lambda: opponent.get_num_units_and_city_number_around_pos(unit.pos, 2))
+    is_in_highly_hostile_area = Lazy(lambda: num_hostiles_within2() > 5)
+
     in_which_city = Lazy(lambda: MapAnalysis.get_city_id_from_pos(unit.pos, player))
     in_city = Lazy(lambda: in_which_city() != '')
     adjacent_units = Lazy(lambda: player.get_units_around_pos(unit.pos, 1))
     adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
     adjacent_empty_tiles_walkable = Lazy(lambda: get_walkables(adjacent_empty_tiles(), game_state, u_prefix))
-    adjacent_empty_near_res = Lazy(lambda: get_empty_tile_near_resources(adjacent_empty_tiles(),
+    adjacent_empty_near_res_walkable = Lazy(lambda: get_empty_tile_near_resources(adjacent_empty_tiles_walkable(),
                                                                          resources.available_resources_tiles))
-    adjacent_empty_near_res_walkable_near_enemy = Lazy(lambda: get_adjacent_empty_near_res_walkable_near_enemy(
-        adjacent_empty_near_res, game_state, opponent, u_prefix))
+    adjacent_empty_near_res_walkable_near_enemy = Lazy(lambda: get_near_enemy(
+        adjacent_empty_near_res_walkable(), game_state, opponent, u_prefix))
     in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.available_resources_tiles,
                                                                                    unit.pos)
-    adjacent_empty_near_wood_and_city = Lazy(
-        lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(), resources.wood_tiles,
-                                             game_state, player))
-    adjacent_empty_near_wood_near_empty = Lazy(
-        lambda: empty_near_res(unit.pos, adjacent_empty_tiles(), resources.wood_tiles,
-                               game_state))
+    adjacent_empty_near_wood_and_city = Lazy(lambda: empty_tile_near_res_and_city(adjacent_empty_tiles(),
+                                            resources.wood_tiles, game_state, player))
+    adjacent_empty_near_wood_near_empty = Lazy( lambda: empty_near_res(unit.pos, adjacent_empty_tiles(),
+                                                                       resources.wood_tiles, game_state))
+
+
 
     this_cluster :Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
     if this_cluster is not None:
@@ -1038,47 +1074,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         info.set_unit_role_expander(u_prefix)
 
     if unit.is_worker() and unit.can_act():
-        # SHORTCUTS
-        # in SHORTCUTS
 
-        in_empty = Lazy(lambda: MapAnalysis.is_cell_empty(unit.pos, game_state))
-
-        # near SHORTCUTS
-        near_city = Lazy(lambda: player.is_position_adjacent_city(unit.pos))
         in_wood, near_wood = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.wood_tiles, unit.pos)
 
-        # adjacent SHORTCUTS
-        adjacent_empty_tiles_with_payload = Lazy(lambda: get_adjacent_empty_tiles_with_payload(unit.pos,
-                                                                                               adjacent_empty_tiles(),
-                                                                                               game_state,
-                                                                                               player,
-                                                                                               opponent,
-                                                                                               resources.available_resources_tiles,
-                                                                                               unit.get_cargo_space_left(),
-                                                                                               u_prefix))
-
-        best_adjacent_empty_tile_near_city = Lazy(
-            lambda: adjacent_empty_tiles_favour_city_ct_res_towenemy(adjacent_empty_tiles_with_payload()))
-        best_adjacent_empty_tile_near_res_towards_enemys = Lazy(
-            lambda: adjacent_empty_tiles_favour_res_towenemy(adjacent_empty_tiles_with_payload()))
-
-        resources_distance = Lazy(lambda: find_resources_distance(unit.pos, clusters, resources.all_resources_tiles,
-                                                                  game_info, u_prefix))
-        adjacent_resources = Lazy(
-            lambda: MapAnalysis.get_adjacent_resources(resources.available_resources_tiles, unit.pos))
-        city_tile_distance = Lazy(
-            lambda: find_city_tile_distance(unit.pos, player, unsafe_cities, game_state_info))
-        adjacent_next_to_resources = Lazy(lambda: get_walkable_that_are_near_resources(
-            u_prefix, MapAnalysis.get_4_positions(unit.pos, game_state), resources.available_resources_tiles))
-
-        # enemy SHORTCUTS
-        adjacent_enemy_units = Lazy(lambda: opponent.get_units_around_pos(unit.pos, 1))
-        num_adjacent_enemy_unit = Lazy(lambda: len(adjacent_enemy_units()))
-        num_hostiles_within2 = Lazy(lambda: opponent.get_num_units_and_city_number_around_pos(unit.pos, 2))
-        is_in_highly_hostile_area = Lazy(lambda: num_hostiles_within2() > 5)
-
-        # pr(u_prefix, 'adjacent_empty_tiles', [x.__str__() for x in adjacent_empty_tiles()],
-        #    'favoured', best_adjacent_empty_tile.pos if best_adjacent_empty_tile else '')
 
         #   EXPLORER
         if info.is_role_explorer():
@@ -1193,10 +1191,10 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                 is_this_city_safe = in_which_city() not in unsafe_cities
                 if is_this_city_safe:
                     pr(u_prefix, ' it is night, this city is already safe though')
-                    for pos in adjacent_next_to_resources():
-                        if (not move_mapper.is_position_city(pos)) and move_mapper.can_move_to_pos(pos, game_state):
-                            move_mapper.move_unit_to_pos(actions, info, "go out from city that is already safe", pos)
-                            return
+                    for pos in adjacent_empty_near_res_walkable():
+                        move_mapper.move_unit_to_pos(actions, info, "go out from city that is already safe", pos)
+                        return
+
 
                 if not near_resource:
                     # not near resource
@@ -1486,15 +1484,14 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
 
                     if near_resource:
                         # move away from resource
-                        for empty in adjacent_empty_tiles():
-                            if move_mapper.can_move_to_pos(empty, game_state):
-                                if not MapAnalysis.is_position_adjacent_to_resource(resources.available_resources_tiles,
-                                                                                    empty):
-                                    direction = unit.pos.direction_to(empty)
-                                    move_unit_to_or_transfer(actions, direction, info, player,
-                                                             u_prefix, unit,
-                                                             " we could have built, but better moving far away from resurces")
-                                    return
+                        for empty in adjacent_empty_tiles_walkable():
+                            if not MapAnalysis.is_position_adjacent_to_resource(resources.available_resources_tiles,
+                                                                                empty):
+                                direction = unit.pos.direction_to(empty)
+                                move_unit_to_or_transfer(actions, direction, info, player,
+                                                         u_prefix, unit,
+                                                         " we could have built, but better moving far away from resurces")
+                                return
 
                     if do_build:
                         build_city(actions, info, u_prefix,
@@ -1518,18 +1515,17 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                     enemy_direction.append(unit.pos.direction_to(e_pos))
 
                 # pick empty that are near wood, not on enemy not backing off, and possibly near city
-                if len(adjacent_empty_tiles()) > 0:
+                if len(adjacent_empty_tiles_walkable()) > 0:
                     possible_moves = []
-                    for pos in adjacent_empty_tiles():
+                    for pos in adjacent_empty_tiles_walkable():
                         if pos in enemy_positions:
                             continue
                         if not MapAnalysis.is_position_adjacent_to_resource(resources.wood_tiles, pos):
                             continue
 
-                        if move_mapper.can_move_to_pos(pos, game_state):
-                            num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(pos, player)
-                            is_pos_walk_away = DIRECTIONS.opposite(unit.pos.direction_to(pos)) in enemy_direction
-                            possible_moves.append((int(is_pos_walk_away), -num_adjacent_city[0], pos))
+                        num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(pos, player)
+                        is_pos_walk_away = DIRECTIONS.opposite(unit.pos.direction_to(pos)) in enemy_direction
+                        possible_moves.append((int(is_pos_walk_away), -num_adjacent_city[0], pos))
 
                     possible_moves.sort(key=lambda x: (x[0], x[1]))
 
@@ -1574,10 +1570,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
             if in_resource:
                 pr(u_prefix, "hostile area, in resource")
                 # if we didn't pass to somebody in empty, see if there is something empty
-                for empty in MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos):
-                    if move_mapper.can_move_to_pos(empty, game_state):
-                        move_mapper.move_unit_to_pos(actions, info, 'hostile area, from res to near', empty)
-                        return
+                for empty in adjacent_empty_tiles_walkable():
+                    move_mapper.move_unit_to_pos(actions, info, 'hostile area, from res to near', empty)
+                    return
 
         if near_wood and in_empty():
             if info.get_cargo_space_used() >= 40:
@@ -1758,9 +1753,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         # NO IDEA rules (because nothing worked before)
         if in_wood:
             # easy rule, not sure if this is nota already trapped before
-            for pos in adjacent_empty_tiles_with_payload().keys():
-                if move_mapper.try_to_move_to(actions, info, pos, game_state, "No idea. From wood to near wood"):
-                    return
+            for pos in adjacent_empty_tiles_walkable():
+                move_mapper.move_unit_to_pos(actions, info, "No idea. From wood to near wood", pos)
+                return
 
             closest_cluster, dist = clusters.get_closest_cluster(player, unit.pos)
             possible_moves = []
@@ -1790,13 +1785,10 @@ def get_walkables(positions: [Position], game_state, u_prefix) -> [Position]:
 
     return possible_moves
 
-def get_adjacent_empty_near_res_walkable_near_enemy(adjacent_empty_near_res, game_state, opponent, u_prefix) \
+def get_near_enemy(positions, game_state, opponent, u_prefix) \
         -> [Position]:
     possible_moves = []
-    for pos in adjacent_empty_near_res():
-        # look if any walkable empty tile, is near an enemy
-        if not move_mapper.can_move_to_pos(pos, game_state):
-            continue  # cannot move here, next
+    for pos in positions:
         if opponent.get_num_units_and_city_number_around_pos(pos) == 0:
             continue  # this is not close to enemy
         pr(u_prefix, 'this pos is around enemy and resource ', pos)
