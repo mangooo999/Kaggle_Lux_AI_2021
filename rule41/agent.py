@@ -1699,7 +1699,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                             # info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
 
                         next_pos = unit.pos.translate(direction,1)
-                        if near_resource and (not in_city()) and next_pos not in adjacent_next_to_resources():
+                        if near_resource and (not in_city()) \
+                                and distance_to_res > 2\
+                                and next_pos not in adjacent_next_to_resources():
                             pr(u_prefix, "Direction calculated would bring us outside resource",direction)
                             move_mapper.stay(unit,"looking for resources, but already on one")
                             return
