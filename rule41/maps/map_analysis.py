@@ -1,5 +1,7 @@
 import math
 import sys
+import random
+random.seed(50)
 from typing import List, Tuple
 from collections import defaultdict
 from functools import cmp_to_key
@@ -388,12 +390,20 @@ def directions_to(start_pos: 'Position', target_pos: 'Position') -> [DIRECTIONS]
     """
     Return closest position to target_pos from this position
     """
-    check_dirs = [
-        DIRECTIONS.NORTH,
-        DIRECTIONS.EAST,
-        DIRECTIONS.SOUTH,
-        DIRECTIONS.WEST,
-    ]
+    if random.choice([True, False]):
+        check_dirs = [
+            DIRECTIONS.NORTH,
+            DIRECTIONS.EAST,
+            DIRECTIONS.SOUTH,
+            DIRECTIONS.WEST
+        ]
+    else:
+        check_dirs = [
+            DIRECTIONS.WEST,
+            DIRECTIONS.SOUTH,
+            DIRECTIONS.EAST,
+            DIRECTIONS.NORTH
+        ]
     closest_dist = start_pos.distance_to(target_pos)
     closest_dirs = [DIRECTIONS.CENTER]
     for direction in check_dirs:
