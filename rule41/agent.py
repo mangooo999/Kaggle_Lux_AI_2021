@@ -1508,7 +1508,14 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                     (game_state_info.turns_to_night > 1 or
                      (game_state_info.turns_to_night == 1 and near_resource)):
                 unit_fuel = unit.cargo.fuel()
-                if unit_fuel < 200:
+                if cluster is None:
+                    pr(u_prefix, "Can build, but not in adjacent city. Cluster is None, fuel",unit_fuel)
+                else:
+                    pr(u_prefix, "Can build, but not in adjacent city. Cluster is",cluster.to_string_light())
+                if (not near_resource) and \
+                        ((cluster is None) or (cluster.num_enemy_units() > 2 and cluster.num_city_tiles() == 0)):
+                    pr(u_prefix, "Can build, but we decided not to based on not being close to to any cluster")
+                elif unit_fuel < 200:
                     build_city(actions, info, u_prefix,
                                'NOT in adjacent city, we have not so much fuel ' + str(unit_fuel))
                     return
