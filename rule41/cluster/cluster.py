@@ -107,6 +107,17 @@ class Cluster:
         ct = len(self.city_tiles)
         return min(max(u, ct), u + 2)  # logic is that if units<ct, we can spawn units
 
+    def get_unit_to_res_ratio(self, diff_unit: int = 0) -> float:
+        eq_resources = self.get_equivalent_resources()
+        if eq_resources <= 0:
+            return float(self.get_equivalent_units_and_incoming() + diff_unit)
+        else:
+            res =  float(self.get_equivalent_units_and_incoming() + diff_unit) / float(self.get_equivalent_resources())
+            return round(res, 2)
+
+    def get_equivalent_units_and_incoming(self) -> int:
+        return self.get_equivalent_units() + self.num_incoming()
+
     def get_equivalent_resources(self) -> int:
         return min(len(self.resource_cells), int(float(self.get_available_fuel()) / 500.))
 
@@ -127,6 +138,9 @@ class Cluster:
 
     def num_units(self) -> int:
         return len(self.units)
+
+    def num_incoming(self) -> int:
+        return len(self.incoming_explorers)
 
     def num_city_tiles(self) -> int:
         return len(self.city_tiles)

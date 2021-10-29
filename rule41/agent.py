@@ -512,6 +512,9 @@ def agent(observation, configuration):
         if len(cluster.units) == 0:
             continue
 
+        this_cluster_unit_to_res_ratio = cluster.get_unit_to_res_ratio(-1)
+
+
         for next_clust in clusters.get_clusters():
             # we olny consider wood cluster
             # we olny consider uncontended and empty cluster
@@ -519,12 +522,21 @@ def agent(observation, configuration):
                     and is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(),
                                             game_state_info.steps_until_night) \
                     and next_clust.has_no_units():
-                for unitid in cluster.units:
-                    unit = player.units_by_id[unitid]
 
-                    info = None
-                    if unitid in unit_info:
-                        info = unit_info[unitid]
+                next_cluster_unit_to_res_ratio = next_clust.get_unit_to_res_ratio(+1)
+
+                pr(prefix, "ratios", cluster.id, this_cluster_unit_to_res_ratio, "to",
+                   next_clust.id, next_cluster_unit_to_res_ratio)
+
+                if next_clust.num_units_and_incoming() > 0 and \
+                        next_cluster_unit_to_res_ratio * .75 > this_cluster_unit_to_res_ratio:
+                    continue
+
+                for unit_id in cluster.units:
+                    unit = player.units_by_id[unit_id]
+
+                    if unit_id in unit_info:
+                        info = unit_info[unit_id]
                     else:
                         pr(prefix, next_clust.id, unit.id, "TCFAIL cannot find info")
                         continue
@@ -602,11 +614,11 @@ def agent(observation, configuration):
                 if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
                     continue
 
-                for unitid in cluster.units:
-                    unit = player.units_by_id[unitid]
+                for unit_id in cluster.units:
+                    unit = player.units_by_id[unit_id]
                     info = None
-                    if unitid in unit_info:
-                        info = unit_info[unitid]
+                    if unit_id in unit_info:
+                        info = unit_info[unit_id]
                     if info is not None:
                         # pr("XXX",info.unit.id,info.role)
                         if info.is_role_none():
@@ -640,11 +652,11 @@ def agent(observation, configuration):
                 if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
                     continue
 
-                for unitid in cluster.units:
-                    unit = player.units_by_id[unitid]
+                for unit_id in cluster.units:
+                    unit = player.units_by_id[unit_id]
                     info = None
-                    if unitid in unit_info:
-                        info = unit_info[unitid]
+                    if unit_id in unit_info:
+                        info = unit_info[unit_id]
                     if info is not None:
                         # pr("XXX",info.unit.id,info.role)
                         if info.is_role_none():

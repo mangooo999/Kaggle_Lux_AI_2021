@@ -88,20 +88,25 @@ class ClusterControl:
             self.clusters[k].cleanup()
 
         for u in player.units:
-
             if u.id in unit_info.keys():
+                info: UnitInfo = unit_info[u.id]
                 # if explorer\traveler add the target position as cluster reference
-                if unit_info[u.id].is_role_explorer() or unit_info[u.id].is_role_traveler():
-                    if unit_info[u.id].target_position is not None:
-                        closest_cluster,dist = self.get_closest_cluster(player, unit_info[u.id].target_position)
+
+                if info.is_role_explorer() or info.is_role_traveler():
+                    if info.target_position is not None:
+                        closest_cluster, dist = self.get_closest_cluster(player, info.target_position)
                         if closest_cluster is not None:
-                            closest_cluster.add_incoming_explorer(u.id,unit_info[u.id].target_position)
+                            if (info.target_position.distance_to(info.unit.pos) > 0):
+                                closest_cluster.add_incoming_explorer(u.id, info.target_position)
+                            else:
+                                #arrived, so can be considered as unit, not explorer
+                                closest_cluster.add_unit(u.id)
 
                     # anyway next, unit
                     continue
 
             # otherwise just the position
-            closest_cluster,dist = self.get_closest_cluster(player, u.pos)
+            closest_cluster, dist = self.get_closest_cluster(player, u.pos)
 
             if closest_cluster is not None:
                 if dist <= 2:
@@ -117,7 +122,6 @@ class ClusterControl:
                 if closest_cluster is not None:
                     closest_cluster.add_city_tile(city_tile, city.get_autonomy_turns())
 
-
         # update closest unit and enemy
         for k in list(self.clusters.keys()):
             self.clusters[k].update_closest(player, opponent)
@@ -129,11 +133,7 @@ class ClusterControl:
         # ms = "{:10.2f}".format(1000. * (time.process_time() - function_start_time))
         # print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
 
-
-
-
-
-    def get_closest_cluster(self, player, pos:Position) -> (Cluster,int):
+    def get_closest_cluster(self, player, pos: Position) -> (Cluster, int):
         closest_cluster_distance = math.inf
         closest_cluster = None
         for k in list(self.clusters.values()):
@@ -141,7 +141,7 @@ class ClusterControl:
                     (k.res_type == RESOURCE_TYPES.COAL and player.researched_coal()) or \
                     (k.res_type == RESOURCE_TYPES.URANIUM and player.researched_uranium()):
 
-                #dist = pos.distance_to(k.get_centroid())
+                # dist = pos.distance_to(k.get_centroid())
                 dist = pos.distance_to_mult(k.resource_cells)
                 if dist < closest_cluster_distance:
                     closest_cluster_distance = dist
@@ -163,13 +163,11 @@ class ClusterControl:
 
         return units_without_clusters
 
-    def get_unit_cluster(self,u_prefix, unit_id: str) -> Cluster:
+    def get_unit_cluster(self, u_prefix, unit_id: str) -> Cluster:
         try:
             return self.clusters[self.unit_to_clusters[unit_id]]
         except:
             return None
-
-
 
 # def get_citytiles_without_clusters(citytiles, cluster):
 #     citytiles_with_cluster = []
