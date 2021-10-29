@@ -1,7 +1,7 @@
 class ConfigManager():
     def __init__(self, map_size: int, pr):
         self.cluster_wood_overcrowded = 5
-        self.distance_wood_coal_to_move_building = 3
+        self.distance_wood_coal_to_move_building = 2
         self.super_fast_expansion = False
 
         pr("ConfigManager,map size{0}".format(map_size))
