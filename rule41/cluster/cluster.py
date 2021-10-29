@@ -128,6 +128,9 @@ class Cluster:
     def num_units(self) -> int:
         return len(self.units)
 
+    def num_city_tiles(self) -> int:
+        return len(self.city_tiles)
+
     def num_units_and_incoming(self) -> int:
         return len(self.units) + len(self.incoming_explorers)
 

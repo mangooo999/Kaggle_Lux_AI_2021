@@ -44,10 +44,11 @@ class UnitInfo:
         #
         self.gathered_last_turn = unit.get_cargo_space_left() - self.last_free_cargo
         self.last_free_cargo = unit.get_cargo_space_left()
+        u_prefix: str = "T_" + current_turn.__str__() + str(unit.id)
 
         if self.last_move_expected_pos is not None and self.last_move_turn == current_turn - 1:
             if not unit.pos.equals(self.last_move_expected_pos):
-                self.pr(self.log_prefix, 'this unit has not moved as expected to', self.last_move_expected_pos)
+                self.pr(u_prefix, 'this unit has not moved as expected to', self.last_move_expected_pos)
                 self.alarm += 1
             else:
                 self.alarm = 0
@@ -55,14 +56,14 @@ class UnitInfo:
         if self.role_time_turn_limit > 0:
             self.role_time_turn_limit -= 1
             if self.role_time_turn_limit == 0:
-                self.clean_unit_role('time turn reached')
+                self.clean_unit_role('time turn reached', u_prefix)
 
         if self.is_role_returner() and self.unit.get_cargo_space_left() == 100:
-            self.clean_unit_role('returner has now not anymore cargo')
+            self.clean_unit_role('returner has now not anymore cargo', u_prefix)
 
         if self.target_position is not None:
             if unit.pos.equals(self.target_position):
-                self.clean_unit_role('reached target position' + self.target_position.__str__())
+                self.clean_unit_role('reached target position' + self.target_position.__str__(), u_prefix)
 
     def add_cargo(self, res, qty):
         if res == RESOURCE_TYPES.WOOD:
@@ -100,35 +101,39 @@ class UnitInfo:
         self.last_move = 't'
         self.has_done_action_this_turn = True
 
-    def set_unit_role_traveler(self, pos: Position, number_turns, prefix: str = '', msg: str =''):
-        if prefix=='':
-            prefix=self.log_prefix
-        self.pr(prefix, 'set unit',self.unit.id,'as traveler to', pos, " for number_turns", number_turns, msg)
+    def set_unit_role_traveler(self, pos: Position, number_turns, prefix: str = '', msg: str = ''):
+        if prefix == '':
+            prefix = self.log_prefix
+        self.pr(prefix, 'set unit', self.unit.id, 'as traveler to', pos, " for number_turns", number_turns, msg)
         self.set_unit_role('traveler', prefix)
         self.target_position = pos
         self.role_time_turn_limit = number_turns
 
     def set_unit_role_returner(self, prefix: str = ''):
-        self.pr(self.log_prefix, 'set unit',self.unit.id,' as returner')
+        self.pr(self.log_prefix, 'set unit', self.unit.id, ' as returner')
         self.set_unit_role('returner', prefix)
 
     def set_unit_role_explorer(self, pos: Position, prefix: str = ''):
         if pos is not None:
-            self.pr(self.log_prefix, 'set unit',self.unit.id,' as explorer to', pos)
+            self.pr(self.log_prefix, 'set unit', self.unit.id, 'as explorer to', pos)
             self.set_unit_role('explorer', prefix)
             self.target_position = pos
 
     def set_unit_role_expander(self, prefix: str = ''):
-        self.pr(self.log_prefix, 'set this unit as expander')
+        if prefix == '':
+            prefix = self.log_prefix
+        self.pr(prefix, 'set unit', self.unit.id, 'as expander')
         self.set_unit_role('expander', prefix)
 
     def set_unit_role(self, role, prefix: str = ''):
         self.role = role
         self.pr(prefix, "Setting unit", self.id, " as ", self.role)
 
-    def clean_unit_role(self, msg=''):
+    def clean_unit_role(self, msg='', prefix=''):
+        if prefix == '':
+            prefix = self.log_prefix
         if self.role != '':
-            self.pr(self.log_prefix, 'removing role', self.role, msg)
+            self.pr(prefix, 'removing role', self.role, msg)
         self.role = ''
         self.target_position = None
         self.build_if_you_can = False
@@ -156,4 +161,4 @@ class UnitInfo:
         self.build_if_you_can = True
 
     def __repr__(self):
-        return "Info("+self.unit.id+")"
+        return "Info(" + self.unit.id + ")"

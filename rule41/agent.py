@@ -1017,9 +1017,9 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
     adjacent_empty_near_wood_near_empty = Lazy(lambda: empty_near_res(unit.pos, adjacent_empty_tiles(),
                                                                       resources.wood_tiles, game_state))
 
-    this_cluster: Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
-    if this_cluster is not None:
-        pr(u_prefix, 'this cluster ', this_cluster.to_string_light())
+    cluster: Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
+    if cluster is not None:
+        pr(u_prefix, 'this cluster ', cluster.to_string_light())
 
     # End of game, try to save units that are not going anymore to do anything
     if (len(resources.all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
@@ -1363,12 +1363,12 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
 
-            if this_cluster is None:
+            if cluster is None:
                 pr(u_prefix, "This cluster is None")
             elif (not (info.is_role_traveler() or info.is_role_explorer())) \
-                    and this_cluster.closest_enemy_distance > 5 \
-                    and this_cluster.res_type == RESOURCE_TYPES.WOOD \
-                    and this_cluster.num_resource() > 5 \
+                    and cluster.closest_enemy_distance > 5 \
+                    and cluster.res_type == RESOURCE_TYPES.WOOD \
+                    and cluster.num_resource() > 5 \
                     and game_state_info.turns_to_night >= 4 * (config.distance_wood_coal_to_move_building - 1) + 2:
 
                 res_pos, distance = MapAnalysis.get_closest_position_cells(unit.pos, resources.coal_tiles)
