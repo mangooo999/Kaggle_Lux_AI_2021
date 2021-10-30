@@ -23,6 +23,7 @@ import resources.resource_helper as ResourceService
 from cluster.cluster_controller import ClusterControl
 import maps.map_analysis as MapAnalysis
 from LazyWrapper import LazyWrapper as Lazy
+import ml as ML
 
 # todo
 # in the night if staying in a city that is dyng, get out
@@ -252,6 +253,18 @@ def get_random_step(from_pos: Position) -> DIRECTIONS:
 
 
 game_state: Game = None
+def get_game_state(observation):
+    global game_state
+
+    if observation["step"] == 0:
+        game_state = Game()
+        game_state._initialize(observation["updates"])
+        game_state._update(observation["updates"][2:])
+        game_state.id = observation.player
+    else:
+        game_state._update(observation["updates"])
+    return game_state
+
 unit_info: DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo(pr)
 clusters: ClusterControl
@@ -265,21 +278,7 @@ def agent(observation, configuration):
     global start_time
     global move_mapper
 
-    ### Do not edit ###
-    if observation["step"] == 0:
-        game_state = Game()
-        game_state._initialize(observation["updates"])
-        game_state._update(observation["updates"][2:])
-        game_state.id = observation.player
-
-        # This is the start of the game
-        clusters = ClusterControl(game_state, pr)
-        config = ConfigManager(game_state.map_width, pr)
-        start_time = time.time()
-
-    else:
-        game_state._update(observation["updates"])
-
+    game_state = get_game_state(observation)
     actions = []
 
     ### AI Code goes down here! ###
@@ -292,6 +291,11 @@ def agent(observation, configuration):
     # add debug statements like so!
     if game_state.turn == 0:
         pr("Agent is running!")
+        # This is the start of the game
+        clusters = ClusterControl(game_state, pr)
+        config = ConfigManager(game_state.map_width, pr)
+        start_time = time.time()
+		
     pr("---------Turn number ", game_state.turn)
     t_prefix = "T_" + str(game_state.turn)
     game_info.update(player, opponent, game_state)
@@ -929,37 +933,43 @@ def agent(observation, configuration):
     resource_target_by_unit = {}
 
     # start with potential builder, so that movement are easier to calculate
-    for unit in player.units:
-        if unit.can_build(game_state.map):
-            get_unit_action(unit, actions, resources,
-                            game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
-                            unsafe_cities, immediately_unsafe_cities)
+    if False:
+        #ML based
+        ML.get_actions_unit(observation, game_state,actions)
+    else:
+        #rule based
+        for unit in player.units:
+            if unit.can_build(game_state.map):
+                get_unit_action(unit, actions, resources,
+                                game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
+                                unsafe_cities, immediately_unsafe_cities)
 
-    for unit in player.units:
-        if not unit.can_build(game_state.map):
-            get_unit_action(unit, actions, resources,
-                            game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
-                            unsafe_cities, immediately_unsafe_cities)
+        for unit in player.units:
+            if not unit.can_build(game_state.map):
+                get_unit_action(unit, actions, resources,
+                                game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
+                                unsafe_cities, immediately_unsafe_cities)
 
-    # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
-    for unit in player.units:
-        info: UnitInfo = unit_info[unit.id]
-        u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
-        # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
-        if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
-            pr(u_prefix, " this unit has not worked")
-            if info.get_cargo_space_used() == 0 and len(resources.available_resources_tiles) == 0:
-                # return home
-                send_unit_home(actions, game_state, info, player, u_prefix, unit, "no cargo, no resource")
-            elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
-                adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
-                in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                    resources.available_resources_tiles,
-                    unit.pos)
+        # if this unit didn't do any action, check if we can transfer his cargo back in the direction this come from
+        for unit in player.units:
+            info: UnitInfo = unit_info[unit.id]
+            u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
+            # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
+            if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
+                pr(u_prefix, " this unit has not worked")
+                if info.get_cargo_space_used() == 0 and len(resources.available_resources_tiles) == 0:
+                    # return home
+                    send_unit_home(actions, game_state, info, player, u_prefix, unit, "no cargo, no resource")
+                elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
+                    adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
+                    in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                        resources.available_resources_tiles,
+                        unit.pos)
 
-                transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
-                                                         resources.available_resources_tiles, info, in_resource,
-                                                         near_resource, player, u_prefix)
+                    transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                             resources.available_resources_tiles, info, in_resource,
+                                                             near_resource, player, u_prefix)
+
 
     # for i,j in resource_target_by_unit.items():
     #    pr("XXXX resources map ",game_info.turn,i,len(j))
