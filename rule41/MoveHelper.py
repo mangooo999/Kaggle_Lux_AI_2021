@@ -77,6 +77,9 @@ class MoveHelper:
     def __can_move_to_pos__(self, pos: Position, game_state, msg) -> bool:
         # self.pr(self.log_prefix + msg, 'can_move_to_pos', pos)
         # we cannot move on an enemy that cannot move:
+        if not MapAnalysis.is_position_valid(pos, game_state):
+            return False
+
         if self.has_opponent_position(pos):
             enemy = self.opponent_units.get(self.__hash_pos__(pos))
             if not enemy.can_act():
@@ -158,3 +161,9 @@ class MoveHelper:
                 return True
 
         return False
+
+    def build_city(self, actions, info: UnitInfo, msg=''):
+        actions.append(info.unit.build_city())
+        self.pr(self.log_prefix + info.unit.id, '- build city', msg)
+        self.add_position(info.unit.pos, info.unit)
+        info.set_last_action_build()

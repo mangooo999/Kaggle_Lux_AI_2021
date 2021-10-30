@@ -3,6 +3,7 @@ class ConfigManager():
         self.cluster_wood_overcrowded = 5
         self.distance_wood_coal_to_move_building = 2
         self.super_fast_expansion = False
+        self.ml_find_resources = True
 
         pr("ConfigManager,map size{0}".format(map_size))
         if map_size == 12:

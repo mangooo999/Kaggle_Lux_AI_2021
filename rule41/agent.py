@@ -253,6 +253,8 @@ def get_random_step(from_pos: Position) -> DIRECTIONS:
 
 
 game_state: Game = None
+
+
 def get_game_state(observation):
     global game_state
 
@@ -264,6 +266,7 @@ def get_game_state(observation):
     else:
         game_state._update(observation["updates"])
     return game_state
+
 
 unit_info: DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo(pr)
@@ -295,7 +298,7 @@ def agent(observation, configuration):
         clusters = ClusterControl(game_state, pr)
         config = ConfigManager(game_state.map_width, pr)
         start_time = time.time()
-		
+
     pr("---------Turn number ", game_state.turn)
     t_prefix = "T_" + str(game_state.turn)
     game_info.update(player, opponent, game_state)
@@ -518,7 +521,6 @@ def agent(observation, configuration):
 
         this_cluster_unit_to_res_ratio = cluster.get_unit_to_res_ratio(-1)
 
-
         for next_clust in clusters.get_clusters():
             # we olny consider wood cluster
             # we olny consider uncontended and empty cluster
@@ -533,7 +535,7 @@ def agent(observation, configuration):
                    next_clust.id, next_cluster_unit_to_res_ratio)
 
                 if next_clust.num_units_and_incoming() > 0 and \
-                        next_cluster_unit_to_res_ratio * .75 > this_cluster_unit_to_res_ratio:
+                        next_cluster_unit_to_res_ratio * 1.3 > this_cluster_unit_to_res_ratio:
                     continue
 
                 for unit_id in cluster.units:
@@ -934,19 +936,19 @@ def agent(observation, configuration):
 
     # start with potential builder, so that movement are easier to calculate
     if False:
-        #ML based
-        ML.get_actions_unit(observation, game_state,actions)
+        # ML based
+        ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info)
     else:
-        #rule based
+        # rule based
         for unit in player.units:
             if unit.can_build(game_state.map):
-                get_unit_action(unit, actions, resources,
+                get_unit_action(observation, unit, actions, resources,
                                 game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
                                 unsafe_cities, immediately_unsafe_cities)
 
         for unit in player.units:
             if not unit.can_build(game_state.map):
-                get_unit_action(unit, actions, resources,
+                get_unit_action(observation, unit, actions, resources,
                                 game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
                                 unsafe_cities, immediately_unsafe_cities)
 
@@ -970,14 +972,13 @@ def agent(observation, configuration):
                                                              resources.available_resources_tiles, info, in_resource,
                                                              near_resource, player, u_prefix)
 
-
     # for i,j in resource_target_by_unit.items():
     #    pr("XXXX resources map ",game_info.turn,i,len(j))
 
     return actions
 
 
-def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
+def get_unit_action(observation, unit: Unit, actions, resources: ResourceService.Resources,
                     game_state_info, number_city_tiles, opponent, player,
                     resource_target_by_unit, unsafe_cities, immediately_unsafe_cities, can_swap=True):
     info: UnitInfo = unit_info[unit.id]
@@ -1055,7 +1056,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
         if unit.can_build(game_state.map):
             dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
             if len(cities) == 0:
-                build_city(actions, info, u_prefix, 'end of game')
+                move_mapper.build_city(actions, info, 'end of game')
                 return
             else:
                 additional_fuel = 0
@@ -1079,7 +1080,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                         pr(u_prefix, 'adjacent city', c.cityid, 'will be fine with autonomy', expected_autonomy)
 
                 if do_build:
-                    build_city(actions, info, u_prefix, 'end of game (adjacent)')
+                    move_mapper.build_city(actions, info, 'end of game (adjacent)')
                     return
                 else:
                     for adjacent_position in adjacent_empty_tiles():
@@ -1312,7 +1313,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                 if transferred:
                     return
             # if unit.can_build(game_state.map):
-            #     build_city(actions, info, u_prefix, ':we tried too many times to go to' + info.last_move_direction)
+            #     move_mapper.build_city(actions, info, ':we tried too many times to go to' + info.last_move_direction)
             # else:
             #     direction = get_random_step(unit.pos)
             #     move_mapper.move_unit_to(actions, direction, info,
@@ -1324,7 +1325,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
             pr(u_prefix, ' is traveler to', info.target_position)
             if unit.can_build(game_state.map) and info.build_if_you_can:
                 pr(u_prefix, ' traveler build')
-                build_city(actions, info, u_prefix, 'traveler build')
+                move_mapper.build_city(actions, info, 'traveler build')
                 return
 
             direction = get_direction_to_quick(game_state, info, info.target_position,
@@ -1360,7 +1361,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                                                                 u_prefix, " swapped with unit " + friend.id)
                                     # repeat process for this unit with new role
                                     pr(u_prefix, "repeat get_unit_action")
-                                    get_unit_action(unit, actions, resources,
+                                    get_unit_action(observation, unit, actions, resources,
                                                     game_state_info, number_city_tiles, opponent, player,
                                                     resource_target_by_unit, unsafe_cities, immediately_unsafe_cities,
                                                     can_swap=False)
@@ -1455,7 +1456,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
 
                 if do_not_move:
                     # we tried to transfer to a better spot, unsucesfully, time to build
-                    build_city(actions, info, u_prefix, 'because of do_not_move')
+                    move_mapper.build_city(actions, info, 'because of do_not_move')
                     return
 
                 do_not_build = False
@@ -1503,7 +1504,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                                 break
 
                 if not do_not_build:
-                    build_city(actions, info, u_prefix, 'in adjacent city!')
+                    move_mapper.build_city(actions, info, 'in adjacent city!')
                     return
 
             else:  # if CAN BUILD but NOT near city
@@ -1523,7 +1524,7 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
 
                     if do_not_move:
                         # we tried to transfer to a better spot, unsucesfully, time to build
-                        build_city(actions, info, u_prefix, 'because of do_not_move')
+                        move_mapper.build_city(actions, info, 'because of do_not_move')
                         return
 
             if (not near_city()) and \
@@ -1531,15 +1532,15 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                      (game_state_info.turns_to_night == 1 and near_resource)):
                 unit_fuel = unit.cargo.fuel()
                 if cluster is None:
-                    pr(u_prefix, "Can build, but not in adjacent city. Cluster is None, fuel",unit_fuel)
+                    pr(u_prefix, "Can build, but not in adjacent city. Cluster is None, fuel", unit_fuel)
                 else:
-                    pr(u_prefix, "Can build, but not in adjacent city. Cluster is",cluster.to_string_light())
+                    pr(u_prefix, "Can build, but not in adjacent city. Cluster is", cluster.to_string_light())
                 if (not near_resource) and \
                         ((cluster is None) or (cluster.num_enemy_units() > 2 and cluster.num_city_tiles() == 0)):
                     pr(u_prefix, "Can build, but we decided not to based on not being close to to any cluster")
                 elif unit_fuel < 200:
-                    build_city(actions, info, u_prefix,
-                               'NOT in adjacent city, we have not so much fuel ' + str(unit_fuel))
+                    move_mapper.build_city(actions, info,
+                                           'NOT in adjacent city, we have not so much fuel ' + str(unit_fuel))
                     return
                 else:
                     do_build = True
@@ -1566,8 +1567,8 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                                 return
 
                     if do_build:
-                        build_city(actions, info, u_prefix,
-                                   'NOT in adjacent city, we have lot of fuel, but no city needs saving')
+                        move_mapper.build_city(actions, info,
+                                               'NOT in adjacent city, we have lot of fuel, but no city needs saving')
                         return
 
         # IF WE CANNOT BUILD, or we could and have decided not to
@@ -1693,6 +1694,20 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
 
                 pr(u_prefix, " Find resources")
                 # pr(u_prefix, " XXXXXXXXXX", resources_distance())
+                if config.ml_find_resources:
+                    # ML resource find
+                    if ML.get_action_unit(observation, game_state, info, move_mapper, actions,can_build=False):
+                        pr(u_prefix, " ML: action")
+                        return
+                    transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                                                           resources.available_resources_tiles,
+                                                                           info,
+                                                                           in_resource, near_resource,
+                                                                           player, u_prefix)
+                    if transferred:
+                        pr(u_prefix, " ML: Transfered")
+                        return
+
                 if resources_distance() is not None and len(resources_distance()) > 0:
 
                     # create a move action to the direction of the closest resource tile and add to our actions list
@@ -1720,14 +1735,13 @@ def get_unit_action(unit: Unit, actions, resources: ResourceService.Resources,
                             game_info.research.log_research_stats(pr, u_prefix, 'US')
                             # info.set_unit_role_traveler(better_cluster_pos, 2 * distance_to_res, u_prefix)
 
-                        next_pos = unit.pos.translate(direction,1)
+                        next_pos = unit.pos.translate(direction, 1)
                         if near_resource and (not in_city()) \
-                                and distance_to_res > 2\
+                                and distance_to_res > 2 \
                                 and next_pos not in adjacent_next_to_resources():
-                            pr(u_prefix, "Direction calculated would bring us outside resource",direction)
-                            move_mapper.stay(unit,"looking for resources, but already on one")
+                            pr(u_prefix, "Direction calculated would bring us outside resource", direction)
+                            move_mapper.stay(unit, "looking for resources, but already on one")
                             return
-
 
                         # append target to our map
                         resource_target_by_unit.setdefault((res_pos.x, res_pos.y), []).append(
@@ -2125,7 +2139,7 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
                                         friend_near_resource or friend_in_resource)) or \
                                 (in_resource and friend_in_resource) or \
                                 ((not in_resource) and near_resource and (
-                                not friend_in_resource) and friend_near_resource) or \
+                                        not friend_in_resource) and friend_near_resource) or \
                                 (not (in_resource or near_resource or friend_in_resource or friend_near_resource)):
                             return direction, city_tile.pos, " towards friend " + friend.id, city_id, True
 
@@ -2143,13 +2157,6 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
 
     direction = get_random_step(unit.pos)
     return direction, None, "randomly (due to city)", None, False
-
-
-def build_city(actions, info: UnitInfo, u_prefix, msg=''):
-    actions.append(info.unit.build_city())
-    pr(u_prefix, '- build city', msg)
-    move_mapper.add_position(info.unit.pos, info.unit)
-    info.set_last_action_build()
 
 
 def transfer_all_resources(actions, info: UnitInfo, to_unit_id: str, prefix, pos: Position = None):
@@ -2312,8 +2319,7 @@ def find_best_resource(game_state, resources_distance, resource_target_by_unit, 
                        resources, prefix, unsafe_cities) -> \
         Tuple[DIRECTIONS, Optional[Position], str, str]:
     unit = info.unit
-    closest_resource_tile, c_dist = None, None
-    moved = False
+
     # pr(prefix, " XXX Find resources dis", resources_distance.values())
     # pr(prefix, " XXX Find resources pos", resources_distance.keys())
     # pr(prefix, " XXX Move mapper", move_mapper.move_mapper.keys())
