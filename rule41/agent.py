@@ -522,6 +522,10 @@ def agent(observation, configuration):
         this_cluster_unit_to_res_ratio = cluster.get_unit_to_res_ratio(-1)
 
         for next_clust in clusters.get_clusters():
+            if config.ml_find_resources:
+                # resources are ML driven, do not do this here
+                continue
+
             # we olny consider wood cluster
             # we olny consider uncontended and empty cluster
             if next_clust.id != cluster.id \
@@ -636,7 +640,10 @@ def agent(observation, configuration):
             if spread_move is not None:
                 pr(t_prefix, "medium cluster can move to", spread_move)
 
-        if spread_move is None \
+        if config.ml_find_resources:
+            # resources are ML driven, do not do this here
+            pr(t_prefix, "ML, do not do big cluster")
+        elif spread_move is None \
                 and cluster.res_type == RESOURCE_TYPES.WOOD \
                 and (cluster.get_equivalent_resources() > 8) \
                 and (len(cluster.enemy_unit) < (cluster.get_equivalent_resources() // 4)) \
