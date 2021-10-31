@@ -522,7 +522,7 @@ def agent(observation, configuration):
         this_cluster_unit_to_res_ratio = cluster.get_unit_to_res_ratio(-1)
 
         for next_clust in clusters.get_clusters():
-            if config.ml_find_resources:
+            if not config.do_cluster_analyses:
                 # resources are ML driven, do not do this here
                 continue
 
