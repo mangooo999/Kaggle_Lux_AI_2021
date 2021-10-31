@@ -640,9 +640,9 @@ def agent(observation, configuration):
             if spread_move is not None:
                 pr(t_prefix, "medium cluster can move to", spread_move)
 
-        if config.ml_find_resources:
+        if not config.spread_big_cluster:
             # resources are ML driven, do not do this here
-            pr(t_prefix, "ML, do not do big cluster")
+            pr(t_prefix, "spread_big_cluster=false")
         elif spread_move is None \
                 and cluster.res_type == RESOURCE_TYPES.WOOD \
                 and (cluster.get_equivalent_resources() > 8) \
@@ -942,8 +942,8 @@ def agent(observation, configuration):
     resource_target_by_unit = {}
 
     # start with potential builder, so that movement are easier to calculate
-    if True:
-        # ML based
+    if config.RULEM:
+        # totally ML based, RULEM
         ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info, resources)
     else:
         # rule based
@@ -2396,3 +2396,5 @@ def find_resources_distance(pos, clusters: ClusterControl, resource_tiles, game_
 
     resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
     return resources_distance
+
+def get_ML_observation(observation):
