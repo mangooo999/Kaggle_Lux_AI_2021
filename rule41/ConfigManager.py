@@ -7,7 +7,10 @@ class ConfigManager():
         self.do_cluster_analyses = True
         self.spread_big_cluster = False
 
-        self.RULEM=False
+        self.RULEM = True
+
+        self.ML_number_of_turns_include_resources_coal = 12
+        self.ML_number_of_turns_include_resources_uranium = 18
 
         pr("ConfigManager,map size{0}".format(map_size))
         if map_size == 12:

@@ -271,12 +271,14 @@ def get_game_state(observation):
 unit_info: DefaultDict[str, UnitInfo] = {}
 game_info = GameInfo(pr)
 clusters: ClusterControl
+ML: ML.ML_Agent
 start_time = 0
 
 
 def agent(observation, configuration):
     global game_state
     global clusters
+    global ML
     global config
     global start_time
     global move_mapper
@@ -296,6 +298,7 @@ def agent(observation, configuration):
         pr("Agent is running!")
         # This is the start of the game
         clusters = ClusterControl(game_state, pr)
+        ML = ML.ML_Agent()
         config = ConfigManager(game_state.map_width, pr)
         start_time = time.time()
 
@@ -640,10 +643,8 @@ def agent(observation, configuration):
             if spread_move is not None:
                 pr(t_prefix, "medium cluster can move to", spread_move)
 
-        if not config.spread_big_cluster:
-            # resources are ML driven, do not do this here
-            pr(t_prefix, "spread_big_cluster=false")
-        elif spread_move is None \
+        if config.spread_big_cluster \
+                and spread_move is None \
                 and cluster.res_type == RESOURCE_TYPES.WOOD \
                 and (cluster.get_equivalent_resources() > 8) \
                 and (len(cluster.enemy_unit) < (cluster.get_equivalent_resources() // 4)) \
@@ -941,12 +942,23 @@ def agent(observation, configuration):
     # map of resource to unit going for them
     resource_target_by_unit = {}
 
-    # start with potential builder, so that movement are easier to calculate
+    #update target resources for ML model
+    coal_minable = is_resource_minable(player, RESOURCE_TYPES.COAL, game_info.get_research_rate(),
+                            config.ML_number_of_turns_include_resources_coal)
+    uranium_minable = is_resource_minable(player, RESOURCE_TYPES.URANIUM, game_info.get_research_rate(),
+                            config.ML_number_of_turns_include_resources_uranium)
+
+    ML.update_include_resources( t_prefix,
+                                 coal_minable or resources.cargo.wood ==0,
+                                 uranium_minable or resources.cargo.coal ==0)
+
+
     if config.RULEM:
         # totally ML based, RULEM
         ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info, resources)
     else:
         # rule based
+        # start with potential builder, so that movement are easier to calculate
         for unit in player.units:
             if unit.can_build(game_state.map):
                 get_unit_action(observation, unit, actions, resources,
@@ -2396,5 +2408,3 @@ def find_resources_distance(pos, clusters: ClusterControl, resource_tiles, game_
 
     resources_distance = collections.OrderedDict(sorted(resources_distance.items(), key=lambda x: x[1]))
     return resources_distance
-
-def get_ML_observation(observation):
