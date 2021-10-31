@@ -1,8 +1,8 @@
 import os
+
 import numpy as np
 import torch
-from lux.game import Game
-from lux.game_position import Position
+import maps.map_analysis as MapAnalysis
 from MoveHelper import MoveHelper
 from UnitInfo import UnitInfo
 
@@ -93,65 +93,79 @@ def in_city(pos, game_state):
         return False
 
 
-def get_actions_unit(observation, game_state, actions: [], move_mapper: MoveHelper,unit_info) -> []:
+def get_actions_unit(observation, game_state, actions: [], move_mapper: MoveHelper,unit_info,resources) -> []:
     player = game_state.players[observation.player]
-    is_day = game_state.turn % 40 < 30
 
-    # Worker Actions
+   # Worker Actions
     destinations = []
     
     for unit in player.units:
         if not unit.can_act():
             destinations.append(unit.pos)
-        elif not (is_day or not in_city(unit.pos, game_state)):
-            destinations.append(unit.pos)
 
     for unit in player.units:
         if unit.can_build(game_state.map) and unit.can_act():
-            if is_day or not in_city(unit.pos, game_state):
-                get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions)
+            get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions,resources)
 
     for unit in player.units:
         if (not unit.can_build(game_state.map)) and unit.can_act():
-            if is_day or not in_city(unit.pos, game_state):
-                get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions)
+            get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions,resources)
 
 
 def call_func(obj, method, args=[]):
     return getattr(obj, method)(*args)
 
+unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('build_city',)]
 
-def get_action_unit(observation, game_state, info: UnitInfo, move_mapper: MoveHelper, actions: [], can_build=True)\
+def get_action_unit(observation, game_state, info: UnitInfo,
+                    move_mapper: MoveHelper, actions: [],
+                    resources,
+                    can_build=True)\
         -> bool:
     unit = info.unit
-    unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('build_city',)]
+
+    is_day = game_state.turn % 40 < 30
+    is_night = not is_day
+
 
     #ML magic
-    state = make_input(observation, unit.id)
-    with torch.no_grad():
-        p = model(torch.from_numpy(state).unsqueeze(0))
-    policy = p.squeeze(0).numpy()
+    policy = get_policy(observation, unit)
+
+    # check in order of attractiveness
     for label in np.argsort(policy)[::-1]:
         act = unit_actions[label]
         type_action = act[0]
         pos = unit.pos.translate(act[-1], 1) or unit.pos
         if type_action == 'move' and move_mapper.can_move_to_pos(pos, game_state):
-            move_mapper.move_unit_to_pos(actions, info, 'ML', pos)
-            return True
+            if is_day or not in_city(unit.pos, game_state):
+                move_mapper.move_unit_to_pos(actions, info, 'ML', pos)
+                return True
+            elif is_night and in_city(unit.pos, game_state):
+                #night, in the city
+                if in_city(pos, game_state):
+                    #move to another city, ok
+                    move_mapper.move_unit_to_pos(actions, info, 'ML', pos)
+                    return True
+                else:
+                    in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                        resources.available_resources_tiles,pos)
+                    if near_resource:
+                        #move to near_resource, also ok
+                        move_mapper.move_unit_to_pos(actions, info, 'ML', pos)
+                        return True
         elif can_build and type_action == 'build_city':
-            move_mapper.build_city(actions, info, 'ML')
-            return True
+            if is_day:
+                move_mapper.build_city(actions, info, 'ML')
+                return True
 
     move_mapper.stay(unit, 'ML')
     return False
 
 
 def get_movement_directions(observation, info: UnitInfo):
-    unit = info.unit
-    unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('build_city',)]
     directions = []
     # ML magic
-    policy = get_policy(observation, unit)
+    policy = get_policy(observation, info.unit)
     for label in np.argsort(policy)[::-1]:
         act = unit_actions[label]
         type_action = act[0]

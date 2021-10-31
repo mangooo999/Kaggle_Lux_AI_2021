@@ -942,9 +942,9 @@ def agent(observation, configuration):
     resource_target_by_unit = {}
 
     # start with potential builder, so that movement are easier to calculate
-    if False:
+    if True:
         # ML based
-        ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info)
+        ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info, resources)
     else:
         # rule based
         for unit in player.units:
@@ -1703,7 +1703,8 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 # pr(u_prefix, " XXXXXXXXXX", resources_distance())
                 if config.ml_find_resources:
                     # ML resource find
-                    if ML.get_action_unit(observation, game_state, info, move_mapper, actions,can_build=False):
+                    if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
+                                          can_build=False):
                         pr(u_prefix, " ML: action")
                         return
                     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
