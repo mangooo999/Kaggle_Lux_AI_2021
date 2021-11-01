@@ -150,7 +150,8 @@ class ML_Agent:
     def get_action_unit(self, observation, game_state, info: UnitInfo,
                         move_mapper: MoveHelper, actions: [],
                         resources,
-                        can_build=True) \
+                        can_build=True,
+                        stay_in_case_no_found=True) \
             -> bool:
         unit = info.unit
 
@@ -187,7 +188,8 @@ class ML_Agent:
                     move_mapper.build_city(actions, info, 'ML')
                     return True
 
-        move_mapper.stay(unit, 'ML')
+        if stay_in_case_no_found:
+            move_mapper.stay(unit, 'ML')
         return False
 
 

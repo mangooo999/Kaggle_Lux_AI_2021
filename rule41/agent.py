@@ -55,7 +55,7 @@ import builtins as __builtin__
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -273,7 +273,7 @@ game_info = GameInfo(pr)
 clusters: ClusterControl
 ML: ML.ML_Agent
 start_time = 0
-
+use_still_ML = True
 
 def agent(observation, configuration):
     global game_state
@@ -282,6 +282,7 @@ def agent(observation, configuration):
     global config
     global start_time
     global move_mapper
+    global use_still_ML
 
     game_state = get_game_state(observation)
     actions = []
@@ -949,8 +950,12 @@ def agent(observation, configuration):
                             config.ML_number_of_turns_include_resources_uranium)
 
     ML.update_include_resources( t_prefix,
-                                 coal_minable or resources.cargo.wood ==0,
-                                 uranium_minable or resources.cargo.coal ==0)
+                                 coal_minable or resources.cargo.wood == 0,
+                                 uranium_minable or resources.cargo.coal == 0)
+
+    if use_still_ML and len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
+        prx(t_prefix,"Setting use_still_ML=False")
+        use_still_ML = False
 
 
     if config.RULEM:
@@ -1715,10 +1720,12 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 # pr(u_prefix, " XXXXXXXXXX", resources_distance())
                 if config.ml_find_resources:
                     # ML resource find
-                    if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
-                                          can_build=False):
-                        pr(u_prefix, " ML: action")
-                        return
+                    if use_still_ML:
+                            if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
+                                          can_build=False, stay_in_case_no_found=False):
+                                pr(u_prefix, " ML: action")
+                                return
+
                     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
                                                                            resources.available_resources_tiles,
                                                                            info,

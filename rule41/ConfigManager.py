@@ -7,7 +7,8 @@ class ConfigManager():
         self.do_cluster_analyses = True
         self.spread_big_cluster = False
 
-        self.RULEM = True
+        self.num_resource_below_no_ML = map_size/2
+        self.RULEM = False
 
         self.ML_number_of_turns_include_resources_coal = 12
         self.ML_number_of_turns_include_resources_uranium = 18
