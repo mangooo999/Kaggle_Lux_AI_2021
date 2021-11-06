@@ -55,7 +55,7 @@ import builtins as __builtin__
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if False:
+    if True:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -951,7 +951,7 @@ def agent(observation, configuration):
 
     ML.update_include_resources( t_prefix,
                                  coal_minable or resources.cargo.wood == 0,
-                                 uranium_minable or resources.cargo.coal == 0)
+                                 uranium_minable or (resources.cargo.wood == 0 and resources.cargo.coal == 0))
 
     if use_still_ML and len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
         prx(t_prefix,"Setting use_still_ML=False")
@@ -1532,7 +1532,6 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     return
 
             else:  # if CAN BUILD but NOT near city
-
                 # if we can move to a tile where we are adjacent, do and it and build there
                 if best_adjacent_empty_tile_near_city() is not None:
                     pr(u_prefix, " check if adjacent empty is more interesting",
@@ -1673,6 +1672,9 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
         if near_wood and in_empty():
             if info.get_cargo_space_used() >= 40:
+                if num_adjacent_enemy_unit() > 0:
+                    move_mapper.stay(unit, " R0 Near wood, near enemy, with substantial cargo, stay put")
+                    return
                 better_build_spot = adjacent_empty_near_wood_and_city()
                 if near_city():
                     move_mapper.stay(unit, " R1 Near wood, city, in empty, with substantial cargo, stay put")
@@ -1855,8 +1857,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         distance_to_city = unit.pos.distance_to(city_pos)
                         if near_resource and unit.get_cargo_space_left() > 5:
                             if (not is_city_immediately_danger) or \
-                                    (
-                                            is_city_immediately_danger and game_state_info.turns_to_night > 2 * distance_to_city + 5):
+                                    (is_city_immediately_danger and game_state_info.turns_to_night > 2 * distance_to_city + 5):
                                 # just try to transfer do not move
                                 pr(u_prefix, " City is not critical (or critical and close enough to return before "
                                              "the night), just stay here as much as possible to gather resources")
@@ -1873,10 +1874,10 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     return
 
         # NO IDEA rules (because nothing worked before)
-        if in_wood:
+        if in_wood or (in_resource and unit.get_cargo_space_left() == 0 and len(adjacent_units()) == 0):
             # easy rule, not sure if this is nota already trapped before
             for pos in adjacent_empty_tiles_walkable():
-                move_mapper.move_unit_to_pos(actions, info, "No idea. From wood to near wood", pos)
+                move_mapper.move_unit_to_pos(actions, info, "No idea. From res to near res", pos)
                 return
 
             closest_cluster, dist = clusters.get_closest_cluster(player, unit.pos)

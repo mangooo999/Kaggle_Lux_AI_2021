@@ -1,9 +1,9 @@
 @echo off
-set agent1=C:/git/luxai/imitate/main.py
-set agent2=rule405x/main.py
-set num_loops=100
-set storeReplay=false
-set storeLogs=true
+set agent1=C:/git/luxai/imit4/main.py
+set agent2=rule41/main.py
+set num_loops=25
+set storeReplay=true
+set storeLogs=false
 
 
 SetLocal EnableDelayedExpansion
@@ -30,7 +30,8 @@ for %%f in (%MYDIR2%) do set myfolder2=%%~nxf
 echo.Folder1 is: %myfolder1%
 echo.Folder2 is: %myfolder2%
 
-set log_file=results/%myfolder1%_%myfolder2%.log
+mkdir replays\%myfolder1%_%myfolder2%
+set log_file=replays\%myfolder1%_%myfolder2%\results.log
 
 echo.log file is:%log_file%
 
@@ -39,12 +40,13 @@ FOR /L %%G IN (1,1,%num_loops%) DO (
 	rem echo|set /p="!TIME! %%G a" >> %log_file%
 	echo|set /p=" %%G a" >> %log_file%
 	echo|set /p=" %%G a" 
-	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent1% %agent2% | grep "rank: 1" >> %log_file%  
+	lux-ai-2021 --seed %%G --loglevel 1 --width 12 --height 12 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent1% %agent2% --out=replays/%myfolder1%_%myfolder2%/%%Ga.luxr | grep "rank: 1" >> %log_file%  
 	rem echo|set /p="!TIME! %%G b" >> %log_file%
 	echo|set /p=" %%G b" >> %log_file%
 	echo|set /p=" b" 
-	lux-ai-2021 --seed %%G --loglevel 1 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent2% %agent1% | grep "rank: 1" >> %log_file%  	
+	lux-ai-2021 --seed %%G --loglevel 1 --width 12 --height 12 --storeReplay=%storeReplay% --storeLogs=%storeLogs% %agent2% %agent1% --out=replays/%myfolder1%_%myfolder2%/%%Gb.luxr | grep "rank: 1" >> %log_file%  	
 	echo "."
+	grep --count %agent1% %log_file%
 )
 
 echo end %DATE% %TIME% >> %log_file%

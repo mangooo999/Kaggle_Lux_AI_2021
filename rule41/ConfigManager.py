@@ -20,6 +20,7 @@ class ConfigManager():
                 self.do_cluster_analyses = False
 
         elif map_size == 16:
+            self.spread_big_cluster = True
             self.cluster_wood_overcrowded = 3
             if self.ml_find_resources:
                 self.do_cluster_analyses = False
@@ -28,6 +29,7 @@ class ConfigManager():
             self.cluster_wood_overcrowded = 3
 
         elif map_size == 32:
+            self.spread_big_cluster = True        
             self.cluster_wood_overcrowded = 5
 
         else:
