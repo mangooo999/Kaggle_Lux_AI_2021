@@ -24,6 +24,7 @@ from cluster.cluster_controller import ClusterControl
 import maps.map_analysis as MapAnalysis
 from LazyWrapper import LazyWrapper as Lazy
 import ml as ML
+from scipy.spatial import ConvexHull
 
 # todo
 # in the night if staying in a city that is dyng, get out
@@ -55,7 +56,7 @@ import builtins as __builtin__
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -274,6 +275,7 @@ clusters: ClusterControl
 ML: ML.ML_Agent
 start_time = 0
 use_still_ML = True
+hull: ConvexHull = None
 
 def agent(observation, configuration):
     global game_state
@@ -283,7 +285,7 @@ def agent(observation, configuration):
     global start_time
     global move_mapper
     global use_still_ML
-
+    global hull
     game_state = get_game_state(observation)
     actions = []
 
@@ -292,7 +294,7 @@ def agent(observation, configuration):
 
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
-    move_mapper = MoveHelper(player, opponent, game_state.turn, pr)
+    move_mapper = MoveHelper(player, opponent, game_state.turn, hull, pr)
 
     # add debug statements like so!
     if game_state.turn == 0:
@@ -329,6 +331,9 @@ def agent(observation, configuration):
     number_city_tiles = 0
     total_fuel_required = 0
     fuel_with_units = 0
+
+    hull = MapAnalysis.get_convex_hull(prx, resources,t_prefix)
+
 
     # count how much fuel our unit have
     for unit in player.units:
@@ -803,11 +808,12 @@ def agent(observation, configuration):
     unit_ceiling = int(min(float(units_cap), max(float(len(resources.available_resources_tiles)) * 1.8, 5)))
 
     # logging
+    pr(t_prefix, "INT Cities", number_city_tiles, 'units', len(player.units))
     if game_state.turn == 360:
-        prx(t_prefix, "END C=", number_city_tiles, 'u=', len(player.units), 't=', str(time.time() - start_time))
-        prx(t_prefix, "enemy C=", "?", 'u=', len(opponent.units))
-    else:
-        pr(t_prefix, "INT Cities", number_city_tiles, 'units', len(player.units))
+        prx(t_prefix, "END ",
+                    'C={0}:{1}'.format(number_city_tiles,opponent.get_num_city_tiles()),
+                    'U={0}:{1}'.format(len(player.units),len(opponent.units)),
+                    't={:.2f}'.format(time.time() - start_time))
 
     # todo move print in game_state_info class
     pr(t_prefix, 'resources', len(resources.available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
@@ -1727,7 +1733,9 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     # ML resource find
                     if use_still_ML:
                             if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
-                                          can_build=False, stay_in_case_no_found=False):
+                                                  can_build=False,
+                                                  stay_in_case_no_found=False,
+                                                  allow_move_to_outside_hull=False):
                                 pr(u_prefix, " ML: action")
                                 return
 

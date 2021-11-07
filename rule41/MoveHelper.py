@@ -1,6 +1,8 @@
 import sys
 from typing import Tuple
 
+import numpy as np
+
 from lux.game_objects import Player, Unit, DIRECTIONS
 from lux.game_map import Position
 from lux import annotate
@@ -9,7 +11,7 @@ from UnitInfo import UnitInfo
 
 
 class MoveHelper:
-    def __init__(self, player: Player, opponent: Player, turn, pr):
+    def __init__(self, player: Player, opponent: Player, turn, hull, pr):
         """
         initialize state
         """
@@ -23,6 +25,7 @@ class MoveHelper:
         self.pr = pr
         self.opponent_units = {}
         self.__can_move_dictionary__ = {}
+        self.resource_hull = hull
         for enemy in opponent.units:
             self.opponent_units[self.__hash_pos__(enemy.pos)] = enemy
 
@@ -139,6 +142,30 @@ class MoveHelper:
             self.pr(self.log_prefix + unit.id, '- moving towards "', direction, next_state_pos, '" :', reason
                     , str(target_far_position or ''))
             self.move_from_here[unit.pos] = self.get_num_unit_move_from_here(unit.pos) + 1
+
+    def is_moving_to_resource_hull(self,unit,next_pos) -> bool:
+        if self.resource_hull is None:
+            # we do not have a hull, just return true
+            return True
+        else:
+            unit_distance = self.get_distance_to_res_hull(unit.pos)
+            next_distance = self.get_distance_to_res_hull(next_pos)
+            if unit_distance<=0.:
+                #unit is inside, we are cool, if next is also inside
+                returnVal = next_distance <=0.
+            else:
+                #unit is outside, just make it go toward hull
+                returnVal = next_distance <= unit_distance
+
+            self.pr(self.log_prefix + unit.id, "is_moving_to_resource_hull from ", unit.pos, ' d=', unit_distance,
+                    "to", next_pos, next_distance, "return",returnVal)
+            return returnVal
+
+    def get_distance_to_res_hull(self, pos:Position):
+        if self.resource_hull is not None:
+            distances = MapAnalysis.distance_to_hull(pos,self.resource_hull)
+            if len(distances)>0:
+                return distances[0]
 
     def get_num_unit_move_from_here(self,pos):
         return self.move_from_here.get(pos,0)

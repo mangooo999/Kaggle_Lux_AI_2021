@@ -1,13 +1,15 @@
 import math
-import sys
 import random
+
 random.seed(50)
 from typing import List, Tuple
 from collections import defaultdict
 from functools import cmp_to_key
 from lux.game_map import Cell, Position, RESOURCE_TYPES
 from lux.game_objects import CityTile, DIRECTIONS, City
-
+from resources.resource_helper import Resources
+from scipy.spatial import ConvexHull
+import numpy as np
 
 def find_neighbors(v, resource_cells):
     '''
@@ -575,6 +577,42 @@ def is_cell_empty_or_empty_next(pos, game_state) -> (bool, bool):
     is_empty = is_cell_empty(pos, game_state)
     has_empty_next = len(find_all_adjacent_empty_tiles(game_state, pos)) > 0
     return is_empty, has_empty_next
+
+def get_convex_hull(pr,resources:Resources, prefix='') -> ConvexHull:
+
+    if len(resources.all_resources_tiles) < 3:
+        return
+
+    try:
+        # prx(prefix,'--------------START vector')
+        vector = ([[cell.pos.x, cell.pos.y] for cell in np.array(resources.all_resources_tiles)])
+        points = np.array(vector)
+
+        if len(points) >= 3:
+            hull = ConvexHull(points)
+
+            # pr(prefix,'--------------simplices')
+            # for simplex in hull.simplices:
+            #     pr(points[simplex, 0], points[simplex, 1])
+            # pr(prefix,'--------------END')
+            # pr(prefix,'--------------vertices')
+            # pr(points[hull.vertices, 0], points[hull.vertices, 1])
+            # pr(points[hull.vertices[0], 0], points[hull.vertices[0], 1])
+            # pr(prefix,'--------------END')
+
+            return hull
+    except:
+        return
+
+
+
+
+def distance_to_hull(pos, hull):
+
+    points = np.array([[pos.x,pos.y]])
+
+    return np.max(np.dot(hull.equations[:, :-1], points.T).T + hull.equations[:, -1], axis=-1)
+
 
 
 

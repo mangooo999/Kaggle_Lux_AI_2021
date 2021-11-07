@@ -151,7 +151,8 @@ class ML_Agent:
                         move_mapper: MoveHelper, actions: [],
                         resources,
                         can_build=True,
-                        stay_in_case_no_found=True) \
+                        stay_in_case_no_found=True,
+                        allow_move_to_outside_hull=True) \
             -> bool:
         unit = info.unit
 
@@ -165,29 +166,38 @@ class ML_Agent:
         for label in np.argsort(policy)[::-1]:
             act = unit_actions[label]
             type_action = act[0]
-            pos = unit.pos.translate(act[-1], 1) or unit.pos
-            if type_action == 'move' and move_mapper.can_move_to_pos(pos, game_state):
+            next_pos = unit.pos.translate(act[-1], 1) or unit.pos
+            if type_action == 'move' and move_mapper.can_move_to_pos(next_pos, game_state):
+                # MOVE ACTIONS
                 if is_day or not in_city(unit.pos, game_state):
-                    move_mapper.move_unit_to_pos(actions, info, 'ML', pos)
-                    return True
+                    if allow_move_to_outside_hull:
+                        move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
+                        return True
+                    else:
+                        if move_mapper.is_moving_to_resource_hull(unit,next_pos):
+                            move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
+                            return True
                 elif is_night and in_city(unit.pos, game_state):
                     # night, in the city
-                    if in_city(pos, game_state):
+                    if in_city(next_pos, game_state):
                         # move to another city, ok
-                        move_mapper.move_unit_to_pos(actions, info, 'ML', pos)
+                        move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
                         return True
                     else:
                         in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                            resources.available_resources_tiles, pos)
+                            resources.available_resources_tiles, next_pos)
                         if near_resource:
                             # move to near_resource, also ok
-                            move_mapper.move_unit_to_pos(actions, info, 'ML', pos)
+                            move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
                             return True
+                        
             elif can_build and type_action == 'build_city':
+                # BUILD CITY
                 if is_day:
                     move_mapper.build_city(actions, info, 'ML')
                     return True
 
+        # FOUND NOTHING
         if stay_in_case_no_found:
             move_mapper.stay(unit, 'ML')
         return False
