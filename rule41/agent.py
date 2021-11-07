@@ -953,10 +953,13 @@ def agent(observation, configuration):
                                  coal_minable or resources.cargo.wood == 0,
                                  uranium_minable or (resources.cargo.wood == 0 and resources.cargo.coal == 0))
 
-    if use_still_ML and len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
-        prx(t_prefix,"Setting use_still_ML=False")
-        use_still_ML = False
-
+    if use_still_ML:
+        if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
+            prx(t_prefix,"Setting use_still_ML=False (resources)")
+            use_still_ML = False
+        # elif game_info.turn >= 160:
+        #     prx(t_prefix, "Setting use_still_ML=False (turn)")
+        #     use_still_ML = False
 
     if config.RULEM:
         # totally ML based, RULEM
