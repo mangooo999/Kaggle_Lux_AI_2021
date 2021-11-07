@@ -604,14 +604,17 @@ def get_convex_hull(pr,resources:Resources, prefix='') -> ConvexHull:
     except:
         return
 
-
-
-
 def distance_to_hull(pos, hull):
+    if hull is not None:
+        try:
+            points = np.array([[pos.x,pos.y]])
 
-    points = np.array([[pos.x,pos.y]])
+            return np.max(np.dot(hull.equations[:, :-1], points.T).T + hull.equations[:, -1], axis=-1)
+        except:
+            return 0 
+    else:
+        return 0
 
-    return np.max(np.dot(hull.equations[:, :-1], points.T).T + hull.equations[:, -1], axis=-1)
 
 
 
