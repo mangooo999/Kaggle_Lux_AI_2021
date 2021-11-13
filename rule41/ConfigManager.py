@@ -12,9 +12,13 @@ class ConfigManager():
 
         self.ML_number_of_turns_include_resources_coal = 25
         self.ML_number_of_turns_include_resources_uranium = 30
+        self.ML_model = 'model'
+        self.ML_model_map_size = 32
 
         pr("ConfigManager,map size{0}".format(map_size))
         if map_size == 12:
+            self.ML_model = 'model_12'
+            self.ML_model_map_size = map_size
             self.cluster_wood_overcrowded = 3
             if self.ml_find_resources:
                 self.do_cluster_analyses = False

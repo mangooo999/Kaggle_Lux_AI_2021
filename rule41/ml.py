@@ -7,10 +7,6 @@ import maps.map_analysis as MapAnalysis
 from MoveHelper import MoveHelper
 from UnitInfo import UnitInfo
 
-path = '/kaggle_simulations/agent' if os.path.exists('/kaggle_simulations') else '.'
-model = torch.jit.load(f'{path}/model.pth')
-model.eval()
-
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
     if True:
@@ -21,6 +17,7 @@ def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
 
 def prx(*args): pr(*args, f=True)
 
+
 def in_city(pos, game_state):
     try:
         city = game_state.map.get_cell_by_pos(pos).citytile
@@ -28,31 +25,36 @@ def in_city(pos, game_state):
     except:
         return False
 
+
 unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('build_city',)]
 
 
-
 class ML_Agent:
-    def __init__(self):
+    def __init__(self, model_name='model', model_map_size=32):
         self.include_coal = False
         self.include_uranium = False
+        self.model_map_size = model_map_size
+
+        path = '/kaggle_simulations/agent' if os.path.exists('/kaggle_simulations') else '.'
+        self.model = torch.jit.load(f'{path}/{model_name}.pth')
+        self.model.eval()
 
     def update_include_resources(self, t_prefix, include_coal, include_uranium):
         # only switches from False to True (no way back)
         if (not self.include_coal) and include_coal:
-            pr(t_prefix,"ML Agent changing include_coal to",include_coal)
+            pr(t_prefix, "ML Agent changing include_coal to", include_coal)
             self.include_coal = include_coal
         if (not self.include_uranium) and include_uranium:
-            pr(t_prefix,"ML Agent changing include_uranium to", include_uranium)
+            pr(t_prefix, "ML Agent changing include_uranium to", include_uranium)
             self.include_uranium = include_uranium
 
-    def make_input(self, obs, unit_id):
+    def make_input(self, obs, unit_id, size=32):
         width, height = obs['width'], obs['height']
-        x_shift = (32 - width) // 2
-        y_shift = (32 - height) // 2
+        x_shift = (size - width) // 2
+        y_shift = (size - height) // 2
         cities = {}
 
-        b = np.zeros((20, 32, 32), dtype=np.float32)
+        b = np.zeros((20, size, size), dtype=np.float32)
 
         for update in obs['updates']:
             strs = update.split(' ')
@@ -119,11 +121,12 @@ class ML_Agent:
         # Turns
         b[18, :] = obs['step'] / 360
         # Map Size
-        b[19, x_shift:32 - x_shift, y_shift:32 - y_shift] = 1
+        b[19, x_shift:size - x_shift, y_shift:size - y_shift] = 1
 
         return b
 
-    def get_actions_unit(self, observation, game_state, actions: [], move_mapper: MoveHelper, unit_info, resources) -> []:
+    def get_actions_unit(self, observation, game_state, actions: [], move_mapper: MoveHelper, unit_info,
+                         resources) -> []:
         player = game_state.players[observation.player]
 
         # Worker Actions
@@ -141,11 +144,8 @@ class ML_Agent:
             if (not unit.can_build(game_state.map)) and unit.can_act():
                 self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources)
 
-
     def call_func(obj, method, args=[]):
         return getattr(obj, method)(*args)
-
-
 
     def get_action_unit(self, observation, game_state, info: UnitInfo,
                         move_mapper: MoveHelper, actions: [],
@@ -174,7 +174,7 @@ class ML_Agent:
                         move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
                         return True
                     else:
-                        if move_mapper.is_moving_to_resource_hull(unit,next_pos):
+                        if move_mapper.is_moving_to_resource_hull(unit, next_pos):
                             move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
                             return True
                 elif is_night and in_city(unit.pos, game_state):
@@ -190,7 +190,7 @@ class ML_Agent:
                             # move to near_resource, also ok
                             move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
                             return True
-                        
+
             elif can_build and type_action == 'build_city':
                 # BUILD CITY
                 if is_day:
@@ -201,7 +201,6 @@ class ML_Agent:
         if stay_in_case_no_found:
             move_mapper.stay(unit, 'ML')
         return False
-
 
     def get_movement_directions(self, observation, info: UnitInfo):
         directions = []
@@ -215,10 +214,9 @@ class ML_Agent:
 
         return directions
 
-
     def get_policy(self, observation, unit):
-        state = self.make_input(observation, unit.id)
+        state = self.make_input(observation, unit.id, size=self.model_map_size)
         with torch.no_grad():
-            p = model(torch.from_numpy(state).unsqueeze(0))
+            p = self.model(torch.from_numpy(state).unsqueeze(0))
         policy = p.squeeze(0).numpy()
         return policy
