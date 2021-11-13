@@ -10,8 +10,8 @@ class ConfigManager():
         self.num_resource_below_no_ML = map_size/2
         self.RULEM = False
 
-        self.ML_number_of_turns_include_resources_coal = 12
-        self.ML_number_of_turns_include_resources_uranium = 18
+        self.ML_number_of_turns_include_resources_coal = 25
+        self.ML_number_of_turns_include_resources_uranium = 30
 
         pr("ConfigManager,map size{0}".format(map_size))
         if map_size == 12:

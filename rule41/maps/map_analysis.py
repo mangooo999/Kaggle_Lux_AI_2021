@@ -578,14 +578,21 @@ def is_cell_empty_or_empty_next(pos, game_state) -> (bool, bool):
     has_empty_next = len(find_all_adjacent_empty_tiles(game_state, pos)) > 0
     return is_empty, has_empty_next
 
-def get_convex_hull(pr,resources:Resources, prefix='') -> ConvexHull:
+def get_convex_hull(pr,resources:Resources, include_coal, include_uranium, prefix='') -> ConvexHull:
 
-    if len(resources.all_resources_tiles) < 3:
+    included_resources: List[Cell] = []
+    included_resources.extend(resources.wood_tiles)
+    if include_coal:
+        included_resources.extend(resources.coal_tiles)
+    if include_uranium:
+        included_resources.extend(resources.uranium_tiles)
+
+    if len(included_resources) < 3:
         return
 
     try:
         # prx(prefix,'--------------START vector')
-        vector = ([[cell.pos.x, cell.pos.y] for cell in np.array(resources.all_resources_tiles)])
+        vector = ([[cell.pos.x, cell.pos.y] for cell in np.array(included_resources)])
         points = np.array(vector)
 
         if len(points) >= 3:

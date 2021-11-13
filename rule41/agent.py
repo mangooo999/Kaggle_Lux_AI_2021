@@ -332,8 +332,16 @@ def agent(observation, configuration):
     total_fuel_required = 0
     fuel_with_units = 0
 
-    hull = MapAnalysis.get_convex_hull(prx, resources,t_prefix)
+    #update target resources for ML model
+    coal_minable = is_resource_minable(player, RESOURCE_TYPES.COAL, game_info.get_research_rate(),
+                            config.ML_number_of_turns_include_resources_coal)
+    uranium_minable = is_resource_minable(player, RESOURCE_TYPES.URANIUM, game_info.get_research_rate(),
+                            config.ML_number_of_turns_include_resources_uranium)
+    include_coal = coal_minable or resources.cargo.wood == 0
+    include_uranium = uranium_minable or (resources.cargo.wood == 0 and resources.cargo.coal == 0)
+    ML.update_include_resources( t_prefix,include_coal,include_uranium)
 
+    hull = MapAnalysis.get_convex_hull(prx, resources,include_coal,include_uranium,t_prefix)
 
     # count how much fuel our unit have
     for unit in player.units:
@@ -948,16 +956,6 @@ def agent(observation, configuration):
 
     # map of resource to unit going for them
     resource_target_by_unit = {}
-
-    #update target resources for ML model
-    coal_minable = is_resource_minable(player, RESOURCE_TYPES.COAL, game_info.get_research_rate(),
-                            config.ML_number_of_turns_include_resources_coal)
-    uranium_minable = is_resource_minable(player, RESOURCE_TYPES.URANIUM, game_info.get_research_rate(),
-                            config.ML_number_of_turns_include_resources_uranium)
-
-    ML.update_include_resources( t_prefix,
-                                 coal_minable or resources.cargo.wood == 0,
-                                 uranium_minable or (resources.cargo.wood == 0 and resources.cargo.coal == 0))
 
     if use_still_ML:
         if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
