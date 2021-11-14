@@ -302,7 +302,8 @@ def agent(observation, configuration):
         # This is the start of the game
         clusters = ClusterControl(game_state, pr)
         config = ConfigManager(game_state.map_width, pr)
-        ML = ML.ML_Agent(model_name= config.ML_model,model_map_size= config.ML_model_map_size)
+        ML = ML.ML_Agent(model_name= config.ML_model,model_map_size= config.ML_model_map_size,
+                         model_type=config.ML_model_type)
         start_time = time.time()
 
     pr("---------Turn number ", game_state.turn)

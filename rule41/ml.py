@@ -30,10 +30,11 @@ unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('bu
 
 
 class ML_Agent:
-    def __init__(self, model_name='model', model_map_size=32):
+    def __init__(self, model_name='model', model_map_size=32, model_type=1):
         self.include_coal = False
         self.include_uranium = False
         self.model_map_size = model_map_size
+        self.model_type =  model_type
 
         path = '/kaggle_simulations/agent' if os.path.exists('/kaggle_simulations') else '.'
         self.model = torch.jit.load(f'{path}/{model_name}.pth')
@@ -47,6 +48,116 @@ class ML_Agent:
         if (not self.include_uranium) and include_uranium:
             pr(t_prefix, "ML Agent changing include_uranium to", include_uranium)
             self.include_uranium = include_uranium
+
+
+    # Input for Neural Network
+    def make_input2(self, obs, unit_id, size=32):
+        CHANNELS = 25
+
+        width, height = obs['width'], obs['height']
+        x_shift = (size - width) // 2
+        y_shift = (size - height) // 2
+        cities = {}
+
+        turn = obs['step']
+        MAX_DAYS = 360
+        DAY_LENGTH = 30
+        NIGHT_LENGTH = 10
+        FULL_LENTH = DAY_LENGTH + NIGHT_LENGTH
+
+        all_night_turns_lef = ((MAX_DAYS - 1 - turn) // FULL_LENTH + 1) * NIGHT_LENGTH
+
+        turns_to_night = (DAY_LENGTH - turn) % FULL_LENTH
+        turns_to_night = 0 if turns_to_night > 30 else turns_to_night
+
+        turns_to_dawn = FULL_LENTH - turn % FULL_LENTH
+        turns_to_dawn = 0 if turns_to_dawn > 10 else turns_to_dawn
+
+        if turns_to_night == 0:
+            all_night_turns_lef -= (10 - turns_to_dawn)
+
+        steps_until_night = 30 - turn % 40
+        next_night_number_turn = min(10, 10 + steps_until_night)
+
+        b = np.zeros((CHANNELS, size, size), dtype=np.float32)
+
+        for update in obs['updates']:
+            strs = update.split(' ')
+            input_identifier = strs[0]
+
+            if input_identifier == 'u':
+                x = int(strs[4]) + x_shift
+                y = int(strs[5]) + y_shift
+                wood = int(strs[7])
+                coal = int(strs[8])
+                uranium = int(strs[9])
+                fuel = wood + coal * 10 + uranium * 40
+                if unit_id == strs[3]:
+                    # Position and Cargo
+                    b[:3, x, y] = (
+                        1,
+                        (wood + coal + uranium) / 100,
+                        fuel / 4000
+                    )
+                else:
+                    # Units
+                    team = int(strs[2])
+                    cooldown = float(strs[6])
+                    idx = 3 + (team - obs['player']) % 2 * 3
+                    b[idx:idx + 3, x, y] = (
+                        1,
+                        cooldown / 6,
+                        (wood + coal + uranium) / 100
+                    )
+            elif input_identifier == 'ct':
+                # CityTiles
+                team = int(strs[1])
+                city_id = strs[2]
+                x = int(strs[3]) + x_shift
+                y = int(strs[4]) + y_shift
+                idx = 9 + (team - obs['player']) % 2 * 4
+                b[idx:idx + 4, x, y] = (
+                    1,
+                    cities[city_id][0],
+                    cities[city_id][1],
+                    cities[city_id][2]
+                )
+            elif input_identifier == 'r':
+                # Resources
+                r_type = strs[1]
+                if (r_type == 'coal' and not self.include_coal) \
+                        or (r_type == 'uranium' and not self.include_uranium):
+                    continue
+                x = int(strs[2]) + x_shift
+                y = int(strs[3]) + y_shift
+                amt = int(float(strs[4]))
+                b[{'wood': 17, 'coal': 18, 'uranium': 19}[r_type], x, y] = amt / 800
+            elif input_identifier == 'rp':
+                # Research Points
+                team = int(strs[1])
+                rp = int(strs[2])
+                b[20 + (team - obs['player']) % 2, :] = min(rp, 200) / 200
+            elif input_identifier == 'c':
+                # Cities
+                city_id = strs[2]
+                fuel = float(strs[3])
+                lightupkeep = float(strs[4])
+                autonomy = int(fuel) // int(lightupkeep)
+                will_live = autonomy >= all_night_turns_lef
+                will_live_next_night = autonomy >= next_night_number_turn
+                cities[city_id] = (
+                    int(will_live_next_night),
+                    int(will_live),
+                    min(autonomy, 10) / 10)
+
+        # Day/Night Cycle
+        b[22, :] = obs['step'] % 40 / 40
+        # Turns
+        b[23, :] = obs['step'] / 360
+        # Map Size
+        b[24, x_shift:size - x_shift, y_shift:size - y_shift] = 1
+
+        return b
 
     def make_input(self, obs, unit_id, size=32):
         width, height = obs['width'], obs['height']
@@ -215,7 +326,11 @@ class ML_Agent:
         return directions
 
     def get_policy(self, observation, unit):
-        state = self.make_input(observation, unit.id, size=self.model_map_size)
+        if self.model_type==1:
+            state = self.make_input(observation, unit.id, size=self.model_map_size)
+        elif self.model_type == 2:
+            state = self.make_input2(observation, unit.id, size=self.model_map_size)
+
         with torch.no_grad():
             p = self.model(torch.from_numpy(state).unsqueeze(0))
         policy = p.squeeze(0).numpy()
