@@ -3,23 +3,25 @@ class ConfigManager():
         self.cluster_wood_overcrowded = 5
         self.distance_wood_coal_to_move_building = 2
         self.super_fast_expansion = False
-        self.ml_find_resources = True
         self.do_cluster_analyses = True
         self.spread_big_cluster = False
 
-        self.num_resource_below_no_ML = map_size/2
-        self.RULEM = False
+        # ML Parameters
+        self.ML_model = 'model3'
+        self.ML_model_map_size = 32
+        self.ML_model_type = 2
 
+        self.ml_find_resources = True
+        self.ml_can_build = False
+        self.ml_fallback = False
+        self.num_resource_below_no_ML = map_size / 2
         self.ML_number_of_turns_include_resources_coal = 25
         self.ML_number_of_turns_include_resources_uranium = 30
-        self.ML_model = 'model'
-        self.ML_model_map_size = 32
-        self.ML_model_type =1
+        self.RULEM = False
+
 
         pr("ConfigManager,map size{0}".format(map_size))
         if map_size == 12:
-            self.ML_model = 'model12_32'
-            self.ML_model_map_size = map_size
             self.cluster_wood_overcrowded = 3
             if self.ml_find_resources:
                 self.do_cluster_analyses = False

@@ -284,7 +284,7 @@ class Player:
     def get_units_around_pos(self, pos, distance) -> [Unit]:
         units: [Unit] = []
         for unit in self.units:
-            if unit.pos.distance_to(pos) <= distance:
+            if 0 < unit.pos.distance_to(pos) <= distance:
                 units.append(unit)
 
         return units

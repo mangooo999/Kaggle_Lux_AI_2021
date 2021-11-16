@@ -26,7 +26,7 @@ def in_city(pos, game_state):
         return False
 
 
-unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('build_city',)]
+unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('build_city',),('transfer',)]
 
 
 class ML_Agent:
@@ -263,7 +263,12 @@ class ML_Agent:
                         resources,
                         can_build=True,
                         stay_in_case_no_found=True,
-                        allow_move_to_outside_hull=True) \
+                        allow_move_to_outside_hull=True,
+                        can_transfer = False,
+                        log='',
+                        transfer_to_best_friend_outside_resource= None, adjacent_units= None,
+                        in_resource=None, near_resource=None
+                        ) \
             -> bool:
         unit = info.unit
 
@@ -272,6 +277,8 @@ class ML_Agent:
 
         # ML magic
         policy = self.get_policy(observation, unit)
+
+        log_string = 'ML'+log
 
         # check in order of attractiveness
         for label in np.argsort(policy)[::-1]:
@@ -282,35 +289,44 @@ class ML_Agent:
                 # MOVE ACTIONS
                 if is_day or not in_city(unit.pos, game_state):
                     if allow_move_to_outside_hull:
-                        move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
+                        move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                         return True
                     else:
                         if move_mapper.is_moving_to_resource_hull(unit, next_pos):
-                            move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
+                            move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                             return True
                 elif is_night and in_city(unit.pos, game_state):
                     # night, in the city
                     if in_city(next_pos, game_state):
                         # move to another city, ok
-                        move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
+                        move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                         return True
                     else:
                         in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
                             resources.available_resources_tiles, next_pos)
                         if near_resource:
                             # move to near_resource, also ok
-                            move_mapper.move_unit_to_pos(actions, info, 'ML', next_pos)
+                            move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                             return True
 
             elif can_build and type_action == 'build_city':
                 # BUILD CITY
                 if is_day:
-                    move_mapper.build_city(actions, info, 'ML')
+                    move_mapper.build_city(actions, info, log_string)
+                    return True
+
+            elif can_transfer and type_action == 'transfer' and transfer_to_best_friend_outside_resource is not None:
+                u_prefix = move_mapper.log_prefix + info.unit.id + " " + log_string
+                if transfer_to_best_friend_outside_resource(actions, adjacent_units,
+                                                         resources.available_resources_tiles, info,
+                                                         in_resource, near_resource,
+                                                         game_state.players[observation.player], u_prefix,
+                                                            force_on_equal=True):
                     return True
 
         # FOUND NOTHING
         if stay_in_case_no_found:
-            move_mapper.stay(unit, 'ML')
+            move_mapper.stay(unit, log_string)
         return False
 
     def get_movement_directions(self, observation, info: UnitInfo):

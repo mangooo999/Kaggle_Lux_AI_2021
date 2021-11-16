@@ -56,7 +56,7 @@ import builtins as __builtin__
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if False:
+    if True:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -991,18 +991,33 @@ def agent(observation, configuration):
             # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
             if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
                 pr(u_prefix, " this unit has not worked")
+
                 if info.get_cargo_space_used() == 0 and len(resources.available_resources_tiles) == 0:
                     # return home
                     send_unit_home(actions, game_state, info, player, u_prefix, unit, "no cargo, no resource")
                 elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
-                    adjacent_empty_tiles = Lazy(lambda: MapAnalysis.find_all_adjacent_empty_tiles(game_state, unit.pos))
+                    adjacent_units = Lazy(lambda: player.get_units_around_pos(unit.pos, 1))
                     in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
                         resources.available_resources_tiles,
                         unit.pos)
 
-                    transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                    transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                              resources.available_resources_tiles, info, in_resource,
                                                              near_resource, player, u_prefix)
+
+                if (not info.has_done_action_this_turn)\
+                        and (info.get_cargo_space_used() > 0 or len(resources.available_resources_tiles) > 0):
+                    # if there is possibly something to do
+                    pr(u_prefix, " custom fallback didn't yield any further action.")
+                    if config.ml_fallback:
+                        ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
+                                              can_build=True,
+                                              stay_in_case_no_found=False,
+                                              allow_move_to_outside_hull=True,
+                                              log = 'fallback action')
+
+
+
 
     # for i,j in resource_target_by_unit.items():
     #    pr("XXXX resources map ",game_info.turn,i,len(j))
@@ -1071,6 +1086,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                                                                   player))
     adjacent_empty_near_wood_near_empty = Lazy(lambda: empty_near_res(unit.pos, adjacent_empty_tiles(),
                                                                       resources.wood_tiles, game_state))
+    can_transfer = Lazy(lambda: unit.get_cargo_space_used()>0)
 
     cluster: Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
     if cluster is not None:
@@ -1126,7 +1142,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                             return
 
         # end of game, try to put together 100 to build something
-        transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+        transferred = transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                                resources.available_resources_tiles, info, in_resource,
                                                                near_resource, player, u_prefix)
         if transferred:
@@ -1338,7 +1354,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         if info.alarm >= 4 and len(unsafe_cities) > 0:
             pr(u_prefix, ' has tried too many times to go to ', info.last_move_direction)
             if info.get_cargo_space_used() > 0 and (in_resource or near_resource):
-                transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                transferred = transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                                        resources.available_resources_tiles, info,
                                                                        in_resource,
                                                                        near_resource, player, u_prefix)
@@ -1418,6 +1434,18 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
 
+            if config.ml_can_build:
+                # ML resource find
+                if use_still_ML:
+                    if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
+                                          can_build=True,
+                                          stay_in_case_no_found=False,
+                                          allow_move_to_outside_hull=True):
+                        pr(u_prefix, " ML: can_build action")
+                        return
+                    else:
+                        pr(u_prefix, " ML: can_build return nothing continue")
+
             if cluster is None:
                 pr(u_prefix, "This cluster is None")
             elif (not (info.is_role_traveler() or info.is_role_explorer())) \
@@ -1458,6 +1486,9 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     pr(u_prefix, 'do_not_move = True, because is_in_highly_hostile_area')
 
             if near_city():
+                # CAN BUILD and NEAR CITY rules
+
+
                 # this is an excellent spot, but is there even a better one, one that join two different cities?
                 if game_state_info.turns_to_night > 2:
                     # only if we have then time to build after 2 turns cooldown
@@ -1539,7 +1570,9 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     move_mapper.build_city(actions, info, 'in adjacent city!')
                     return
 
-            else:  # if CAN BUILD but NOT near city
+            else:
+                # # CAN BUILD and _NOT_ NEAR CITY rules
+
                 # if we can move to a tile where we are adjacent, do and it and build there
                 if best_adjacent_empty_tile_near_city() is not None:
                     pr(u_prefix, " check if adjacent empty is more interesting",
@@ -1663,7 +1696,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         move_mapper.move_unit_to_pos(actions, info, 'hostile area, from near to res', r.pos)
                         return
 
-            transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+            transferred = transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                                    resources.available_resources_tiles, info,
                                                                    in_resource,
                                                                    near_resource,
@@ -1713,7 +1746,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 enough_fuel = 400
 
         # if near_resource and in_empty() and info.get_cargo_space_used() >= 0:
-        #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+        #     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_units,
         #                                                           resources.available_resources_tiles, info,
         #                                                           in_resource, near_resource,
         #                                                           player, u_prefix)
@@ -1734,11 +1767,18 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                             if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
                                                   can_build=False,
                                                   stay_in_case_no_found=False,
-                                                  allow_move_to_outside_hull=False):
-                                pr(u_prefix, " ML: action")
+                                                  allow_move_to_outside_hull=False,
+                                                  can_transfer=can_transfer(),
+                                                  transfer_to_best_friend_outside_resource=transfer_to_best_friend_outside_resource,
+                                                  adjacent_units=adjacent_units,
+                                                  in_resource=in_resource, near_resource=in_resource
+                                                  ):
+                                pr(u_prefix, " ML: resource action")
                                 return
+                            else:
+                                pr(u_prefix, " ML: resource returned nothing, continue")
 
-                    transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                    transferred = transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                                            resources.available_resources_tiles,
                                                                            info,
                                                                            in_resource, near_resource,
@@ -1754,7 +1794,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         find_best_resource(game_state, resources_distance(), resource_target_by_unit,
                                            info, resources.available_resources_tiles, u_prefix, unsafe_cities)
                     if direction == DIRECTIONS.CENTER and len(unsafe_cities) == 0:
-                        transferred = transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                        transferred = transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                                                resources.available_resources_tiles,
                                                                                info,
                                                                                in_resource, near_resource,
@@ -1799,7 +1839,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         and move_mapper.can_move_to_direction(unit.pos, info.last_move_direction, game_state):
                     move_mapper.move_unit_to(actions, info.last_move_direction, info, 'move a bit further')
                 elif resource_type != RESOURCE_TYPES.WOOD and player.is_unit_in_pos(info.last_move_before_pos):
-                    transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                    transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                              resources.available_resources_tiles, info,
                                                              in_resource,
                                                              near_resource, player, u_prefix)
@@ -1871,7 +1911,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                 # just try to transfer do not move
                                 pr(u_prefix, " City is not critical (or critical and close enough to return before "
                                              "the night), just stay here as much as possible to gather resources")
-                                transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles,
+                                transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                                          resources.available_resources_tiles, info,
                                                                          in_resource, near_resource, player, u_prefix)
                                 return
@@ -1941,7 +1981,7 @@ def move_to_better_or_transfer(msg, actions, game_state, info, next_pos, player,
         if friend_info.get_cargo_space_left() > 0 and \
                 (friend_in_best_adjacent.cooldown > 0 or friend_info.last_move_turn < game_state.turn):
             pr(u_prefix, " friend in best position, we can pass resource to" + msg, friend_in_best_adjacent_id)
-            transfer_all_resources(actions, info, friend_in_best_adjacent_id, u_prefix, next_pos)
+            transfer_all_resources(actions, info, friend_info.unit, u_prefix)
             return True
     if do_not_move:
         # we could not transfer, we are done
@@ -2002,32 +2042,42 @@ def send_unit_home(actions, game_state, info, player, u_prefix, unit, msg):
     return move_mapper.try_to_move_to_directions(actions, info, directions, game_state, msg, closest_city)
 
 
-def transfer_to_best_friend_outside_resource(actions, adjacent_empty_tiles, available_resources_tiles, info,
-                                             in_resource, near_resource, player, prefix) -> bool:
-    for pos in adjacent_empty_tiles():
-        friend = player.get_unit_in_pos(pos)
-        if friend is not None:
-            if friend.get_cargo_space_left() == 0:
-                continue
+def transfer_to_best_friend_outside_resource(actions, adjacent_units, available_resources_tiles, info,
+                                             in_resource, near_resource, player, prefix, force_on_equal=False) -> bool:
+    if info.get_cargo_space_used()==0:
+        return False
 
-            friend_in_resource, friend_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                available_resources_tiles, friend.pos)
+    friend_in_equal = []
+    for friend in adjacent_units():
+        if unit_info[friend.id].get_cargo_space_left() == 0:
+            continue
 
-            if in_resource and not friend_in_resource:
-                # if we are on resource, but friend is not
-                transfer_all_resources(actions, info, friend.id, prefix, pos)
+        friend_in_resource, friend_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+            available_resources_tiles, friend.pos)
+        more_info = f'({info.get_cargo_space_used()} to {friend.get_cargo_space_used()})'
+        if in_resource and not friend_in_resource:
+            # if we are on resource, but friend is not
+            transfer_all_resources(actions, info, friend, prefix + more_info+'(r->near)')
+            return True
+        elif (not in_resource) and near_resource and not (friend_near_resource or friend_in_resource):
+            # if we are near resource, but friend is not
+            transfer_all_resources(actions, info, friend, prefix + more_info+'(near->none)')
+            return True
+        elif (in_resource and friend_in_resource) or \
+                ((not in_resource) and near_resource and (not friend_in_resource) and friend_near_resource) or \
+                (not (in_resource or near_resource or friend_in_resource or friend_near_resource)
+                ):
+            # if both in or near resourse, or none, transfer to who has less
+            if 0 < friend.get_cargo_space_left() < info.get_cargo_space_left():
+                transfer_all_resources(actions, info, friend, prefix + more_info + ' same ')
                 return True
-            elif (not in_resource) and near_resource and not (friend_near_resource or friend_in_resource):
-                # if we are near resource, but friend is not
-                transfer_all_resources(actions, info, friend.id, prefix, pos)
-                return True
-            elif (in_resource and friend_in_resource) or \
-                    ((not in_resource) and near_resource and (not friend_in_resource) and friend_near_resource) or \
-                    (not (in_resource or near_resource or friend_in_resource or friend_near_resource)):
-                # if both in or near resourse, or none, transfer to who has more
-                if 0 < friend.get_cargo_space_left() < info.get_cargo_space_left():
-                    transfer_all_resources(actions, info, friend.id, prefix, pos)
-                    return True
+            else:
+                friend_in_equal.append(friend)
+
+    if force_on_equal:
+        for friend in friend_in_equal:
+            transfer_all_resources(actions, info, friend, prefix + more_info + f'(eq={len(friend_in_equal)})')
+            return True
 
     return False
 
@@ -2111,7 +2161,7 @@ def move_unit_to_or_transfer(actions, direction, info, player, prefix, unit, msg
     move_to_city = MapAnalysis.is_position_city(next_pos, player)
     friend_unit = player.get_unit_in_pos(next_pos)
     if direction != DIRECTIONS.CENTER and friend_unit is not None and move_to_city:
-        transfer_all_resources(actions, info, friend_unit.id, prefix, next_pos)
+        transfer_all_resources(actions, info, friend_unit, prefix)
         return True
 
     if info.get_cargo_space_used() > 0:
@@ -2121,7 +2171,7 @@ def move_unit_to_or_transfer(actions, direction, info, player, prefix, unit, msg
                     and unit_info[friend_unit.id].get_cargo_space_left() >= info.get_cargo_space_used():
                 pr(prefix, msg, "instead of moving", direction, ", do transfer to", friend_unit.id, ' in ',
                    unit.pos.translate(direction, 1))
-                transfer_all_resources(actions, info, friend_unit.id, prefix, next_pos)
+                transfer_all_resources(actions, info, friend_unit, prefix)
                 return True
 
     if direction != DIRECTIONS.CENTER and move_mapper.can_move_to_direction(info.unit.pos, direction, game_state):
@@ -2197,22 +2247,22 @@ def find_best_city(game_state, city_tile_distance, unsafe_cities, info: UnitInfo
     return direction, None, "randomly (due to city)", None, False
 
 
-def transfer_all_resources(actions, info: UnitInfo, to_unit_id: str, prefix, pos: Position = None):
-    to_unit_string = to_unit_id
-    if pos is not None:
-        to_unit_string = to_unit_string + pos.__str__()
+def transfer_all_resources(actions, info: UnitInfo, to_unit: Unit, prefix):
+    # pr('XXX', info.unit.cargo.to_string())
+    to_unit_string = to_unit.id
+    to_unit_string = to_unit_string + to_unit.pos.__str__()
 
     if info.unit.cargo.uranium > 0:
-        do_transfer(actions, info, prefix, RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium, to_unit_id, to_unit_string)
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium, to_unit.id, to_unit_string)
     elif info.unit.cargo.coal > 0:
-        do_transfer(actions, info, prefix, RESOURCE_TYPES.COAL, info.unit.cargo.coal, to_unit_id, to_unit_string)
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.COAL, info.unit.cargo.coal, to_unit.id, to_unit_string)
     elif info.unit.cargo.wood > 0:
-        do_transfer(actions, info, prefix, RESOURCE_TYPES.WOOD, info.unit.cargo.coal, to_unit_id, to_unit_string)
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.WOOD, info.unit.cargo.wood, to_unit.id, to_unit_string)
 
-    if unit_info[to_unit_id].is_role_traveler: unit_info[to_unit_id].clean_unit_role()
+    if unit_info[to_unit.id].is_role_traveler: unit_info[to_unit.id].clean_unit_role()
     if unit_info[info.unit.id].is_role_returner():
         unit_info[info.unit.id].clean_unit_role('Transferred resources, transfer role')
-        unit_info[to_unit_id].set_unit_role_returner(to_unit_id)
+        unit_info[to_unit.id].set_unit_role_returner(to_unit.id)
 
 
 def do_transfer(actions, info, prefix, resource, qty, to_unit_id, to_unit_string):
@@ -2299,58 +2349,6 @@ def is_resource_minable(actor, resource_type: RESOURCE_TYPES, research_rate=0., 
            (resource_type == RESOURCE_TYPES.URANIUM and actor.research_points + expected_additional_research >= 200)
 
 
-def get_direction_to_smart_XXX(game_state: Game, unit: Unit, target_pos: Position) -> DIRECTIONS:
-    smallest_cost = [2, 2, 2, 2]
-    closest_dir = DIRECTIONS.CENTER
-    closest_pos = unit.pos
-
-    for direction in game_state.dirs:
-        newpos = unit.pos.translate(direction, 1)
-
-        cost = [0, 0, 0, 0]
-
-        # do not go out of map
-        if tuple(newpos) in game_state.xy_out_of_map:
-            continue
-
-        # discourage if new position is occupied
-        if tuple(newpos) in game_state.occupied_xy_set:
-            if tuple(newpos) not in game_state.player_city_tile_xy_set:
-                cost[0] = 2
-
-        # discourage going into a city tile if you are carrying substantial wood
-        if tuple(newpos) in game_state.player_city_tile_xy_set and unit.cargo.wood >= 60:
-            cost[0] = 1
-
-        # path distance as main differentiator
-        path_dist = game_state.retrieve_distance(newpos.x, newpos.y, target_pos.x, target_pos.y)
-        cost[1] = path_dist
-
-        # manhattan distance to tie break
-        manhattan_dist = (newpos - target_pos)
-        cost[2] = manhattan_dist
-
-        # prefer to walk on tiles with resources
-        aux_cost = game_state.convolved_collectable_tiles_matrix[newpos.y, newpos.x]
-        cost[3] = -aux_cost
-
-        # if starting from the city, consider manhattan distance instead of path distance
-        if tuple(unit.pos) in game_state.player_city_tile_xy_set:
-            cost[1] = manhattan_dist
-
-        # update decision
-        if cost < smallest_cost:
-            smallest_cost = cost
-            closest_dir = direction
-            closest_pos = newpos
-
-    if closest_dir != DIRECTIONS.CENTER:
-        game_state.occupied_xy_set.discard(tuple(unit.pos))
-        if tuple(closest_pos) not in game_state.player_city_tile_xy_set:
-            game_state.occupied_xy_set.add(tuple(closest_pos))
-        unit.cooldown += 2
-
-    return closest_dir
 
 
 def find_best_resource(game_state, resources_distance, resource_target_by_unit, info,
