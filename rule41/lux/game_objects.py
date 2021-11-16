@@ -83,6 +83,13 @@ class Cargo:
         self.coal = 0
         self.uranium = 0
 
+    def __add__(self, other: 'Cargo') -> 'Cargo':
+        new_cargo = Cargo()
+        new_cargo.wood = self.wood + other.wood
+        new_cargo.coal = self.coal + other.coal
+        new_cargo.uranium = self.uranium + other.uranium
+        return new_cargo
+
     def get_space_used(self) -> int:
         return self.wood + self.coal + self.uranium;
 

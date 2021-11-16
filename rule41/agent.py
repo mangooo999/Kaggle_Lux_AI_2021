@@ -3,6 +3,7 @@ import sys
 import collections
 
 import time
+from builtins import len
 
 from game_state_info.game_state_info import GameStateInfo
 from ConfigManager import ConfigManager
@@ -56,7 +57,7 @@ import builtins as __builtin__
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -569,7 +570,7 @@ def agent(observation, configuration):
                         pr(prefix, next_clust.id, unit.id, "TCFAIL cannot find info")
                         continue
 
-                    if info.get_cargo_space_left() == 0 or info.unit.cargo.fuel() > 150:
+                    if info.get_cargo_space_left() == 0 or info.cargo().fuel() > 150:
                         # do not consider units that can build with wood (fuel=100) or high fuel ones
                         # pr(prefix, next_clust.id, unit.id, "get_cargo_space_left=0")
                         continue
@@ -990,12 +991,12 @@ def agent(observation, configuration):
             u_prefix: str = "T_" + game_state.turn.__str__() + str(unit.id)
             # pr(prefix, "XXX check unit has worked", unit.can_act(), info.has_done_action_this_turn)
             if unit.is_worker() and unit.can_act() and not info.has_done_action_this_turn:
-                pr(u_prefix, " this unit has not worked")
+                pr(u_prefix, " this unit has not worked", unit.pos)
 
                 if info.get_cargo_space_used() == 0 and len(resources.available_resources_tiles) == 0:
                     # return home
                     send_unit_home(actions, game_state, info, player, u_prefix, unit, "no cargo, no resource")
-                elif unit.cargo.coal > 0 or unit.cargo.uranium > 0:
+                elif info.cargo().coal > 0 or info.cargo().uranium > 0:
                     adjacent_units = Lazy(lambda: player.get_units_around_pos(unit.pos, 1))
                     in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
                         resources.available_resources_tiles,
@@ -1086,20 +1087,20 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                                                                   player))
     adjacent_empty_near_wood_near_empty = Lazy(lambda: empty_near_res(unit.pos, adjacent_empty_tiles(),
                                                                       resources.wood_tiles, game_state))
-    can_transfer = Lazy(lambda: unit.get_cargo_space_used()>0)
+    can_transfer = Lazy(lambda: unit.get_cargo_space_used() > 0)
 
     cluster: Cluster = clusters.get_unit_cluster(u_prefix, unit.id)
     if cluster is not None:
         pr(u_prefix, 'this cluster ', cluster.to_string_light())
 
     # End of game, try to save units that are not going anymore to do anything
-    if (len(resources.all_resources_tiles) == 0 and unit.cargo.fuel() == 0 and not in_city()) \
+    if (len(resources.all_resources_tiles) == 0 and info.cargo().fuel() == 0 and not in_city()) \
             or (game_state.turn >= 350):
         # those units are not useful anymore, return home
         send_unit_home(actions, game_state, info, player, u_prefix, unit, "nothing to do, go home")
         return
 
-    if (len(resources.all_resources_tiles) == 0 and unit.cargo.fuel() > 0 and len(unsafe_cities) == 0):
+    if (len(resources.all_resources_tiles) == 0 and info.cargo().fuel() > 0 and len(unsafe_cities) == 0):
         pr(u_prefix, ' end of game, with resources ', info.get_cargo_space_used())
         if unit.can_build(game_state.map):
             dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
@@ -1239,7 +1240,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                'inCity:', in_city(), 'empty:', in_empty(), 'nearwood:', near_wood, 'unitsHere=', num_units_here)
 
             # search for adjacent cities in danger
-            if game_state_info.is_night_time() and unit.cargo.fuel() > 0 and not in_city():
+            if game_state_info.is_night_time() and info.cargo().fuel() > 0 and not in_city():
                 # if we have resources, next to a city that will die in this night,
                 # and we have enough resources to save it, then move
                 cities = MapAnalysis.adjacent_cities(player, unit.pos)
@@ -1477,7 +1478,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     pr(u_prefix, unit.pos, "CAN BUILD and close to coal, aborted")
 
             do_not_move = False  # this indicate that we want only to transfer or build, no movements
-            if unit.cargo.fuel() < 150:
+            if info.cargo().fuel() < 150:
                 if num_adjacent_enemy_unit() > 0 and (near_resource or near_city()):
                     do_not_move = True
                     pr(u_prefix, 'do_not_move = True, because we are close to enemy')
@@ -1540,9 +1541,9 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                     harvested_fuel = turns * \
                                                      MapAnalysis.get_max_fuel_harvest_in_pos(
                                                          resources.available_resources_tiles, t.pos)
-                                    expected_autonomy = (c.fuel + unit.cargo.fuel() + harvested_fuel) \
+                                    expected_autonomy = (c.fuel + info.cargo().fuel() + harvested_fuel) \
                                                         // c.get_light_upkeep()
-                                    # prx(u_prefix, "XXXX1",c.cityid,c.fuel,unit.cargo.fuel(), harvested_fuel,
+                                    # prx(u_prefix, "XXXX1",c.cityid,c.fuel,info.cargo().fuel(), harvested_fuel,
                                     #                       "//",c.get_light_upkeep(),"=", expected_autonomy)
                                     # prx(u_prefix, "XXXX1 auton+",harvested_fuel," =", c.cityid, c.get_num_tiles(), expected_autonomy)
 
@@ -1594,7 +1595,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
             if (not near_city()) and \
                     (game_state_info.turns_to_night > 1 or
                      (game_state_info.turns_to_night == 1 and near_resource)):
-                unit_fuel = unit.cargo.fuel()
+                unit_fuel = info.cargo().fuel()
                 if cluster is None:
                     pr(u_prefix, "Can build, but not in adjacent city. Cluster is None, fuel", unit_fuel)
                 else:
@@ -1755,7 +1756,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         #         continue
 
         if (not info.is_role_returner()) and info.get_cargo_space_left() > 0 \
-                and (unit.cargo.fuel() < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
+                and (info.cargo().fuel() < enough_fuel or len(unsafe_cities) == 0 or info.is_role_hassler()):
             if not in_resource:
                 # find the closest resource if it exists to this unit
 
@@ -1876,7 +1877,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 move_unit_to_pos_or_transfer(actions, best_adjacent_empty_tile_near_res_towards_enemys().pos, info,
                                              player, u_prefix, unit, " towards closest empty ")
                 return
-            elif info.get_cargo_space_left() == 0 and unit.cargo.fuel() < 120 and game_state_info.turns_to_night > 10:
+            elif info.get_cargo_space_left() == 0 and info.cargo().fuel() < 120 and game_state_info.turns_to_night > 10:
                 # we are full mostly with woods, we should try to build
                 for next_pos in MapAnalysis.get_4_positions(unit.pos, game_state):
                     # pr(t_prefix, 'XXXX',next_pos)
@@ -1891,7 +1892,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                             return
 
             else:
-                pr(u_prefix, " Goto city; fuel=", unit.cargo.fuel())
+                pr(u_prefix, " Goto city; fuel=", info.cargo().fuel())
                 # find closest city tile and move towards it to drop resources to a it to fuel the city
                 if len(unsafe_cities) > 0:
                     pr(u_prefix, " Goto city2", unsafe_cities)
@@ -1916,7 +1917,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                                                          in_resource, near_resource, player, u_prefix)
                                 return
 
-                    if unit.cargo.fuel() >= 200 and info.is_role_none():
+                    if info.cargo().fuel() >= 200 and info.is_role_none():
                         info.set_unit_role_returner(u_prefix)
 
                     move_unit_to_or_transfer(actions, direction, info, player, u_prefix, unit, 'city' + msg)
@@ -2043,11 +2044,32 @@ def send_unit_home(actions, game_state, info, player, u_prefix, unit, msg):
 
 
 def transfer_to_best_friend_outside_resource(actions, adjacent_units, available_resources_tiles, info,
-                                             in_resource, near_resource, player, prefix, force_on_equal=False) -> bool:
+                                             in_resource, near_resource, player, prefix, force_on_equal=False,
+                                             hint_direction=None) -> bool:
     if info.get_cargo_space_used()==0:
         return False
 
     friend_in_equal = []
+
+    if hint_direction is not None:
+        if len(adjacent_units()) >= 1:
+            for friend in adjacent_units():
+                if info.unit.pos.translate(hint_direction,1) == friend.pos:
+                    if unit_info[friend.id].get_cargo_space_left() > 0:
+                        pr(info.unit.id,'transfer with hint: found',hint_direction)
+                        more_info = f'({info.get_cargo_space_used()} to {friend.get_cargo_space_used()})'
+                        transfer_all_resources(actions, info, friend, prefix + more_info + '(r->near)')
+                        return True
+                    else:
+                        pr(info.unit.id, 'transfer with hint: full',hint_direction)
+                    break
+
+        pr(info.unit.id, 'transfer with hint: not found:',hint_direction ,len(adjacent_units()))
+
+
+
+
+
     for friend in adjacent_units():
         if unit_info[friend.id].get_cargo_space_left() == 0:
             continue
@@ -2252,12 +2274,12 @@ def transfer_all_resources(actions, info: UnitInfo, to_unit: Unit, prefix):
     to_unit_string = to_unit.id
     to_unit_string = to_unit_string + to_unit.pos.__str__()
 
-    if info.unit.cargo.uranium > 0:
-        do_transfer(actions, info, prefix, RESOURCE_TYPES.URANIUM, info.unit.cargo.uranium, to_unit.id, to_unit_string)
-    elif info.unit.cargo.coal > 0:
-        do_transfer(actions, info, prefix, RESOURCE_TYPES.COAL, info.unit.cargo.coal, to_unit.id, to_unit_string)
-    elif info.unit.cargo.wood > 0:
-        do_transfer(actions, info, prefix, RESOURCE_TYPES.WOOD, info.unit.cargo.wood, to_unit.id, to_unit_string)
+    if info.cargo().uranium > 0:
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.URANIUM, info.cargo().uranium, to_unit.id, to_unit_string)
+    elif info.cargo().coal > 0:
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.COAL, info.cargo().coal, to_unit.id, to_unit_string)
+    elif info.cargo().wood > 0:
+        do_transfer(actions, info, prefix, RESOURCE_TYPES.WOOD, info.cargo().wood, to_unit.id, to_unit_string)
 
     if unit_info[to_unit.id].is_role_traveler: unit_info[to_unit.id].clean_unit_role()
     if unit_info[info.unit.id].is_role_returner():
@@ -2266,6 +2288,9 @@ def transfer_all_resources(actions, info: UnitInfo, to_unit: Unit, prefix):
 
 
 def do_transfer(actions, info, prefix, resource, qty, to_unit_id, to_unit_string):
+    # if info.transferred_in_cargo.get_space_used()>0:
+    #     pr(prefix,"XXX transfer has additional",info.transferred_in_cargo)
+
     qty = min(qty, unit_info[to_unit_id].get_cargo_space_left())
     actions.append(info.unit.transfer(to_unit_id, resource, qty))
     pr(prefix, "Unit", info.unit.id, '- transfer', qty, resource, 'to', to_unit_string)

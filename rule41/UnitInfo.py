@@ -1,7 +1,7 @@
 from lux.game_map import Position, RESOURCE_TYPES
 from lux.game_objects import Unit, Cargo
 import sys
-
+from LazyWrapper import LazyWrapper as Lazy
 
 class UnitInfo:
     def __init__(self, unit: Unit, pr):
@@ -32,6 +32,7 @@ class UnitInfo:
         self.pr = pr
         self.transferred_in_cargo = Cargo()
         self.pr(self.log_prefix, 'created')
+        self.cargo = Lazy(lambda: self._cargo())
 
     def update(self, unit: Unit, current_turn):
         self.unit = unit
@@ -41,6 +42,8 @@ class UnitInfo:
         self.has_done_action_this_turn = False
         self.current_turn = current_turn
         self.transferred_in_cargo = Cargo()
+        self.cargo = Lazy(lambda: self._cargo())
+
         #
         self.gathered_last_turn = unit.get_cargo_space_left() - self.last_free_cargo
         self.last_free_cargo = unit.get_cargo_space_left()
@@ -65,6 +68,12 @@ class UnitInfo:
             if unit.pos.equals(self.target_position):
                 self.clean_unit_role('reached target position' + self.target_position.__str__(), u_prefix)
 
+    def _cargo(self) -> Cargo:
+        if self.transferred_in_cargo is not None:
+            return self.transferred_in_cargo + self.unit.cargo
+        else:
+            return self.unit.cargo
+
     def add_cargo(self, res, qty):
         if res == RESOURCE_TYPES.WOOD:
             self.transferred_in_cargo.wood += qty
@@ -74,16 +83,10 @@ class UnitInfo:
             self.transferred_in_cargo.uranium += qty
 
     def get_cargo_space_used(self) -> int:
-        if self.transferred_in_cargo is not None:
-            return self.transferred_in_cargo.get_space_used() + self.unit.get_cargo_space_used()
-        else:
-            return self.unit.get_cargo_space_used()
+        return self.cargo().get_space_used()
 
     def get_cargo_space_left(self) -> int:
-        if self.transferred_in_cargo is not None:
-            return 100 - self.get_cargo_space_used()
-        else:
-            return self.unit.get_cargo_space_left()
+        return 100 - self.cargo().get_space_used()
 
     def set_last_action_move(self, direction, to_pos):
         self.last_move = 'm'

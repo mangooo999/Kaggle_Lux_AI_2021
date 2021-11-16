@@ -26,7 +26,10 @@ def in_city(pos, game_state):
         return False
 
 
-unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'), ('build_city',),('transfer',)]
+unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'),
+                ('build_city',),
+                ('transfer', 'n'), ('transfer', 's'), ('transfer', 'w'), ('transfer', 'e')]
+
 
 
 class ML_Agent:
@@ -321,7 +324,8 @@ class ML_Agent:
                                                          resources.available_resources_tiles, info,
                                                          in_resource, near_resource,
                                                          game_state.players[observation.player], u_prefix,
-                                                            force_on_equal=True):
+                                                            force_on_equal=True,
+                                                            hint_direction=act[-1]):
                     return True
 
         # FOUND NOTHING
