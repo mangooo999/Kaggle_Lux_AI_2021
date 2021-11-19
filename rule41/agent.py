@@ -57,7 +57,7 @@ import builtins as __builtin__
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if False:
+    if True:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -969,7 +969,8 @@ def agent(observation, configuration):
 
     if config.RULEM:
         # totally ML based, RULEM
-        ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info, resources)
+        ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info, resources,
+                            transfer_to_direction = transfer_to_direction)
     else:
         # rule based
         # start with potential builder, so that movement are easier to calculate
@@ -1012,7 +1013,7 @@ def agent(observation, configuration):
                     pr(u_prefix, " custom fallback didn't yield any further action.")
                     if config.ml_fallback:
                         ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
-                                              can_build=True,
+                                              allow_build=True,
                                               stay_in_case_no_found=False,
                                               allow_move_to_outside_hull=True,
                                               log = 'fallback action')
@@ -1436,10 +1437,10 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         if unit.can_build(game_state.map):
 
             if config.ml_can_build:
-                # ML resource find
+                # ML can build rule
                 if use_still_ML:
                     if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
-                                          can_build=True,
+                                          allow_build=True,
                                           stay_in_case_no_found=False,
                                           allow_move_to_outside_hull=True):
                         pr(u_prefix, " ML: can_build action")
@@ -1766,13 +1767,12 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     # ML resource find
                     if use_still_ML:
                             if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
-                                                  can_build=False,
+                                                  allow_build=False,
                                                   stay_in_case_no_found=False,
                                                   allow_move_to_outside_hull=False,
                                                   can_transfer=can_transfer(),
-                                                  transfer_to_best_friend_outside_resource=transfer_to_best_friend_outside_resource,
-                                                  adjacent_units=adjacent_units,
-                                                  in_resource=in_resource, near_resource=in_resource
+                                                  transfer_to_direction=transfer_to_direction,
+                                                  adjacent_units=adjacent_units
                                                   ):
                                 pr(u_prefix, " ML: resource action")
                                 return
@@ -2041,6 +2041,26 @@ def send_unit_home(actions, game_state, info, player, u_prefix, unit, msg):
     closest_city = find_closest_city_tile_no_logic(unit.pos, player)
     directions = MapAnalysis.directions_to(unit.pos, closest_city)
     return move_mapper.try_to_move_to_directions(actions, info, directions, game_state, msg, closest_city)
+
+def transfer_to_direction(actions, adjacent_units, info, prefix, hint_direction) -> bool:
+
+    if info.get_cargo_space_used()==0:
+        return False
+
+    if len(adjacent_units()) >= 1:
+        for friend in adjacent_units():
+            if info.unit.pos.translate(hint_direction, 1) == friend.pos:
+                if unit_info[friend.id].get_cargo_space_left() > 0:
+                    pr(info.unit.id, 'transfer_to_direction: found', hint_direction)
+                    more_info = f'({info.get_cargo_space_used()} to {friend.get_cargo_space_used()})'
+                    transfer_all_resources(actions, info, friend, prefix + more_info + '(r->near)')
+                    return True
+                else:
+                    pr(info.unit.id, 'transfer_to_direction: full', hint_direction)
+                break
+
+    pr(info.unit.id, 'transfer_to_direction: not found:', hint_direction, len(adjacent_units()))
+    return False
 
 
 def transfer_to_best_friend_outside_resource(actions, adjacent_units, available_resources_tiles, info,

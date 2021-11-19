@@ -6,7 +6,7 @@ import torch
 import maps.map_analysis as MapAnalysis
 from MoveHelper import MoveHelper
 from UnitInfo import UnitInfo
-
+from LazyWrapper import LazyWrapper as Lazy
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
     if True:
@@ -30,7 +30,9 @@ unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'),
                 ('build_city',),
                 ('transfer', 'n'), ('transfer', 's'), ('transfer', 'w'), ('transfer', 'e')]
 
-
+MAX_DAYS = 360
+DAY_LENGTH = 30
+NIGHT_LENGTH = 10
 
 class ML_Agent:
     def __init__(self, model_name='model', model_map_size=32, model_type=1):
@@ -63,11 +65,8 @@ class ML_Agent:
         cities = {}
 
         turn = obs['step']
-        MAX_DAYS = 360
-        DAY_LENGTH = 30
-        NIGHT_LENGTH = 10
-        FULL_LENTH = DAY_LENGTH + NIGHT_LENGTH
 
+        FULL_LENTH = DAY_LENGTH + NIGHT_LENGTH
         all_night_turns_lef = ((MAX_DAYS - 1 - turn) // FULL_LENTH + 1) * NIGHT_LENGTH
 
         turns_to_night = (DAY_LENGTH - turn) % FULL_LENTH
@@ -240,7 +239,7 @@ class ML_Agent:
         return b
 
     def get_actions_unit(self, observation, game_state, actions: [], move_mapper: MoveHelper, unit_info,
-                         resources) -> []:
+                         resources, transfer_to_direction= None) -> []:
         player = game_state.players[observation.player]
 
         # Worker Actions
@@ -252,11 +251,13 @@ class ML_Agent:
 
         for unit in player.units:
             if unit.can_build(game_state.map) and unit.can_act():
-                self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources)
+                self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources,
+                                     can_transfer=True, transfer_to_direction= transfer_to_direction)
 
         for unit in player.units:
-            if (not unit.can_build(game_state.map)) and unit.can_act():
-                self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources)
+             if (not unit.can_build(game_state.map)) and unit.can_act():
+                self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources,
+                                     can_transfer=True, transfer_to_direction= transfer_to_direction)
 
     def call_func(obj, method, args=[]):
         return getattr(obj, method)(*args)
@@ -264,19 +265,39 @@ class ML_Agent:
     def get_action_unit(self, observation, game_state, info: UnitInfo,
                         move_mapper: MoveHelper, actions: [],
                         resources,
-                        can_build=True,
+                        allow_build=True,
                         stay_in_case_no_found=True,
                         allow_move_to_outside_hull=True,
                         can_transfer = False,
                         log='',
-                        transfer_to_best_friend_outside_resource= None, adjacent_units= None,
-                        in_resource=None, near_resource=None
+                        transfer_to_direction= None, adjacent_units= None
                         ) \
             -> bool:
         unit = info.unit
+        player = game_state.players[observation.player]
+
+        if adjacent_units is None:
+            adjacent_units = Lazy(lambda: player.get_units_around_pos(unit.pos, 1))
 
         is_day = game_state.turn % 40 < 30
         is_night = not is_day
+
+        turn = obs['step']
+        FULL_LENTH = DAY_LENGTH + NIGHT_LENGTH
+        all_night_turns_lef = ((MAX_DAYS - 1 - turn) // FULL_LENTH + 1) * NIGHT_LENGTH
+
+        turns_to_night = (DAY_LENGTH - turn) % FULL_LENTH
+        turns_to_night = 0 if turns_to_night > 30 else turns_to_night
+
+        turns_to_dawn = FULL_LENTH - turn % FULL_LENTH
+        turns_to_dawn = 0 if turns_to_dawn > 10 else turns_to_dawn
+
+        if turns_to_night == 0:
+            all_night_turns_lef -= (10 - turns_to_dawn)
+
+        steps_until_night = 30 - turn % 40
+        next_night_number_turn = min(10, 10 + steps_until_night)
+        number_turns_stuck_in_night = min(4,turns_to_dawn)
 
         # ML magic
         policy = self.get_policy(observation, unit)
@@ -290,7 +311,9 @@ class ML_Agent:
             next_pos = unit.pos.translate(act[-1], 1) or unit.pos
             if type_action == 'move' and move_mapper.can_move_to_pos(next_pos, game_state):
                 # MOVE ACTIONS
-                if is_day or not in_city(unit.pos, game_state):
+                if (is_day and steps_until_night > 1) or \
+                        (is_night and unit.night_turn_survivable>number_turns_stuck_in_night):
+                    #DAY RULES (or night outside the city, with resources, move where you want)
                     if allow_move_to_outside_hull:
                         move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                         return True
@@ -298,34 +321,33 @@ class ML_Agent:
                         if move_mapper.is_moving_to_resource_hull(unit, next_pos):
                             move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                             return True
-                elif is_night and in_city(unit.pos, game_state):
-                    # night, in the city
+                else:
+                    # NIGHT, in the city, (so no resources)
+                    # or
+                    # NIGHT outside, without enough resource to live until the end of cooldown after move
+                    # ->
+                    #    move only near resource or in cities
                     if in_city(next_pos, game_state):
                         # move to another city, ok
                         move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                         return True
                     else:
-                        in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                        next_in_resource, next_in_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
                             resources.available_resources_tiles, next_pos)
-                        if near_resource:
+                        if next_in_resource or next_in_resource:
                             # move to near_resource, also ok
                             move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                             return True
 
-            elif can_build and type_action == 'build_city':
+            elif allow_build and type_action == 'build_city' and unit.can_build(game_state.map):
                 # BUILD CITY
                 if is_day:
                     move_mapper.build_city(actions, info, log_string)
                     return True
 
-            elif can_transfer and type_action == 'transfer' and transfer_to_best_friend_outside_resource is not None:
+            elif can_transfer and type_action == 'transfer' and transfer_to_direction is not None:
                 u_prefix = move_mapper.log_prefix + info.unit.id + " " + log_string
-                if transfer_to_best_friend_outside_resource(actions, adjacent_units,
-                                                         resources.available_resources_tiles, info,
-                                                         in_resource, near_resource,
-                                                         game_state.players[observation.player], u_prefix,
-                                                            force_on_equal=True,
-                                                            hint_direction=act[-1]):
+                if transfer_to_direction(actions, adjacent_units, info, u_prefix, act[-1]):
                     return True
 
         # FOUND NOTHING
