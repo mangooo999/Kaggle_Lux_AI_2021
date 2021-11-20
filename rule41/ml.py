@@ -28,7 +28,8 @@ def in_city(pos, game_state):
 
 unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'),
                 ('build_city',),
-                ('transfer', 'n'), ('transfer', 's'), ('transfer', 'w'), ('transfer', 'e')]
+                ('transfer', 'n'), ('transfer', 's'), ('transfer', 'w'), ('transfer', 'e'),
+                ('stay',)]
 
 MAX_DAYS = 360
 DAY_LENGTH = 30
@@ -276,13 +277,17 @@ class ML_Agent:
         unit = info.unit
         player = game_state.players[observation.player]
 
+        if len(resources.all_resources_tiles)==0 and in_city(unit.pos, game_state):
+            # performance shortcut
+            return True
+
         if adjacent_units is None:
             adjacent_units = Lazy(lambda: player.get_units_around_pos(unit.pos, 1))
 
         is_day = game_state.turn % 40 < 30
         is_night = not is_day
 
-        turn = obs['step']
+        turn = game_state.turn
         FULL_LENTH = DAY_LENGTH + NIGHT_LENGTH
         all_night_turns_lef = ((MAX_DAYS - 1 - turn) // FULL_LENTH + 1) * NIGHT_LENGTH
 
@@ -303,11 +308,18 @@ class ML_Agent:
         policy = self.get_policy(observation, unit)
 
         log_string = 'ML'+log
-
+        action_order=0
         # check in order of attractiveness
         for label in np.argsort(policy)[::-1]:
+            action_order += 1
+
             act = unit_actions[label]
             type_action = act[0]
+            if type_action == 'stay':
+                if action_order == 1: # if this was very high in the list of action
+                    move_mapper.stay(unit, log_string)
+                    return True
+
             next_pos = unit.pos.translate(act[-1], 1) or unit.pos
             if type_action == 'move' and move_mapper.can_move_to_pos(next_pos, game_state):
                 # MOVE ACTIONS
@@ -332,9 +344,9 @@ class ML_Agent:
                         move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                         return True
                     else:
-                        next_in_resource, next_in_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                        next_in_resource, next_near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
                             resources.available_resources_tiles, next_pos)
-                        if next_in_resource or next_in_resource:
+                        if next_in_resource or next_near_resource:
                             # move to near_resource, also ok
                             move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
                             return True

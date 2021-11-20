@@ -343,7 +343,8 @@ def agent(observation, configuration):
     include_uranium = uranium_minable or (resources.cargo.wood == 0 and resources.cargo.coal == 0)
     ML.update_include_resources( t_prefix,include_coal,include_uranium)
 
-    hull = MapAnalysis.get_convex_hull(prx, resources,include_coal,include_uranium,t_prefix)
+    if not config.RULEM:
+        hull = MapAnalysis.get_convex_hull(prx, resources,include_coal,include_uranium,t_prefix)
 
     # count how much fuel our unit have
     for unit in player.units:
@@ -529,288 +530,290 @@ def agent(observation, configuration):
 
     # clusters management
     clust_analyses: dict[str, Sequence[Tuple]] = {}
-    prefix = t_prefix + 'cluster analyses'
-    for cluster in clusters.get_clusters():
-        pr(t_prefix, 'cluster', cluster.to_string_light())
-        clust_analyses[cluster.id] = []
-        if game_state_info.is_night_time():
-            continue
-        if len(cluster.units) == 0:
-            continue
 
-        this_cluster_unit_to_res_ratio = cluster.get_unit_to_res_ratio(-1)
-
-        for next_clust in clusters.get_clusters():
-            if not config.do_cluster_analyses:
-                # resources are ML driven, do not do this here
+    if not config.RULEM:
+        prefix = t_prefix + 'cluster analyses'
+        for cluster in clusters.get_clusters():
+            pr(t_prefix, 'cluster', cluster.to_string_light())
+            clust_analyses[cluster.id] = []
+            if game_state_info.is_night_time():
+                continue
+            if len(cluster.units) == 0:
                 continue
 
-            # we olny consider wood cluster
-            # we olny consider uncontended and empty cluster
-            if next_clust.id != cluster.id \
-                    and is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(),
-                                            game_state_info.steps_until_night) \
-                    and next_clust.has_no_units():
+            this_cluster_unit_to_res_ratio = cluster.get_unit_to_res_ratio(-1)
 
-                next_cluster_unit_to_res_ratio = next_clust.get_unit_to_res_ratio(+1)
-
-                pr(prefix, "ratios", cluster.id, this_cluster_unit_to_res_ratio, "to",
-                   next_clust.id, next_cluster_unit_to_res_ratio)
-
-                if next_clust.num_units_and_incoming() > 0 and \
-                        next_cluster_unit_to_res_ratio * 1.3 > this_cluster_unit_to_res_ratio:
+            for next_clust in clusters.get_clusters():
+                if not config.do_cluster_analyses:
+                    # resources are ML driven, do not do this here
                     continue
 
-                for unit_id in cluster.units:
-                    unit = player.units_by_id[unit_id]
+                # we olny consider wood cluster
+                # we olny consider uncontended and empty cluster
+                if next_clust.id != cluster.id \
+                        and is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(),
+                                                game_state_info.steps_until_night) \
+                        and next_clust.has_no_units():
 
-                    if unit_id in unit_info:
-                        info = unit_info[unit_id]
-                    else:
-                        pr(prefix, next_clust.id, unit.id, "TCFAIL cannot find info")
+                    next_cluster_unit_to_res_ratio = next_clust.get_unit_to_res_ratio(+1)
+
+                    pr(prefix, "ratios", cluster.id, this_cluster_unit_to_res_ratio, "to",
+                       next_clust.id, next_cluster_unit_to_res_ratio)
+
+                    if next_clust.num_units_and_incoming() > 0 and \
+                            next_cluster_unit_to_res_ratio * 1.3 > this_cluster_unit_to_res_ratio:
                         continue
 
-                    if info.get_cargo_space_left() == 0 or info.cargo().fuel() > 150:
-                        # do not consider units that can build with wood (fuel=100) or high fuel ones
-                        # pr(prefix, next_clust.id, unit.id, "get_cargo_space_left=0")
-                        continue
+                    for unit_id in cluster.units:
+                        unit = player.units_by_id[unit_id]
 
-                    if len(next_clust.city_tiles) > 0 and next_clust.autonomy >= 10:
-                        # pr(prefix, next_clust.id, 'skip on city living too long')
-                        continue
-
-                    if len(opponent.get_units_around_pos(unit.pos, 1)) > 0:
-                        in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
-                            resources.available_resources_tiles, unit.pos)
-                        if in_resource or near_resource:
-                            # pr(prefix, next_clust.id, unit.id, "unit in strategic position, facing enemy")
+                        if unit_id in unit_info:
+                            info = unit_info[unit_id]
+                        else:
+                            pr(prefix, next_clust.id, unit.id, "TCFAIL cannot find info")
                             continue
 
-                    # the distance to reach it
-                    r_pos, distance = MapAnalysis.get_closest_to_positions(unit.pos, next_clust.perimeter_empty)
-                    time_distance = 2 * distance + unit.cooldown
+                        if info.get_cargo_space_left() == 0 or info.cargo().fuel() > 150:
+                            # do not consider units that can build with wood (fuel=100) or high fuel ones
+                            # pr(prefix, next_clust.id, unit.id, "get_cargo_space_left=0")
+                            continue
 
-                    # TODO we could try to add here the resources if we are sure it doesn't pass from a city
-                    # # we only consider reachable clusters before the night
-                    if time_distance > game_state_info.steps_until_night:
-                        # pr(prefix, next_clust.id, unit.id, "too far from ", cluster.id,'time_distance ',time_distance)
+                        if len(next_clust.city_tiles) > 0 and next_clust.autonomy >= 10:
+                            # pr(prefix, next_clust.id, 'skip on city living too long')
+                            continue
+
+                        if len(opponent.get_units_around_pos(unit.pos, 1)) > 0:
+                            in_resource, near_resource = MapAnalysis.is_position_in_X_adjacent_to_resource(
+                                resources.available_resources_tiles, unit.pos)
+                            if in_resource or near_resource:
+                                # pr(prefix, next_clust.id, unit.id, "unit in strategic position, facing enemy")
+                                continue
+
+                        # the distance to reach it
+                        r_pos, distance = MapAnalysis.get_closest_to_positions(unit.pos, next_clust.perimeter_empty)
+                        time_distance = 2 * distance + unit.cooldown
+
+                        # TODO we could try to add here the resources if we are sure it doesn't pass from a city
+                        # # we only consider reachable clusters before the night
+                        if time_distance > game_state_info.steps_until_night:
+                            # pr(prefix, next_clust.id, unit.id, "too far from ", cluster.id,'time_distance ',time_distance)
+                            continue
+                        if not is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(),
+                                                   time_distance):
+                            # pr(prefix, next_clust.id, unit.id, "not minable")
+                            continue
+                        # we also consider expanders to be moved, as their role gets transferred
+                        if not (info.is_role_none() or info.is_role_city_expander()):
+                            # pr(prefix, next_clust.id, unit.id, "role",info.role)
+                            continue
+
+                        # from lowest (best), to highest
+                        score = time_distance + next_clust.score
+                        already_incoming = next_clust.incoming_explorers_position.count(r_pos)
+                        pr(prefix, next_clust.id, " added to possible clusters for", unit.id, 'score', score)
+                        clust_analyses[cluster.id].append(
+                            (distance,
+                             unit,
+                             next_clust,
+                             r_pos,
+                             score,
+                             time_distance,
+                             already_incoming))
+
+        for cluster in clusters.get_clusters():
+
+            # big cluster, try to spread our units in empty perimeter
+            spread_move = None
+            if cluster.res_type == RESOURCE_TYPES.WOOD \
+                    and (cluster.get_equivalent_resources() > 5) \
+                    and (cluster.num_units() > 2) \
+                    and len(cluster.perimeter_strategic) > 0:
+                pr(t_prefix, "medium cluster with strategic", cluster.to_string_light())
+                pr(t_prefix, cluster.id, cluster.perimeter_strategic)
+                units_to_pos = []
+                MIN_DIST = 2
+
+                for pos in cluster.perimeter_strategic:
+                    # not close to friendly
+                    if player.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
                         continue
-                    if not is_resource_minable(player, next_clust.res_type, game_info.get_research_rate(),
-                                               time_distance):
-                        # pr(prefix, next_clust.id, unit.id, "not minable")
-                        continue
-                    # we also consider expanders to be moved, as their role gets transferred
-                    if not (info.is_role_none() or info.is_role_city_expander()):
-                        # pr(prefix, next_clust.id, unit.id, "role",info.role)
+
+                    # not close to enemies
+                    if opponent.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
                         continue
 
-                    # from lowest (best), to highest
-                    score = time_distance + next_clust.score
-                    already_incoming = next_clust.incoming_explorers_position.count(r_pos)
-                    pr(prefix, next_clust.id, " added to possible clusters for", unit.id, 'score', score)
-                    clust_analyses[cluster.id].append(
-                        (distance,
-                         unit,
-                         next_clust,
-                         r_pos,
-                         score,
-                         time_distance,
-                         already_incoming))
+                    # not close to other traveller
+                    if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
+                        continue
 
-    for cluster in clusters.get_clusters():
+                    for unit_id in cluster.units:
+                        unit = player.units_by_id[unit_id]
+                        info = None
+                        if unit_id in unit_info:
+                            info = unit_info[unit_id]
+                        if info is not None:
+                            # pr("XXX",info.unit.id,info.role)
+                            if info.is_role_none():
+                                dist = unit.pos.distance_to(pos)
+                                units_to_pos.append((dist, info, pos))
 
-        # big cluster, try to spread our units in empty perimeter
-        spread_move = None
-        if cluster.res_type == RESOURCE_TYPES.WOOD \
-                and (cluster.get_equivalent_resources() > 5) \
-                and (cluster.num_units() > 2) \
-                and len(cluster.perimeter_strategic) > 0:
-            pr(t_prefix, "medium cluster with strategic", cluster.to_string_light())
-            pr(t_prefix, cluster.id, cluster.perimeter_strategic)
-            units_to_pos = []
-            MIN_DIST = 2
+                units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
+                spread_move = next(iter(units_to_pos), None)
+                if spread_move is not None:
+                    pr(t_prefix, "medium cluster can move to", spread_move)
 
-            for pos in cluster.perimeter_strategic:
-                # not close to friendly
-                if player.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
-                    continue
+            if config.spread_big_cluster \
+                    and spread_move is None \
+                    and cluster.res_type == RESOURCE_TYPES.WOOD \
+                    and (cluster.get_equivalent_resources() > 8) \
+                    and (len(cluster.enemy_unit) < (cluster.get_equivalent_resources() // 4)) \
+                    and (cluster.num_units() + len(cluster.incoming_explorers)) >= 3:
+                pr(t_prefix, "big cluster", cluster.to_string_light())
+                units_to_pos = []
+                MIN_DIST = 3
 
-                # not close to enemies
-                if opponent.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
-                    continue
+                for pos in cluster.perimeter_empty:
+                    # not close to friendly
+                    if player.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
+                        continue
 
-                # not close to other traveller
-                if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
-                    continue
+                    # not close to enemies
+                    if opponent.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
+                        continue
 
-                for unit_id in cluster.units:
-                    unit = player.units_by_id[unit_id]
-                    info = None
-                    if unit_id in unit_info:
-                        info = unit_info[unit_id]
-                    if info is not None:
-                        # pr("XXX",info.unit.id,info.role)
-                        if info.is_role_none():
-                            dist = unit.pos.distance_to(pos)
-                            units_to_pos.append((dist, info, pos))
+                    # not close to other traveller
+                    if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
+                        continue
 
-            units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
-            spread_move = next(iter(units_to_pos), None)
+                    for unit_id in cluster.units:
+                        unit = player.units_by_id[unit_id]
+                        info = None
+                        if unit_id in unit_info:
+                            info = unit_info[unit_id]
+                        if info is not None:
+                            # pr("XXX",info.unit.id,info.role)
+                            if info.is_role_none():
+                                dist = unit.pos.distance_to(pos)
+                                units_to_pos.append((dist, info, pos))
+
+                units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
+                # pr(t_prefix, "XXXXX ", units_to_pos)
+
+                spread_move = next(iter(units_to_pos), None)
+                if spread_move is not None:
+                    pr(t_prefix, "big cluster can move to", spread_move)
+
             if spread_move is not None:
-                pr(t_prefix, "medium cluster can move to", spread_move)
+                dist = spread_move[0]
+                info: UnitInfo = spread_move[1]  # infor
+                u = info.unit
+                pos = spread_move[2]
+                pr(t_prefix, "assigning", u.id, "to spread in big cluster", cluster.id, pos)
+                info.set_unit_role_traveler(pos, dist * 2)
+                break
 
-        if config.spread_big_cluster \
-                and spread_move is None \
-                and cluster.res_type == RESOURCE_TYPES.WOOD \
-                and (cluster.get_equivalent_resources() > 8) \
-                and (len(cluster.enemy_unit) < (cluster.get_equivalent_resources() // 4)) \
-                and (cluster.num_units() + len(cluster.incoming_explorers)) >= 3:
-            pr(t_prefix, "big cluster", cluster.to_string_light())
-            units_to_pos = []
-            MIN_DIST = 3
+            if len(clust_analyses[cluster.id]) == 0:
+                continue
+            # else:
 
-            for pos in cluster.perimeter_empty:
-                # not close to friendly
-                if player.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
-                    continue
+            # sort
+            clust_analyses[cluster.id].sort(key=lambda x: (x[4], x[6]))  # score, already incoming
 
-                # not close to enemies
-                if opponent.get_num_units_and_city_number_around_pos(pos, MIN_DIST) > 0:
-                    continue
+            # first element of sequence associated to this cluster analyses is the closest cluster
+            best_cluster = next(iter(clust_analyses[cluster.id]), None)
+            # pr(t_prefix,"XXXX",best_cluster)
+            # find the closest unit of cluster to next cluster
+            best_cluster_dist: int = best_cluster[0]
+            best_cluster_unit: Unit = best_cluster[1]
+            best_cluster_cluster: Cluster = best_cluster[2]
+            best_cluster_pos: Position = best_cluster[3]
 
-                # not close to other traveller
-                if pos.distance_to_mult(cluster.incoming_explorers_position) <= MIN_DIST:
-                    continue
+            move_to_best_cluster: bool = False
 
-                for unit_id in cluster.units:
-                    unit = player.units_by_id[unit_id]
-                    info = None
-                    if unit_id in unit_info:
-                        info = unit_info[unit_id]
-                    if info is not None:
-                        # pr("XXX",info.unit.id,info.role)
-                        if info.is_role_none():
-                            dist = unit.pos.distance_to(pos)
-                            units_to_pos.append((dist, info, pos))
+            # pick the closest with no units or no incoming
+            dist = math.inf
+            closest_cluster_dist = None
+            closest_cluster_unit: Unit = None
+            closest_cluster_cluster: Cluster = None
+            closest_cluster_pos: Position = None
+            for c in clust_analyses[cluster.id]:
+                this_cluster: Cluster = c[2]
+                this_cluster_dist: int = c[0]
+                if len(this_cluster.units) == 0 and len(this_cluster.incoming_explorers) == 0 and this_cluster_dist < dist:
+                    closest_cluster_dist: int = this_cluster_dist
+                    closest_cluster_unit: Unit = c[1]
+                    closest_cluster_cluster: Cluster = this_cluster
+                    closest_cluster_pos: Position = c[3]
+                    dist = this_cluster_dist
 
-            units_to_pos.sort(key=lambda x: (x[0]))  # distance, increasing
-            # pr(t_prefix, "XXXXX ", units_to_pos)
+            move_to_closest_cluster: bool = False
 
-            spread_move = next(iter(units_to_pos), None)
-            if spread_move is not None:
-                pr(t_prefix, "big cluster can move to", spread_move)
+            is_this_wood = cluster.res_type == RESOURCE_TYPES.WOOD
+            is_that_wood = best_cluster_cluster.res_type == RESOURCE_TYPES.WOOD
+            is_this_or_that_wood = is_this_wood or is_that_wood
 
-        if spread_move is not None:
-            dist = spread_move[0]
-            info: UnitInfo = spread_move[1]  # infor
-            u = info.unit
-            pos = spread_move[2]
-            pr(t_prefix, "assigning", u.id, "to spread in big cluster", cluster.id, pos)
-            info.set_unit_role_traveler(pos, dist * 2)
-            break
+            move_if = is_this_or_that_wood
+            pr(prefix, 'from :', cluster.to_string_light())
+            pr(prefix, 'move_if :', move_if, 'eq un=', cluster.get_equivalent_units(), ' enemy dist',
+               cluster.closest_enemy_distance)
 
-        if len(clust_analyses[cluster.id]) == 0:
-            continue
-        # else:
+            if closest_cluster_cluster is not None:
+                pr(prefix, 'clos :', closest_cluster_dist, closest_cluster_cluster.to_string_light())
+                if config.super_fast_expansion and cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1:
+                    pr(prefix, 'super_fast_expansion move_to_closest_cluster')
+                    move_to_closest_cluster = True
 
-        # sort
-        clust_analyses[cluster.id].sort(key=lambda x: (x[4], x[6]))  # score, already incoming
+                if move_if and cluster.get_equivalent_units() > 1 and closest_cluster_dist < 4 and \
+                        closest_cluster_cluster.get_equivalent_units() == 0 and \
+                        closest_cluster_cluster.num_units_and_incoming() == 0 \
+                        and closest_cluster_cluster.enemy_unit == 0:
+                    pr(prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
+                       'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
+                    move_to_closest_cluster = True
 
-        # first element of sequence associated to this cluster analyses is the closest cluster
-        best_cluster = next(iter(clust_analyses[cluster.id]), None)
-        # pr(t_prefix,"XXXX",best_cluster)
-        # find the closest unit of cluster to next cluster
-        best_cluster_dist: int = best_cluster[0]
-        best_cluster_unit: Unit = best_cluster[1]
-        best_cluster_cluster: Cluster = best_cluster[2]
-        best_cluster_pos: Position = best_cluster[3]
+            if best_cluster_cluster is not None:
+                pr(prefix, 'best :', best_cluster_dist, best_cluster_cluster.to_string_light())
 
-        move_to_best_cluster: bool = False
+                if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
+                    pr(prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), 'r=',
+                       cluster.num_resource())
+                    move_to_best_cluster = True
 
-        # pick the closest with no units or no incoming
-        dist = math.inf
-        closest_cluster_dist = None
-        closest_cluster_unit: Unit = None
-        closest_cluster_cluster: Cluster = None
-        closest_cluster_pos: Position = None
-        for c in clust_analyses[cluster.id]:
-            this_cluster: Cluster = c[2]
-            this_cluster_dist: int = c[0]
-            if len(this_cluster.units) == 0 and len(this_cluster.incoming_explorers) == 0 and this_cluster_dist < dist:
-                closest_cluster_dist: int = this_cluster_dist
-                closest_cluster_unit: Unit = c[1]
-                closest_cluster_cluster: Cluster = this_cluster
-                closest_cluster_pos: Position = c[3]
-                dist = this_cluster_dist
+                if is_this_wood and cluster.get_equivalent_units() > config.cluster_wood_overcrowded and \
+                        cluster.num_units() > cluster.num_enemy_units():
+                    pr(prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
+                       'u=', cluster.units)
+                    move_to_best_cluster = True
 
-        move_to_closest_cluster: bool = False
+                if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4 and \
+                        best_cluster_cluster.get_equivalent_units() == 0 and \
+                        best_cluster_cluster.num_units_and_incoming() == 0 and \
+                        best_cluster_cluster.enemy_unit == 0:
+                    pr(prefix, 'There is a very near best uncontested cluster', best_cluster_cluster.id,
+                       'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
+                    move_to_best_cluster = True
 
-        is_this_wood = cluster.res_type == RESOURCE_TYPES.WOOD
-        is_that_wood = best_cluster_cluster.res_type == RESOURCE_TYPES.WOOD
-        is_this_or_that_wood = is_this_wood or is_that_wood
+                if move_if and cluster.get_equivalent_units() > 1 and cluster.closest_enemy_distance > 9 \
+                        and best_cluster_cluster.has_no_units_no_incoming() \
+                        and best_cluster_cluster.num_enemy_units() * 5 < best_cluster_cluster.get_equivalent_resources():
+                    pr(prefix, 'enemy is very far, and next cluster has no units, no incoming ', best_cluster_cluster.id,
+                       'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
+                    move_to_best_cluster = True
 
-        move_if = is_this_or_that_wood
-        pr(prefix, 'from :', cluster.to_string_light())
-        pr(prefix, 'move_if :', move_if, 'eq un=', cluster.get_equivalent_units(), ' enemy dist',
-           cluster.closest_enemy_distance)
+                # TODO improve this, maybe with a min unit count>=2
+                if is_this_wood and cluster.autonomy >= 10 and cluster.closest_enemy_distance > 5 and cluster.num_units() > 2:
+                    pr(prefix, 'This wood city will live one more night, enemy is distant, let move one', best_cluster_dist)
+                    move_to_best_cluster = True
 
-        if closest_cluster_cluster is not None:
-            pr(prefix, 'clos :', closest_cluster_dist, closest_cluster_cluster.to_string_light())
-            if config.super_fast_expansion and cluster.res_type == RESOURCE_TYPES.WOOD and cluster.num_units() > 1:
-                pr(prefix, 'super_fast_expansion move_to_closest_cluster')
-                move_to_closest_cluster = True
+            if move_to_best_cluster:
+                pr(prefix, 'try_move_units_cluster best_cluster ', best_cluster_cluster.id)
+                repurpose_unit(game_state_info, best_cluster_cluster, best_cluster_pos, best_cluster_unit,
+                               cluster, opponent, t_prefix)
 
-            if move_if and cluster.get_equivalent_units() > 1 and closest_cluster_dist < 4 and \
-                    closest_cluster_cluster.get_equivalent_units() == 0 and \
-                    closest_cluster_cluster.num_units_and_incoming() == 0 \
-                    and closest_cluster_cluster.enemy_unit == 0:
-                pr(prefix, 'There is a very near closest uncontested cluster', closest_cluster_cluster.id,
-                   'next to this cluster', cluster.id, 'at dist ', closest_cluster_dist)
-                move_to_closest_cluster = True
-
-        if best_cluster_cluster is not None:
-            pr(prefix, 'best :', best_cluster_dist, best_cluster_cluster.to_string_light())
-
-            if move_if and cluster.has_eq_gr_units_than_res() and cluster.get_equivalent_units() > 1:
-                pr(prefix, 'cluster', cluster.id, ' is overcrowded u=r, u=', cluster.num_units(), 'r=',
-                   cluster.num_resource())
-                move_to_best_cluster = True
-
-            if is_this_wood and cluster.get_equivalent_units() > config.cluster_wood_overcrowded and \
-                    cluster.num_units() > cluster.num_enemy_units():
-                pr(prefix, 'cluster', cluster.id, ' is overcrowded u>', config.cluster_wood_overcrowded,
-                   'u=', cluster.units)
-                move_to_best_cluster = True
-
-            if move_if and cluster.get_equivalent_units() > 1 and best_cluster_dist < 4 and \
-                    best_cluster_cluster.get_equivalent_units() == 0 and \
-                    best_cluster_cluster.num_units_and_incoming() == 0 and \
-                    best_cluster_cluster.enemy_unit == 0:
-                pr(prefix, 'There is a very near best uncontested cluster', best_cluster_cluster.id,
-                   'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
-                move_to_best_cluster = True
-
-            if move_if and cluster.get_equivalent_units() > 1 and cluster.closest_enemy_distance > 9 \
-                    and best_cluster_cluster.has_no_units_no_incoming() \
-                    and best_cluster_cluster.num_enemy_units() * 5 < best_cluster_cluster.get_equivalent_resources():
-                pr(prefix, 'enemy is very far, and next cluster has no units, no incoming ', best_cluster_cluster.id,
-                   'next to this cluster', cluster.id, 'at dist ', best_cluster_dist)
-                move_to_best_cluster = True
-
-            # TODO improve this, maybe with a min unit count>=2
-            if is_this_wood and cluster.autonomy >= 10 and cluster.closest_enemy_distance > 5 and cluster.num_units() > 2:
-                pr(prefix, 'This wood city will live one more night, enemy is distant, let move one', best_cluster_dist)
-                move_to_best_cluster = True
-
-        if move_to_best_cluster:
-            pr(prefix, 'try_move_units_cluster best_cluster ', best_cluster_cluster.id)
-            repurpose_unit(game_state_info, best_cluster_cluster, best_cluster_pos, best_cluster_unit,
-                           cluster, opponent, t_prefix)
-
-        elif move_to_closest_cluster:
-            pr(prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id)
-            repurpose_unit(game_state_info, closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit,
-                           cluster, opponent, t_prefix)
+            elif move_to_closest_cluster:
+                pr(prefix, 'try_move_units_cluster closest_cluster ', closest_cluster_cluster.id)
+                repurpose_unit(game_state_info, closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit,
+                               cluster, opponent, t_prefix)
 
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
@@ -959,6 +962,13 @@ def agent(observation, configuration):
     # map of resource to unit going for them
     resource_target_by_unit = {}
 
+    if (use_still_ML or config.RULEM):
+        if len(resources.all_resources_tiles) == 0:
+            prx(t_prefix, "Depleted resources use_still_ML=False (Depleted)")
+            prx(t_prefix, "Depleted resources rulem=False (Depleted)")
+            use_still_ML = False
+            config.RULEM = False
+
     if use_still_ML:
         if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
             prx(t_prefix,"Setting use_still_ML=False (resources)")
@@ -1011,7 +1021,7 @@ def agent(observation, configuration):
                         and (info.get_cargo_space_used() > 0 or len(resources.available_resources_tiles) > 0):
                     # if there is possibly something to do
                     pr(u_prefix, " custom fallback didn't yield any further action.")
-                    if config.ml_fallback:
+                    if config.ml_fallback and use_still_ML:
                         ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
                                               allow_build=True,
                                               stay_in_case_no_found=False,
@@ -1436,17 +1446,16 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         # CAN BUILD RULES
         if unit.can_build(game_state.map):
 
-            if config.ml_can_build:
+            if config.ml_can_build and use_still_ML:
                 # ML can build rule
-                if use_still_ML:
-                    if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
-                                          allow_build=True,
-                                          stay_in_case_no_found=False,
-                                          allow_move_to_outside_hull=True):
-                        pr(u_prefix, " ML: can_build action")
-                        return
-                    else:
-                        pr(u_prefix, " ML: can_build return nothing continue")
+                if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
+                                      allow_build=True,
+                                      stay_in_case_no_found=False,
+                                      allow_move_to_outside_hull=True):
+                    pr(u_prefix, " ML: can_build action")
+                    return
+                else:
+                    pr(u_prefix, " ML: can_build return nothing continue")
 
             if cluster is None:
                 pr(u_prefix, "This cluster is None")
@@ -1763,21 +1772,20 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
                 pr(u_prefix, " Find resources")
                 # pr(u_prefix, " XXXXXXXXXX", resources_distance())
-                if config.ml_find_resources:
+                if config.ml_find_resources and use_still_ML:
                     # ML resource find
-                    if use_still_ML:
-                            if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
-                                                  allow_build=False,
-                                                  stay_in_case_no_found=False,
-                                                  allow_move_to_outside_hull=False,
-                                                  can_transfer=can_transfer(),
-                                                  transfer_to_direction=transfer_to_direction,
-                                                  adjacent_units=adjacent_units
-                                                  ):
-                                pr(u_prefix, " ML: resource action")
-                                return
-                            else:
-                                pr(u_prefix, " ML: resource returned nothing, continue")
+                    if ML.get_action_unit(observation, game_state, info, move_mapper, actions, resources,
+                                          allow_build=False,
+                                          stay_in_case_no_found=False,
+                                          allow_move_to_outside_hull=False,
+                                          can_transfer=can_transfer(),
+                                          transfer_to_direction=transfer_to_direction,
+                                          adjacent_units=adjacent_units
+                                          ):
+                        pr(u_prefix, " ML: resource action")
+                        return
+                    else:
+                        pr(u_prefix, " ML: resource returned nothing, continue")
 
                     transferred = transfer_to_best_friend_outside_resource(actions, adjacent_units,
                                                                            resources.available_resources_tiles,
