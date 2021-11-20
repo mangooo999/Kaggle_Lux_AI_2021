@@ -7,7 +7,7 @@ class ConfigManager():
         self.spread_big_cluster = False
 
         # ML Parameters
-        self.ML_model = 'model5_36_t_7962'
+        self.ML_model = 'model5_36_t_8320'
         self.ML_model_map_size = 32
         self.ML_model_type = 2
 
@@ -17,7 +17,7 @@ class ConfigManager():
         self.num_resource_below_no_ML = map_size / 2
         self.ML_number_of_turns_include_resources_coal = 25
         self.ML_number_of_turns_include_resources_uranium = 30
-        self.RULEM = False
+        self.RULEM = True
 
 
         pr("ConfigManager,map size{0}".format(map_size))
