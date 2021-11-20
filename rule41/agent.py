@@ -57,7 +57,7 @@ import builtins as __builtin__
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -315,6 +315,24 @@ def agent(observation, configuration):
     # Refer to the cluster class for its attributes.
     resources = ResourceService.Resources(game_state, player)
     clusters.update(game_state, resources, player, opponent, unit_info)
+
+
+    if (use_still_ML or config.RULEM):
+        if len(resources.all_resources_tiles) == 0:
+            prx(t_prefix, "Depleted resources use_still_ML=False (Depleted)")
+            prx(t_prefix, "Setting rulem=False (Depleted)")
+            use_still_ML = False
+            config.RULEM = False
+
+    if config.RULEM:
+        if player.researched_uranium():
+            prx(t_prefix, "Setting  rulem=False (researched_uranium)")
+            config.RULEM = False
+
+    if use_still_ML:
+        if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
+            prx(t_prefix,"Setting use_still_ML=False (resources)")
+            use_still_ML = False
 
     # current number of units
     units = len(player.units)
@@ -962,20 +980,6 @@ def agent(observation, configuration):
     # map of resource to unit going for them
     resource_target_by_unit = {}
 
-    if (use_still_ML or config.RULEM):
-        if len(resources.all_resources_tiles) == 0:
-            prx(t_prefix, "Depleted resources use_still_ML=False (Depleted)")
-            prx(t_prefix, "Depleted resources rulem=False (Depleted)")
-            use_still_ML = False
-            config.RULEM = False
-
-    if use_still_ML:
-        if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
-            prx(t_prefix,"Setting use_still_ML=False (resources)")
-            use_still_ML = False
-        # elif game_info.turn >= 160:
-        #     prx(t_prefix, "Setting use_still_ML=False (turn)")
-        #     use_still_ML = False
 
     if config.RULEM:
         # totally ML based, RULEM

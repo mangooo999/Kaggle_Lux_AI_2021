@@ -320,11 +320,16 @@ class ML_Agent:
                     move_mapper.stay(unit, log_string)
                     return True
 
+            # if (not (is_day and steps_until_night > 1)) and \
+            #         (unit.night_turn_survivable > number_turns_stuck_in_night):
+            #     prx(unit.id,"XXXX Not in city and won't day next turn", unit.cargo.to_string(),"->",unit.night_turn_survivable)
+
+
             next_pos = unit.pos.translate(act[-1], 1) or unit.pos
             if type_action == 'move' and move_mapper.can_move_to_pos(next_pos, game_state):
                 # MOVE ACTIONS
                 if (is_day and steps_until_night > 1) or \
-                        (is_night and unit.night_turn_survivable>number_turns_stuck_in_night):
+                        (unit.night_turn_survivable>number_turns_stuck_in_night):
                     #DAY RULES (or night outside the city, with resources, move where you want)
                     if allow_move_to_outside_hull:
                         move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
@@ -353,6 +358,7 @@ class ML_Agent:
 
             elif allow_build and type_action == 'build_city' and unit.can_build(game_state.map):
                 # BUILD CITY
+                # TODO id steps_until_night <= 2, then it should build only if...?
                 if is_day:
                     move_mapper.build_city(actions, info, log_string)
                     return True
