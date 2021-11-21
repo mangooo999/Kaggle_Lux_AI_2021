@@ -7,7 +7,7 @@ class ConfigManager():
         self.spread_big_cluster = False
 
         # ML Parameters
-        self.ML_model = 'model5_36_t_8347'
+        self.ML_model = 'model5_36_t_8385'
         self.ML_model_map_size = 32
         self.ML_model_type = 2
 

@@ -206,6 +206,12 @@ class Game:
         self.player: Player = self.players[self.player_id]
         self.opponent: Player = self.players[1 - self.player_id]
 
+    def get_match_status(self):
+        return 'c={0}:{1} '.format(self.player.city_tile_count, self.opponent.city_tile_count) \
+               + 'u={0}:{1}'.format(len(self.player.units), len(self.opponent.units))
+
+    def get_research_status(self):
+        return 'r={0}:{1}'.format(self.player.research_points,self.opponent.research_points)
 
     def _update(self, messages):
         """

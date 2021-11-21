@@ -28,25 +28,6 @@ import ml as ML
 from scipy.spatial import ConvexHull
 
 # todo
-# in the night if staying in a city that is dyng, get out
-# we need to be more aggressive in building from more than one dirction in maps as this, 389382500, https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27529561
-# create worker after researched evrything? https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27515124
-# avoid initially (use time to night?) to bring too much resources to city, try to build first 665769394 https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27514151
-# fix logic of early rush to non researched resource, we seem to rush too early
-# extend isolated city logic from <20 turn to < 28
-# if you are stuck near resources, near a lot of enemy, do not backoff, either stay near resource or move to resource, or build!!! -> 259 433371401 https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27510931
-# could try to extend city towards resources coal see turn 23-> 489695875
-# optimise more first move in case enemy is just adjacent (586755628)
-# extend first move logic to any movement from city to resource
-# if moving to a city, remove move that move via another city, we can use a similar approach to cluster and have returner pointing to a city in role, and avoid others
-# turn 200 seems to be a good turn to go and conquer unexplored wood cluster as it seems to make till 360
-# remove from resources guarded cluster
-# for path as a traveller favour tiles with resources
-# for path as a resource seek favour tiles with cities
-# try to build the city in the right direction (that is in the direction of other resources rather than towards the hedges) 308000419  https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27481418
-# we seem to have a very week logic if numerous units in the same area are without a cluster at the same time, we need to reuse here the logic we use in cluster move
-# we seem to go to un-researched resources too early https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-27483344
-# if there are good clusters at more than 15 resources away, stock up and travel far
 
 ### Define helper functions
 
@@ -324,19 +305,7 @@ def agent(observation, configuration):
             use_still_ML = False
             config.RULEM = False
 
-    if config.RULEM:
-        if player.researched_uranium():
-            prx(t_prefix, "Setting  rulem=False (researched_uranium)")
-            config.RULEM = False
 
-        if game_state.turn>=349:
-            prx(t_prefix, "Setting  rulem=False (last night)")
-            config.RULEM = False
-
-    if use_still_ML:
-        if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
-            prx(t_prefix,"Setting use_still_ML=False (resources)")
-            use_still_ML = False
 
     # current number of units
     units = len(player.units)
@@ -365,8 +334,6 @@ def agent(observation, configuration):
     include_uranium = uranium_minable or (resources.cargo.wood == 0 and resources.cargo.coal == 0)
     ML.update_include_resources( t_prefix,include_coal,include_uranium)
 
-    if not config.RULEM:
-        hull = MapAnalysis.get_convex_hull(prx, resources,include_coal,include_uranium,t_prefix)
 
     # count how much fuel our unit have
     for unit in player.units:
@@ -474,6 +441,47 @@ def agent(observation, configuration):
 
     pr(t_prefix, "Unsafe cities            ", unsafe_cities)
     pr(t_prefix, "Immediately Unsafe cities", immediately_unsafe_cities)
+    prx(t_prefix,game_state.get_match_status(),game_state.get_research_status(),
+            'FR={0} FU={1}'.format(resources.total_fuel,fuel_with_units))
+    if config.RULEM:
+        if player.researched_uranium():
+            # TODO, we need ana anlytic way to figure out this
+            #  Looking at this episode https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-31506050
+            # the fuel tasted from when we ramped at 111 to 280, but each map is different
+            # 736	T 121 (nights left = 60) FR=380k FU=4k & 360 = 66k ->5k per nights
+            if game_info.turn >= 320:
+                prx(t_prefix, "Setting  rulem=False (researched_uranium 320)")
+                config.RULEM = False
+            else:
+                fuel_per_night = (resources.total_fuel + fuel_with_units)//game_state_info.all_night_turns_lef
+                if game_info.turn >= 280:
+                    fuel_need = 5000
+                elif game_info.turn >= 240:
+                    fuel_need = 5500
+                elif game_info.turn >= 200:
+                    fuel_need = 6000
+                elif game_info.turn >= 160:
+                    fuel_need = 6500
+                elif game_info.turn >= 120:
+                    fuel_need = 7000
+                else:
+                    fuel_need = 7500
+                if fuel_per_night>fuel_need:
+                    prx(t_prefix, "Setting  rulem=False (uranium) fuel_per_night=",fuel_per_night,'need',fuel_need)
+                    config.RULEM = False
+
+
+        if game_state.turn >= 349:
+            prx(t_prefix, "Setting  rulem=False (last night)")
+            config.RULEM = False
+
+    if use_still_ML:
+        if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
+            prx(t_prefix, "Setting use_still_ML=False (resources)")
+            use_still_ML = False
+
+    if not config.RULEM:
+        hull = MapAnalysis.get_convex_hull(prx, resources, include_coal, include_uranium, t_prefix)
 
     if game_state.turn == 0:
         # initial calculations
@@ -845,10 +853,9 @@ def agent(observation, configuration):
     # logging
     pr(t_prefix, "INT Cities", number_city_tiles, 'units', len(player.units))
     if game_state.turn == 360:
-        prx(t_prefix, "END ",
-                    'C={0}:{1}'.format(number_city_tiles,opponent.get_num_city_tiles()),
-                    'U={0}:{1}'.format(len(player.units),len(opponent.units)),
-                    't={:.2f}'.format(time.time() - start_time))
+        prx(t_prefix, "END ",game_state.get_match_status(),'t={:.2f}'.format(time.time() - start_time))
+
+
 
     # todo move print in game_state_info class
     pr(t_prefix, 'resources', len(resources.available_resources_tiles), 'units', units, 'unit_ceiling', unit_ceiling,
