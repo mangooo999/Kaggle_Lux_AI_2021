@@ -329,6 +329,10 @@ def agent(observation, configuration):
             prx(t_prefix, "Setting  rulem=False (researched_uranium)")
             config.RULEM = False
 
+        if game_state.turn>=349:
+            prx(t_prefix, "Setting  rulem=False (last night)")
+            config.RULEM = False
+
     if use_still_ML:
         if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
             prx(t_prefix,"Setting use_still_ML=False (resources)")
@@ -1250,6 +1254,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
             time_to_dawn = 10 + game_state_info.steps_until_night
             num_units_here = player.get_units_number_around_pos(unit.pos, 0) - \
                              move_mapper.get_num_unit_move_from_here(unit.pos)
+            last_night = game_state.turn > 340
 
             pr(u_prefix, ' it is night...', 'time_to_dawn', time_to_dawn,
                'inCity:', in_city(), 'empty:', in_empty(), 'nearwood:', near_wood, 'unitsHere=', num_units_here)
@@ -1311,7 +1316,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
             if in_city():
                 is_this_city_safe = in_which_city() not in unsafe_cities
-                if is_this_city_safe or num_units_here > 1:
+                if is_this_city_safe or num_units_here > 1 and not last_night:
                     pr(u_prefix, ' it is night, this city is already safe though')
                     for pos in adjacent_empty_near_res_walkable():
                         move_mapper.move_unit_to_pos(actions, info, "R1 go out from city that is already safe", pos)
@@ -1321,6 +1326,34 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         if (not move_mapper.is_position_city(pos)) and move_mapper.can_move_to_pos(pos, game_state):
                             move_mapper.move_unit_to_pos(actions, info, "R2 go out from city that is already safe", pos)
                             return
+
+                if last_night:
+                    #LAST NIGHT IN CITY
+                    if not near_resource:
+                        # last night, we are either not on resources
+                        for pos in adjacent_next_to_resources():
+                            if not move_mapper.has_position(pos):
+                                move_mapper.move_unit_to_pos(actions, info, "last night, move next to resource", pos)
+                                return
+                    elif num_units_here > 1:
+                        #LAST NIGHT, near resources, but multiple units
+                        if not move_mapper.has_position(unit.pos):
+                            #check, if already somebody has decided to stay, if we are the first, call dibs
+                            move_mapper.stay(unit, ' last night, we are, next resource, multiple, call dips')
+                            return
+                        else:
+                            #try to find first next to resources
+                            for pos in adjacent_next_to_resources():
+                                if not move_mapper.has_position(pos):
+                                    move_mapper.move_unit_to_pos(actions, info,
+                                                                 "last night, multiple, go next to resource", pos)
+                                    return
+                            #otherwise anything would do
+                            for pos in adjacent_empty_tiles():
+                                if not move_mapper.has_position(pos):
+                                    move_mapper.move_unit_to_pos(actions, info,
+                                                                 "last night, multiple, spread", pos)
+                                    return
 
                 if not near_resource:
                     # not near resource
@@ -1334,6 +1367,21 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     # try to see if we can move via the city to closest resource
                     if resources_distance() is not None and len(resources_distance()) > 0:
                         for resource, resource_dist_info in resources_distance().items():
+                            if last_night:
+
+                                #if last night we are only interested in resources that can be reached from this city
+                                this_city = MapAnalysis.get_city_from_pos(unit.pos, player)
+                                if this_city is not None:
+                                    test_passed = False
+                                    for city_tile in this_city.citytiles:
+                                        dist = city_tile.pos.distance_to(resource.pos)
+                                        if dist <= 2:
+                                            test_passed = True
+                                            break
+                                    if not test_passed:
+                                        resource = None
+
+
                             if resource is not None and not resource.pos.equals(unit.pos):
                                 directions = MapAnalysis.directions_to(unit.pos, resource.pos)
                                 for direction in directions:
@@ -1356,7 +1404,18 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     # in city, near resource
                     move_mapper.stay(unit, ' it is night, we are in city, next resource, do not move')
                     return
-
+            else:
+                #NOT IN CITY
+                if last_night and unit.cargo.get_space_used()>0:
+                    pr(u_prefix, " Returner city last night", unsafe_cities)
+                    direction, city_pos, msg, city_id, is_transfer = find_best_city(game_state, city_tile_distance(),
+                                                                                    unsafe_cities, info, player,
+                                                                                    in_resource, near_resource,
+                                                                                    resources.available_resources_tiles,
+                                                                                    pr)
+                    move_unit_to_or_transfer(actions, direction, info, player, u_prefix, unit,
+                                             'Returner city last night ' + msg)
+                    return
         # DAWN
         if game_state_info.is_dawn():
             pr(u_prefix, "It's dawn")

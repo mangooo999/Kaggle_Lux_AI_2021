@@ -267,6 +267,16 @@ def get_closest_to_positions(position: Position, positions: [Position]) -> (Posi
 
     return closest_pos, closest_distance
 
+def get_city_from_pos(pos, actor):
+    # print(' get_city_id_from_pos', pos, file=sys.stderr)
+    for city in actor.cities.values():
+        for city_tile in city.citytiles:
+            # print(' get_city_id_from_pos',city.cityid, city_tile.pos, file=sys.stderr)
+            if city_tile.pos.equals(pos):
+                return city
+
+    return None
+
 def get_city_id_from_pos(pos, actor):
     # print(' get_city_id_from_pos', pos, file=sys.stderr)
     for city in actor.cities.values():
