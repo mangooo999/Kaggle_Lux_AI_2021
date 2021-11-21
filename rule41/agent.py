@@ -28,13 +28,17 @@ import ml as ML
 from scipy.spatial import ConvexHull
 
 # todo
+# https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-31559917
+# Look at the top left corner at the last round:
+# we dobuild becauese we would make the city unsafe, but neither we move, because the city is safe without us.
+# we get stuck
 
-### Define helper functions
+# https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-31539837
+# we seem to be confused when on uranium in the initial turns as we hide this from the model
+# maybe we can unhide if distance is within 2?
 
-import builtins as __builtin__
 
 
-# this snippet finds all resources stored on the map and puts them into a list so we can search over them
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
@@ -297,16 +301,6 @@ def agent(observation, configuration):
     resources = ResourceService.Resources(game_state, player)
     clusters.update(game_state, resources, player, opponent, unit_info)
 
-
-    if (use_still_ML or config.RULEM):
-        if len(resources.all_resources_tiles) == 0:
-            prx(t_prefix, "Depleted resources use_still_ML=False (Depleted)")
-            prx(t_prefix, "Setting rulem=False (Depleted)")
-            use_still_ML = False
-            config.RULEM = False
-
-
-
     # current number of units
     units = len(player.units)
     enemy_units = len(opponent.units)
@@ -443,6 +437,14 @@ def agent(observation, configuration):
     pr(t_prefix, "Immediately Unsafe cities", immediately_unsafe_cities)
     prx(t_prefix,game_state.get_match_status(),game_state.get_research_status(),
             'FR={0} FU={1}'.format(resources.total_fuel,fuel_with_units))
+    
+    if (use_still_ML or config.RULEM):
+        if len(resources.all_resources_tiles) == 0:
+            prx(t_prefix, "Depleted resources use_still_ML=False (Depleted)")
+            prx(t_prefix, "Setting rulem=False (Depleted)")
+            use_still_ML = False
+            config.RULEM = False
+    
     if config.RULEM:
         if player.researched_uranium():
             # TODO, we need ana anlytic way to figure out this
@@ -1145,7 +1147,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 do_build = True
                 for c in cities:
                     increased_upkeep = 23 - 5 * len(cities)
-                    expected_autonomy = (c.fuel + additional_fuel) // (c.get_light_upkeep() + increased_upkeep)
+                    expected_autonomy = c.get_autonomy_turns(additional_fuel=additional_fuel,increased_upkeep=increased_upkeep)
                     if expected_autonomy < game_state_info.all_night_turns_lef:
                         pr(u_prefix, "end of game. Do not build near adjacent", c.cityid,
                            "because low expected autonomy", expected_autonomy)
@@ -1210,6 +1212,25 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
         in_wood, near_wood = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.wood_tiles, unit.pos)
 
+        safe_to_build = True
+        # LAST ROUND OF DAY TURN BEFORE LAST NIGHT
+        if 320 <= game_state.turn < 350:
+            if info.get_cargo_space_used()>0:
+                dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
+                if len(cities) > 0:
+                    for c in cities:
+                        increased_upkeep = 23 - 5 * len(cities)
+                        expected_autonomy = c.get_autonomy_turns(increased_upkeep=increased_upkeep)
+                        if expected_autonomy < game_state_info.all_night_turns_lef:
+                            pr(u_prefix, "turn > 320. Not safe_to_build", c.cityid,
+                               "because low expected autonomy", expected_autonomy)
+                            safe_to_build = False
+                            break
+        
+
+
+
+
         #   EXPLORER
         if info.is_role_explorer():
             pr(u_prefix, ' is explorer ', info.target_position)
@@ -1241,7 +1262,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
             # all action expander are based on building next turn. We don't build at last day, so skip if day before
             if game_state_info.turns_to_night > 1:
-                if near_city() and (not in_city()) and near_wood:
+                if near_city() and (not in_city()) and near_wood and safe_to_build:
                     # if we are next to city and to wood, just stay here
                     move_mapper.stay(unit, ' expander we are between city and wood do not move')
                     return
@@ -1514,7 +1535,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 return
 
         # CAN BUILD RULES
-        if unit.can_build(game_state.map):
+        if unit.can_build(game_state.map) and safe_to_build:
 
             if config.ml_can_build and use_still_ML:
                 # ML can build rule
@@ -1717,7 +1738,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         return
 
         # IF WE CANNOT BUILD, or we could and have decided not to
-        if in_empty() and near_city() and near_wood:
+        if in_empty() and near_city() and near_wood and safe_to_build:
             # stay here, so we can build
             move_mapper.stay(unit, " empty, near city, near wood, stay here")
             return
@@ -1792,7 +1813,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     move_mapper.move_unit_to_pos(actions, info, 'hostile area, from res to near', empty)
                     return
 
-        if near_wood and in_empty():
+        if near_wood and in_empty() and safe_to_build:
             if info.get_cargo_space_used() >= 40:
                 if num_adjacent_enemy_unit() > 0:
                     move_mapper.stay(unit, " R0 Near wood, near enemy, with substantial cargo, stay put")
@@ -1821,6 +1842,8 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         else:
             if game_state_info.is_night_time():
                 enough_fuel = 500
+            elif game_info.turn >= 330 and not safe_to_build:
+                enough_fuel = 30
             elif game_state_info.turns_to_night < 4:
                 enough_fuel = 300
             else:
@@ -1939,7 +1962,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 return
         else:
             if game_state_info.turns_to_night > 10 and info.get_cargo_space_left() <= info.gathered_last_turn \
-                    and in_resource and best_adjacent_empty_tile_near_city() is not None \
+                    and safe_to_build and in_resource and best_adjacent_empty_tile_near_city() is not None \
                     and move_mapper.can_move_to_pos(best_adjacent_empty_tile_near_city().pos, game_state):
                 # if we are on a resource, and we can move to an empty tile,
                 # then it means we can at least collect 20 next turn on CD and then build
@@ -1949,13 +1972,14 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                              best_adjacent_empty_tile_near_city().pos)
                 return
             elif game_state_info.turns_to_night > 6 and info.get_cargo_space_left() == 0 \
-                    and best_adjacent_empty_tile_near_res_towards_enemys() is not None \
+                    and safe_to_build and best_adjacent_empty_tile_near_res_towards_enemys() is not None \
                     and move_mapper.can_move_to_pos(best_adjacent_empty_tile_near_res_towards_enemys().pos, game_state):
                 # find the closest empty tile it to build a city
                 move_unit_to_pos_or_transfer(actions, best_adjacent_empty_tile_near_res_towards_enemys().pos, info,
                                              player, u_prefix, unit, " towards closest empty ")
                 return
-            elif info.get_cargo_space_left() == 0 and info.cargo().fuel() < 120 and game_state_info.turns_to_night > 10:
+            elif info.get_cargo_space_left() == 0 and info.cargo().fuel() < 120 \
+                    and safe_to_build and game_state_info.turns_to_night > 10:
                 # we are full mostly with woods, we should try to build
                 for next_pos in MapAnalysis.get_4_positions(unit.pos, game_state):
                     # pr(t_prefix, 'XXXX',next_pos)

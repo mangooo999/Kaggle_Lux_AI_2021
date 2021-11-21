@@ -11,7 +11,6 @@ UNIT_TYPES = Constants.UNIT_TYPES
 DIRECTIONS = Constants.DIRECTIONS
 
 
-
 class City:
     def __init__(self, teamid, cityid, fuel, light_upkeep):
         self.cityid = cityid
@@ -29,8 +28,8 @@ class City:
     def get_light_upkeep(self):
         return self.light_upkeep
 
-    def get_autonomy_turns(self) -> int:
-        turns_city_can_live = self.fuel // self.get_light_upkeep()
+    def get_autonomy_turns(self, additional_fuel=0, increased_upkeep=0) -> int:
+        turns_city_can_live = (self.fuel + additional_fuel) // (self.get_light_upkeep() + increased_upkeep)
         return turns_city_can_live
 
     def get_num_tiles(self) -> int:
@@ -41,6 +40,7 @@ class City:
         for ct in self.citytiles:
             results.append(ct.pos)
         return results
+
 
 class CityTile:
     def __init__(self, teamid, cityid, x, y, cooldown):
@@ -91,7 +91,7 @@ class Cargo:
         return new_cargo
 
     def get_space_used(self) -> int:
-        return self.wood + self.coal + self.uranium;
+        return self.wood + self.coal + self.uranium
 
     def __str__(self) -> str:
         return f"Cargo | Wood: {self.wood}, Coal: {self.coal}, Uranium: {self.uranium}"
@@ -164,7 +164,6 @@ class Unit:
         """
         return "m {} {}".format(self.id, dir)
 
-
     def transfer(self, dest_id, resourceType, amount) -> str:
         """
         return the command to transfer a resource from a source unit to a destination unit as specified by their ids
@@ -207,8 +206,7 @@ class Unit:
         return (self.cooldown, self.cargo.wood, self.cargo.coal, self.cargo.uranium, self.is_worker())
 
     def __repr__(self):
-        return "Unit("+self.id+")"
-
+        return "Unit(" + self.id + ")"
 
 
 class Player:
@@ -222,7 +220,7 @@ class Player:
         self.units_by_id: Dict[str, Unit] = {}
 
     def get_num_city_tiles(self) -> int:
-        num=0
+        num = 0
         for city in self.cities.values():
             num += len(city.citytiles)
 
@@ -269,7 +267,6 @@ class Player:
                 return True
 
         return False
-
 
     def is_unit_in_pos(self, pos) -> bool:
         for unit in self.units:
