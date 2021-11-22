@@ -202,6 +202,16 @@ def find_closest_city_tile_no_logic(pos: Position, player):
     else:
         return pos
 
+def find_closest_city_tile_of_city(pos: Position, city):
+    city_tiles_distance = {}
+    for city_tile in city.citytiles:
+        city_tiles_distance[city_tile.pos] = city_tile.pos.distance_to(pos)
+        # order by dist
+        if len(city_tiles_distance) > 0:
+            city_tiles_distance = collections.OrderedDict(sorted(city_tiles_distance.items(), key=lambda x: x[1]))
+            return next(iter(city_tiles_distance.keys()))
+        else:
+            return pos
 
 # snippet to find the all city tiles distance and sort them.
 def find_city_tile_distance(pos: Position, player, unsafe_cities, game_state_info) -> Dict[
@@ -1145,16 +1155,16 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         additional_fuel += u.cargo.fuel()
 
                 do_build = True
-                for c in cities:
+                for city in cities:
                     increased_upkeep = 23 - 5 * len(cities)
-                    expected_autonomy = c.get_autonomy_turns(additional_fuel=additional_fuel,increased_upkeep=increased_upkeep)
+                    expected_autonomy = city.get_autonomy_turns(additional_fuel=additional_fuel,increased_upkeep=increased_upkeep)
                     if expected_autonomy < game_state_info.all_night_turns_lef:
-                        pr(u_prefix, "end of game. Do not build near adjacent", c.cityid,
+                        pr(u_prefix, "end of game. Do not build near adjacent", city.cityid,
                            "because low expected autonomy", expected_autonomy)
                         do_build = False
                         break
                     else:
-                        pr(u_prefix, 'adjacent city', c.cityid, 'will be fine with autonomy', expected_autonomy)
+                        pr(u_prefix, 'adjacent city', city.cityid, 'will be fine with autonomy', expected_autonomy)
 
                 if do_build:
                     move_mapper.build_city(actions, info, 'end of game (adjacent)')
@@ -1218,18 +1228,24 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
             if info.get_cargo_space_used()>0:
                 dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
                 if len(cities) > 0:
-                    for c in cities:
+                    for city in cities:
                         increased_upkeep = 23 - 5 * len(cities)
-                        expected_autonomy = c.get_autonomy_turns(increased_upkeep=increased_upkeep)
+                        expected_autonomy = city.get_autonomy_turns(increased_upkeep=increased_upkeep)
                         if expected_autonomy < game_state_info.all_night_turns_lef:
-                            pr(u_prefix, "turn > 320. Not safe_to_build", c.cityid,
+                            pr(u_prefix, "turn > 320. Not safe_to_build", city.cityid,
                                "because low expected autonomy", expected_autonomy)
+
+
+                            # we should check here if this is a safe city, if it is, we shoudl actually move to it
+                            # to avoid the paradox that we do not build, neither we move to the city
+                            if city.get_autonomy_turns() >= game_state_info.all_night_turns_lef:
+                                city_pos = find_closest_city_tile_of_city(unit.pos,city)
+                                move_mapper.move_unit_to_pos(actions, info,
+                                        'turn > 320. put res in city that would have been unsafe otherwise', city_pos)
+                                return
+
                             safe_to_build = False
                             break
-        
-
-
-
 
         #   EXPLORER
         if info.is_role_explorer():
@@ -1627,23 +1643,23 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 do_not_build = False
                 if game_state_info.turns_to_night < 4:
                     dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
-                    for c in cities:
+                    for city in cities:
                         # prx(u_prefix,"XXXX1 auton",c.cityid,c.get_num_tiles(),c.get_autonomy_turns())
-                        if c.get_autonomy_turns() < 10:
+                        if city.get_autonomy_turns() < 10:
                             # pr(u_prefix, "Do not build near adjacent", c.cityid,"because low autonomy",
                             #     c.get_autonomy_turns())
                             do_not_build = True
-                            if c.get_num_tiles() > 1:
+                            if city.get_num_tiles() > 1:
                                 # check if city fuel + our cargo will save this city
-                                for t in c.citytiles:
+                                for t in city.citytiles:
                                     turns = max(game_state_info.turns_to_night // 1.5,
                                                 min(2, game_state_info.turns_to_night - 1)
                                                 )
                                     harvested_fuel = turns * \
                                                      MapAnalysis.get_max_fuel_harvest_in_pos(
                                                          resources.available_resources_tiles, t.pos)
-                                    expected_autonomy = (c.fuel + info.cargo().fuel() + harvested_fuel) \
-                                                        // c.get_light_upkeep()
+                                    expected_autonomy = (city.fuel + info.cargo().fuel() + harvested_fuel) \
+                                                        // city.get_light_upkeep()
                                     # prx(u_prefix, "XXXX1",c.cityid,c.fuel,info.cargo().fuel(), harvested_fuel,
                                     #                       "//",c.get_light_upkeep(),"=", expected_autonomy)
                                     # prx(u_prefix, "XXXX1 auton+",harvested_fuel," =", c.cityid, c.get_num_tiles(), expected_autonomy)
@@ -1659,10 +1675,10 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                         else:
                             # autonomy if we build here
                             increased_upkeep = 23 - 5 * len(cities)
-                            expected_autonomy = c.fuel // (c.get_light_upkeep() + increased_upkeep)
+                            expected_autonomy = city.fuel // (city.get_light_upkeep() + increased_upkeep)
                             # prx(u_prefix, "XXXX2 eauto", c.cityid,c.get_num_tiles(), expected_autonomy)
                             if expected_autonomy < 10:
-                                pr(u_prefix, "Do not build near adjacent", c.cityid,
+                                pr(u_prefix, "Do not build near adjacent", city.cityid,
                                    "because low expected autonomy",
                                    expected_autonomy)
                                 do_not_build = True
