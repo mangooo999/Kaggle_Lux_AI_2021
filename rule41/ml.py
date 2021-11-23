@@ -25,6 +25,8 @@ def in_city(pos, game_state):
     except:
         return False
 
+def distance(x1,y1,x2,y2) -> int:
+    return abs(x1 - x2) + abs(y1 - y2)
 
 unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'),
                 ('build_city',),
@@ -55,9 +57,9 @@ class ML_Agent:
             pr(t_prefix, "ML Agent changing include_uranium to", include_uranium)
             self.include_uranium = include_uranium
 
-
     # Input for Neural Network
-    def make_input2(self, obs, unit_id, size=32):
+    def make_input2(self, obs, unit, size=32):
+        unit_id = unit.id
         CHANNELS = 25
 
         width, height = obs['width'], obs['height']
@@ -83,6 +85,7 @@ class ML_Agent:
         next_night_number_turn = min(10, 10 + steps_until_night)
 
         b = np.zeros((CHANNELS, size, size), dtype=np.float32)
+
 
         for update in obs['updates']:
             strs = update.split(' ')
@@ -128,11 +131,15 @@ class ML_Agent:
             elif input_identifier == 'r':
                 # Resources
                 r_type = strs[1]
+                r_x = int(strs[2])
+                r_y = int(strs[3])
                 if (r_type == 'coal' and not self.include_coal) \
                         or (r_type == 'uranium' and not self.include_uranium):
-                    continue
-                x = int(strs[2]) + x_shift
-                y = int(strs[3]) + y_shift
+                    dist = distance(unit.pos.x, unit.pos.y, r_x, r_y)
+                    if dist > 1:
+                        continue
+                x = r_x + x_shift
+                y = r_y + y_shift
                 amt = int(float(strs[4]))
                 b[{'wood': 17, 'coal': 18, 'uranium': 19}[r_type], x, y] = amt / 800
             elif input_identifier == 'rp':
@@ -152,6 +159,7 @@ class ML_Agent:
                     int(will_live_next_night),
                     int(will_live),
                     min(autonomy, 10) / 10)
+
 
         # Day/Night Cycle
         b[22, :] = obs['step'] % 40 / 40
@@ -389,7 +397,7 @@ class ML_Agent:
         if self.model_type==1:
             state = self.make_input(observation, unit.id, size=self.model_map_size)
         elif self.model_type == 2:
-            state = self.make_input2(observation, unit.id, size=self.model_map_size)
+            state = self.make_input2(observation, unit, size=self.model_map_size)
 
         with torch.no_grad():
             p = self.model(torch.from_numpy(state).unsqueeze(0))
