@@ -28,15 +28,15 @@ import ml as ML
 from scipy.spatial import ConvexHull
 
 # todo
-# https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-31559917
-# Look at the top left corner at the last round:
-# we dobuild becauese we would make the city unsafe, but neither we move, because the city is safe without us.
-# we get stuck
+
 
 # https://www.kaggle.com/c/lux-ai-2021/submissions?dialog=episodes-episode-31539837
 # we seem to be confused when on uranium in the initial turns as we hide this from the model
 # maybe we can unhide if distance is within 2?
 
+# maybe use a convex with resources and unsafe cities and do not let stay or move outside of this.
+
+# maybe disable find research using ML when disabling rulem.
 
 
 
@@ -857,6 +857,53 @@ def agent(observation, configuration):
                 repurpose_unit(game_state_info, closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit,
                                cluster, opponent, t_prefix)
 
+    units_to_exlude_rulem = []
+
+    if config.RULEM and player.researched_coal() and not game_state_info.is_night_time():
+        nights_left = game_state_info.all_night_turns_lef
+        prefix = t_prefix + 'cluster analyses for RULEM'
+        for cluster in clusters.get_clusters():
+            if (cluster.res_type == RESOURCE_TYPES.COAL or \
+                        (cluster.res_type == RESOURCE_TYPES.URANIUM and player.researched_uranium())) and \
+                    cluster.num_enemy_units() == 0 and cluster.num_enemy_city_tiles() == 0:
+
+                # a big cluster in which we are dominating, from which we can extract a ton of fuel, find next wood
+                next_wood, next_wood_distance = clusters.get_closest_wood_cluster(cluster)
+                # if it is close enough, big enough, and controlled
+                if next_wood_distance <= 5 \
+                    and (next_wood.get_available_fuel() // 200) + next_wood.num_city_tiles() >= 6 \
+                    and next_wood.num_resource() > 1 \
+                    and next_wood.get_equivalent_units() + cluster.get_equivalent_units() \
+                            > min(3, (next_wood.get_equivalent_enemy_units() + cluster.get_equivalent_enemy_units())* 2):
+                    # fuel needed
+                    fuel_needed = 23 * (next_wood.get_available_fuel() // 200) * nights_left
+                    fuel_needed += 23 * next_wood.num_city_tiles() * min(0, (nights_left - next_wood.min_autonomy))
+                    # prx(t_prefix, 'Closest to ', cluster.id, cluster.get_centroid(), 'is',
+                    #     next_wood, next_wood.get_centroid(), 'dist=', next_wood_distance,
+                    #     'need fuel', fuel_needed, 'got', cluster.get_available_fuel())
+                    # pr(t_prefix, cluster.to_string_light())
+                    # pr(t_prefix, next_wood.to_string_light())
+                    if cluster.get_available_fuel() > fuel_needed:
+                        for u in cluster.units:
+                            if u in player.units_by_id:
+                                units_to_exlude_rulem.append(player.units_by_id[u])
+                        for u in next_wood.units:
+                            if u in player.units_by_id:
+                                units_to_exlude_rulem.append(player.units_by_id[u])
+                        prx(t_prefix, 'Link ', cluster.id, cluster.get_centroid(), 'is',
+                            next_wood, next_wood.get_centroid(), 'd=', next_wood_distance,
+                            'need fuel', fuel_needed, 'got', cluster.get_available_fuel()
+                            ,'unrulem', len(units_to_exlude_rulem))
+
+                # else:
+                #     prx(t_prefix, 'Closest to ', cluster.id, cluster.get_centroid(), ' not meeting req is',
+                #         next_wood, next_wood.get_centroid(), 'dist=', next_wood_distance)
+                #     prx(t_prefix, cluster.to_string_light())
+                #     prx(t_prefix, next_wood.to_string_light())
+
+
+
+
     # max number of units available
     units_cap = sum([len(x.citytiles) for x in player.cities.values()])
 
@@ -1005,9 +1052,14 @@ def agent(observation, configuration):
 
 
     if config.RULEM:
+        for unit in units_to_exlude_rulem:
+            get_unit_action(observation, unit, actions, resources,
+                            game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
+                            unsafe_cities, immediately_unsafe_cities)
+
         # totally ML based, RULEM
         ML.get_actions_unit(observation, game_state, actions, move_mapper, unit_info, resources,
-                            transfer_to_direction = transfer_to_direction)
+                            transfer_to_direction=transfer_to_direction, exclude=units_to_exlude_rulem)
     else:
         # rule based
         # start with potential builder, so that movement are easier to calculate

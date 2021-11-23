@@ -159,6 +159,11 @@ class MoveHelper:
 
             self.pr(self.log_prefix + unit.id, "is_moving_to_resource_hull from ", unit.pos, ' d=', unit_distance,
                     "to", next_pos, next_distance, "return",returnVal)
+
+            # DEBUG TODO REMOVE
+            if not returnVal:
+                self.pr('nohull',unit.id,unit.pos,next_pos,f=True)
+
             return returnVal
 
     def get_distance_to_res_hull(self, pos:Position):

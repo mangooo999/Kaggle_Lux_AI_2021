@@ -51,10 +51,10 @@ class ML_Agent:
     def update_include_resources(self, t_prefix, include_coal, include_uranium):
         # only switches from False to True (no way back)
         if (not self.include_coal) and include_coal:
-            pr(t_prefix, "ML Agent changing include_coal to", include_coal)
+            pr(t_prefix, "ML Agent include_coal to", include_coal)
             self.include_coal = include_coal
         if (not self.include_uranium) and include_uranium:
-            pr(t_prefix, "ML Agent changing include_uranium to", include_uranium)
+            pr(t_prefix, "ML Agent include_uranium to", include_uranium)
             self.include_uranium = include_uranium
 
     # Input for Neural Network
@@ -248,7 +248,7 @@ class ML_Agent:
         return b
 
     def get_actions_unit(self, observation, game_state, actions: [], move_mapper: MoveHelper, unit_info,
-                         resources, transfer_to_direction= None) -> []:
+                         resources, transfer_to_direction= None, exclude=[]) -> []:
         player = game_state.players[observation.player]
 
         # Worker Actions
@@ -259,12 +259,12 @@ class ML_Agent:
                 destinations.append(unit.pos)
 
         for unit in player.units:
-            if unit.can_build(game_state.map) and unit.can_act():
+            if unit.can_build(game_state.map) and unit.can_act() and unit not in exclude:
                 self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources,
                                      can_transfer=True, transfer_to_direction= transfer_to_direction)
 
         for unit in player.units:
-             if (not unit.can_build(game_state.map)) and unit.can_act():
+             if (not unit.can_build(game_state.map)) and unit.can_act() and unit not in exclude:
                 self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources,
                                      can_transfer=True, transfer_to_direction= transfer_to_direction)
 
