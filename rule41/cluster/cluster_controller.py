@@ -23,6 +23,7 @@ class ClusterControl:
         self.clusters: DefaultDict[str, Cluster] = defaultdict(Cluster)
         self.unit_to_clusters = {}
         self.cache_closest_wood_cluster = {}
+        self.cache_adjacent_wood_clusters = {}
         self.pr = pr
 
         resource_cells = ResourceService.get_resources(game_state)
@@ -145,8 +146,6 @@ class ClusterControl:
         # print("T_" + str(game_state.turn), "cluster refresh performance", ms, file=sys.stderr)
 
     def get_closest_cluster(self, player, pos: Position) -> (Cluster, int):
-        self.cache_closest_wood_cluster = {}
-
 
         closest_cluster_distance = math.inf
         closest_cluster = None
@@ -164,11 +163,35 @@ class ClusterControl:
                         break
         return closest_cluster, closest_cluster_distance
 
+    def get_adjacent_wood_clusters(self, cluster) -> (Cluster, int):
+        #cached
+        if cluster.id in self.cache_adjacent_wood_clusters.keys():
+            if cluster.id in self.clusters.keys():
+                if self.clusters[cluster.id].num_resource()>0:
+                    return self.cache_adjacent_wood_clusters[cluster.id]
+
+        # non cached
+        closest_clusters = []
+        for k in list(self.clusters.values()):
+            for pos in cluster.resource_cells:
+                if k.res_type == RESOURCE_TYPES.WOOD:
+                    dist = pos.distance_to_mult(k.resource_cells)
+                    if dist == 1:
+                        closest_clusters.append(k)
+                        break
+
+        # cache it
+        self.cache_adjacent_wood_clusters[cluster.id] = closest_clusters
+        # self.pr('Not Cached', cluster.id, self.cache_adjacent_wood_clusters[cluster.id], f=True)
+        return closest_clusters
+
     def get_closest_wood_cluster(self, cluster) -> (Cluster, int):
         #cached
         if cluster.id in self.cache_closest_wood_cluster.keys():
-            if cluster.id in self.clusters.keys():
-                if self.clusters[cluster.id].num_resource()>0:
+            next_wood = self.cache_closest_wood_cluster[cluster.id][0]
+            if next_wood.id in self.clusters.keys():
+                if self.clusters[next_wood.id].num_resource()>0:
+                    # self.pr('Cached',cluster.id,self.cache_closest_wood_cluster[cluster.id], self.clusters[next_wood.id].num_resource(),f=True)
                     return self.cache_closest_wood_cluster[cluster.id]
 
         # non cached
@@ -186,6 +209,7 @@ class ClusterControl:
 
         # cache it
         self.cache_closest_wood_cluster[cluster.id] = (closest_cluster, closest_cluster_distance)
+        # self.pr('Not Cached', cluster.id, self.cache_closest_wood_cluster[cluster.id], f=True)
         return closest_cluster, closest_cluster_distance
 
     def get_units_without_clusters(self) -> List[Unit]:

@@ -509,53 +509,67 @@ def agent(observation, configuration):
                 initial_cluster = cluster
                 pr(t_prefix, "initial cluster", initial_cluster.to_string_light())
 
-        # check if we should move very quickly to another cluster
+        # check initially if there are overlapping coal or uranium to wood, if that is the case, include in the map
+        # as the AI gets really confused
+        # for cluster in clusters.get_clusters():
+        #     if cluster.res_type in [RESOURCE_TYPES.COAL,RESOURCE_TYPES.URANIUM]:
+        #         next_wood, next_wood_distance = clusters.get_closest_wood_cluster(cluster)
+        #         if next_wood_distance <= 1:
+        #             prx(t_prefix, 'Overlapping ', cluster.id, cluster.get_centroid(), 'to',
+        #                 next_wood, next_wood.get_centroid(), 'dist=', next_wood_distance)
+        #             if cluster.res_type == RESOURCE_TYPES.COAL:
+        #                 ML.update_include_resources(t_prefix, True, include_uranium)
+        #             if cluster.res_type == RESOURCE_TYPES.URANIUM:
+        #                 ML.update_include_resources(t_prefix, include_coal, True)
+
+                        # check if we should move very quickly to another cluster
         distance = math.inf
         better_cluster_pos = None
         good_pos_around_city = None
 
-        pr(t_prefix, "check for a better initial cluster, this cluster res=", len(initial_cluster.resource_cells))
-        initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
-        for cluster in clusters.get_clusters():
-            if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_no_units_no_enemy():
-                r_pos, r_distance = MapAnalysis.get_closest_positions(initial_city_pos, cluster.perimeter_empty)
-                res = cluster.resource_cells.__len__()
-                if res > 2 * len(initial_cluster.resource_cells) and r_distance < 12 and r_distance < distance:
-                    pr(t_prefix, 'There seems to be a better cluster', cluster.to_string_light())
-                    distance = r_distance
-                    lambda_positions = []
-                    for pos in r_pos:
-                        lambda_positions.append((pos.distance_to(initial_enemy_city_pos), pos))
-                    lambda_positions.sort(key=lambda x: (x[0]))
+        if not config.RULEM:
+            pr(t_prefix, "check for a better initial cluster, this cluster res=", len(initial_cluster.resource_cells))
+            initial_enemy_city_pos = list(opponent.cities.values())[0].citytiles[0].pos
+            for cluster in clusters.get_clusters():
+                if cluster.res_type == RESOURCE_TYPES.WOOD and cluster.has_no_units_no_enemy():
+                    r_pos, r_distance = MapAnalysis.get_closest_positions(initial_city_pos, cluster.perimeter_empty)
+                    res = cluster.resource_cells.__len__()
+                    if res > 2 * len(initial_cluster.resource_cells) and r_distance < 12 and r_distance < distance:
+                        pr(t_prefix, 'There seems to be a better cluster', cluster.to_string_light())
+                        distance = r_distance
+                        lambda_positions = []
+                        for pos in r_pos:
+                            lambda_positions.append((pos.distance_to(initial_enemy_city_pos), pos))
+                        lambda_positions.sort(key=lambda x: (x[0]))
 
-                    better_cluster_pos = next(iter(lambda_positions))[1]
+                        better_cluster_pos = next(iter(lambda_positions))[1]
 
-        if better_cluster_pos is not None:
-            good_pos_around_city = better_cluster_pos
-        else:
-            distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
-            direction_to_enemy = DIRECTIONS.CENTER
-            if 1 <= distance_cities <= 5:
-                direction_to_enemy = initial_city_pos.direction_to(initial_enemy_city_pos)
-                step_to_enemy = initial_city_pos.translate(direction_to_enemy, 1)
-                is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(step_to_enemy, game_state)
-                # if going towards enemy is good enough
-                if MapAnalysis.is_position_adjacent_to_resource(resources.wood_tiles, step_to_enemy) \
-                        and (is_empty or has_empty_next) and move_mapper.can_move_to_pos(step_to_enemy, game_state):
-                    pr(t_prefix, "Confrontational first step towards enemy")
-                    good_pos_around_city = step_to_enemy
+            if better_cluster_pos is not None:
+                good_pos_around_city = better_cluster_pos
+            else:
+                distance_cities = initial_city_pos.distance_to(initial_enemy_city_pos)
+                direction_to_enemy = DIRECTIONS.CENTER
+                if 1 <= distance_cities <= 5:
+                    direction_to_enemy = initial_city_pos.direction_to(initial_enemy_city_pos)
+                    step_to_enemy = initial_city_pos.translate(direction_to_enemy, 1)
+                    is_empty, has_empty_next = MapAnalysis.is_cell_empty_or_empty_next(step_to_enemy, game_state)
+                    # if going towards enemy is good enough
+                    if MapAnalysis.is_position_adjacent_to_resource(resources.wood_tiles, step_to_enemy) \
+                            and (is_empty or has_empty_next) and move_mapper.can_move_to_pos(step_to_enemy, game_state):
+                        pr(t_prefix, "Confrontational first step towards enemy")
+                        good_pos_around_city = step_to_enemy
 
-            if good_pos_around_city is None:
-                # choose first based on 12 cells around
-                x3: list = MapAnalysis.get_resources_around(resources.available_resources_tiles, initial_city_pos, 3)
-                game_info.at_start_resources_within3 = len(x3)
-                pr(t_prefix, "Resources within distance 3 of initial pos", initial_city_pos, " number=", len(x3))
+                if good_pos_around_city is None:
+                    # choose first based on 12 cells around
+                    x3: list = MapAnalysis.get_resources_around(resources.available_resources_tiles, initial_city_pos, 3)
+                    game_info.at_start_resources_within3 = len(x3)
+                    pr(t_prefix, "Resources within distance 3 of initial pos", initial_city_pos, " number=", len(x3))
 
-                possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
-                good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos,
-                                                           possible_positions, resources.wood_tiles, direction_to_enemy)
+                    possible_positions = MapAnalysis.get_12_positions(initial_city_pos, game_state)
+                    good_pos_around_city = get_best_first_move(t_prefix, game_state, initial_city_pos,
+                                                               possible_positions, resources.wood_tiles, direction_to_enemy)
 
-        # END initial calculations
+            # END initial calculations
 
     # Spawn of new troops and assigment of roles below
     for unit in player.units:
@@ -862,11 +876,25 @@ def agent(observation, configuration):
                 repurpose_unit(game_state_info, closest_cluster_cluster, closest_cluster_pos, closest_cluster_unit,
                                cluster, opponent, t_prefix)
 
-    units_to_exlude_rulem = []
+    manual_clusters = []
+
+    # check if there are overlapping coal or uranium to wood, if that is the case, include in the map
+    # as the AI gets really confused
+    # if config.RULEM and not (include_coal and include_uranium):
+    #     for cluster in clusters.get_clusters():
+    #         prx(t_prefix, 'cluster', cluster.to_string_light())
+    #         if (cluster.res_type == RESOURCE_TYPES.COAL and not include_coal) or \
+    #                 (cluster.res_type == RESOURCE_TYPES.URANIUM and not include_uranium):
+    #
+    #             next_wood_clusters = clusters.get_adjacent_wood_clusters(cluster)
+    #             if len(next_wood_clusters)>0:
+    #                 manual_clusters.append(cluster)
+    #                 manual_clusters.extend(next_wood_clusters)
+    #                 prx(t_prefix, 'Overlapping ', cluster.id, cluster.get_centroid(),next_wood_clusters)
 
     if config.RULEM and player.researched_coal() and not game_state_info.is_night_time():
         nights_left = game_state_info.all_night_turns_lef
-        prefix = t_prefix + 'cluster analyses for RULEM'
+
         for cluster in clusters.get_clusters():
             if (cluster.res_type == RESOURCE_TYPES.COAL or \
                         (cluster.res_type == RESOURCE_TYPES.URANIUM and player.researched_uranium())) and \
@@ -889,24 +917,18 @@ def agent(observation, configuration):
                     # pr(t_prefix, cluster.to_string_light())
                     # pr(t_prefix, next_wood.to_string_light())
                     if cluster.get_available_fuel() > fuel_needed:
-                        for u in cluster.units:
-                            if u in player.units_by_id:
-                                units_to_exlude_rulem.append(player.units_by_id[u])
-                        for u in next_wood.units:
-                            if u in player.units_by_id:
-                                units_to_exlude_rulem.append(player.units_by_id[u])
+                        manual_clusters.append(cluster)
+                        manual_clusters.append(next_wood)
+
                         prx(t_prefix, 'Link ', cluster.id, cluster.get_centroid(), 'is',
                             next_wood, next_wood.get_centroid(), 'd=', next_wood_distance,
-                            'need fuel', fuel_needed, 'got', cluster.get_available_fuel()
-                            ,'unrulem', len(units_to_exlude_rulem))
+                            'need fuel', fuel_needed, 'got', cluster.get_available_fuel())
 
                 # else:
                 #     prx(t_prefix, 'Closest to ', cluster.id, cluster.get_centroid(), ' not meeting req is',
                 #         next_wood, next_wood.get_centroid(), 'dist=', next_wood_distance)
                 #     prx(t_prefix, cluster.to_string_light())
                 #     prx(t_prefix, next_wood.to_string_light())
-
-
 
 
     # max number of units available
@@ -1057,6 +1079,15 @@ def agent(observation, configuration):
 
 
     if config.RULEM:
+        units_to_exlude_rulem = []
+        for k in manual_clusters:
+            for u in k.units:
+                if u in player.units_by_id:
+                    units_to_exlude_rulem.append(player.units_by_id[u])
+
+        if len(units_to_exlude_rulem)>0:
+            prx(t_prefix,'exlude_rulem',len(units_to_exlude_rulem))
+
         for unit in units_to_exlude_rulem:
             get_unit_action(observation, unit, actions, resources,
                             game_state_info, number_city_tiles, opponent, player, resource_target_by_unit,
