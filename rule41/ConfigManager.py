@@ -9,7 +9,6 @@ class ConfigManager():
         # ML Parameters
         self.ML_model = 'model5_36_t_8402'
         self.ML_model_map_size = 32
-        self.ML_model_type = 2
 
         self.ml_find_resources = True
         self.ml_can_build = False

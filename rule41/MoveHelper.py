@@ -162,7 +162,7 @@ class MoveHelper:
 
             # DEBUG TODO REMOVE
             if not returnVal:
-                self.pr('nohull',unit.id,unit.pos,next_pos,f=True)
+                self.pr(self.log_prefix, 'nh', unit.id, unit.pos, next_pos, unit_distance, next_distance, f=True)
 
             return returnVal
 

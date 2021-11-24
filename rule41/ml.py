@@ -38,11 +38,10 @@ DAY_LENGTH = 30
 NIGHT_LENGTH = 10
 
 class ML_Agent:
-    def __init__(self, model_name='model', model_map_size=32, model_type=1):
+    def __init__(self, model_name='model', model_map_size=32):
         self.include_coal = False
         self.include_uranium = False
         self.model_map_size = model_map_size
-        self.model_type =  model_type
 
         path = '/kaggle_simulations/agent' if os.path.exists('/kaggle_simulations') else '.'
         self.model = torch.jit.load(f'{path}/{model_name}.pth')
@@ -135,9 +134,10 @@ class ML_Agent:
                 r_y = int(strs[3])
                 if (r_type == 'coal' and not self.include_coal) \
                         or (r_type == 'uranium' and not self.include_uranium):
-                    dist = distance(unit.pos.x, unit.pos.y, r_x, r_y)
-                    if dist > 1:
-                        continue
+                    continue
+                    # dist = distance(unit.pos.x, unit.pos.y, r_x, r_y)
+                    # if dist > 1:
+                    #     continue
                 x = r_x + x_shift
                 y = r_y + y_shift
                 amt = int(float(strs[4]))
@@ -167,83 +167,6 @@ class ML_Agent:
         b[23, :] = obs['step'] / 360
         # Map Size
         b[24, x_shift:size - x_shift, y_shift:size - y_shift] = 1
-
-        return b
-
-    def make_input(self, obs, unit_id, size=32):
-        width, height = obs['width'], obs['height']
-        x_shift = (size - width) // 2
-        y_shift = (size - height) // 2
-        cities = {}
-
-        b = np.zeros((20, size, size), dtype=np.float32)
-
-        for update in obs['updates']:
-            strs = update.split(' ')
-            input_identifier = strs[0]
-
-            if input_identifier == 'u':
-                x = int(strs[4]) + x_shift
-                y = int(strs[5]) + y_shift
-                wood = int(strs[7])
-                coal = int(strs[8])
-                uranium = int(strs[9])
-                if unit_id == strs[3]:
-                    # Position and Cargo
-                    b[:2, x, y] = (
-                        1,
-                        (wood + coal + uranium) / 100
-                    )
-                else:
-                    # Units
-                    team = int(strs[2])
-                    cooldown = float(strs[6])
-                    idx = 2 + (team - obs['player']) % 2 * 3
-                    b[idx:idx + 3, x, y] = (
-                        1,
-                        cooldown / 6,
-                        (wood + coal + uranium) / 100
-                    )
-            elif input_identifier == 'ct':
-                # CityTiles
-                team = int(strs[1])
-                city_id = strs[2]
-                x = int(strs[3]) + x_shift
-                y = int(strs[4]) + y_shift
-                idx = 8 + (team - obs['player']) % 2 * 2
-                b[idx:idx + 2, x, y] = (
-                    1,
-                    cities[city_id]
-                )
-            elif input_identifier == 'r':
-                # Resources
-                r_type = strs[1]
-                if (r_type == 'coal' and not self.include_coal) \
-                        or (r_type == 'uranium' and not self.include_uranium):
-                    continue
-                x = int(strs[2]) + x_shift
-                y = int(strs[3]) + y_shift
-                amt = int(float(strs[4]))
-                b[{'wood': 12, 'coal': 13, 'uranium': 14}[r_type], x, y] = amt / 800
-                # pr("ML XXX res:", obs['step'], r_type, x, y, amt)
-            elif input_identifier == 'rp':
-                # Research Points
-                team = int(strs[1])
-                rp = int(strs[2])
-                b[15 + (team - obs['player']) % 2, :] = min(rp, 200) / 200
-            elif input_identifier == 'c':
-                # Cities
-                city_id = strs[2]
-                fuel = float(strs[3])
-                lightupkeep = float(strs[4])
-                cities[city_id] = min(fuel / lightupkeep, 10) / 10
-
-        # Day/Night Cycle
-        b[17, :] = obs['step'] % 40 / 40
-        # Turns
-        b[18, :] = obs['step'] / 360
-        # Map Size
-        b[19, x_shift:size - x_shift, y_shift:size - y_shift] = 1
 
         return b
 
@@ -394,10 +317,7 @@ class ML_Agent:
         return directions
 
     def get_policy(self, observation, unit):
-        if self.model_type==1:
-            state = self.make_input(observation, unit.id, size=self.model_map_size)
-        elif self.model_type == 2:
-            state = self.make_input2(observation, unit, size=self.model_map_size)
+        state = self.make_input2(observation, unit, size=self.model_map_size)
 
         with torch.no_grad():
             p = self.model(torch.from_numpy(state).unsqueeze(0))

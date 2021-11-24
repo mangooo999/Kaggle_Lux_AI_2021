@@ -213,6 +213,12 @@ def find_closest_city_tile_of_city(pos: Position, city):
         else:
             return pos
 
+# snippet to find the all city tiles, cities distance and sort them.
+def _find_number_of_adjacent_city_tile(find_adjacent_city_tile) -> (int, int):
+    tup = find_adjacent_city_tile()
+    return len(tup[0]), len(tup[1])
+
+
 # snippet to find the all city tiles distance and sort them.
 def find_city_tile_distance(pos: Position, player, unsafe_cities, game_state_info) -> Dict[
     CityTile, Tuple[int, int, int, str]]:
@@ -298,8 +304,7 @@ def agent(observation, configuration):
         # This is the start of the game
         clusters = ClusterControl(game_state, pr)
         config = ConfigManager(game_state.map_width, pr)
-        ML = ML.ML_Agent(model_name= config.ML_model,model_map_size= config.ML_model_map_size,
-                         model_type=config.ML_model_type)
+        ML = ML.ML_Agent(model_name= config.ML_model,model_map_size= config.ML_model_map_size)
         start_time = time.time()
 
     pr("---------Turn number ", game_state.turn)
@@ -1132,6 +1137,8 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
     # near SHORTCUTS
     near_city = Lazy(lambda: player.is_position_adjacent_city(unit.pos))
     # adjacent SHORTCUTS
+    adjacent_city_tile = Lazy(lambda: MapAnalysis.find_adjacent_city_tile(unit.pos, player))
+    find_number_of_adjacent_city_tile = Lazy(lambda: _find_number_of_adjacent_city_tile(adjacent_city_tile))
     adjacent_empty_tiles_with_payload = Lazy(lambda: get_adjacent_empty_tiles_with_payload(unit.pos,
                                                                                            adjacent_empty_tiles(),
                                                                                            game_state,
@@ -1154,6 +1161,8 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         lambda: find_city_tile_distance(unit.pos, player, unsafe_cities, game_state_info))
     adjacent_next_to_resources = Lazy(lambda: get_walkable_that_are_near_resources(
         u_prefix, MapAnalysis.get_4_positions(unit.pos, game_state), resources.available_resources_tiles))
+
+
 
     # enemy SHORTCUTS
     adjacent_enemy_units = Lazy(lambda: opponent.get_units_around_pos(unit.pos, 1))
@@ -1193,7 +1202,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
     if (len(resources.all_resources_tiles) == 0 and info.cargo().fuel() > 0 and len(unsafe_cities) == 0):
         pr(u_prefix, ' end of game, with resources ', info.get_cargo_space_used())
         if unit.can_build(game_state.map):
-            dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
+            cities = adjacent_city_tile()[1]
             if len(cities) == 0:
                 move_mapper.build_city(actions, info, 'end of game')
                 return
@@ -1277,8 +1286,8 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         safe_to_build = True
         # LAST ROUND OF DAY TURN BEFORE LAST NIGHT
         if 320 <= game_state.turn < 350:
-            if info.get_cargo_space_used()>0:
-                dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
+            if info.get_cargo_space_used() > 0:
+                cities = adjacent_city_tile()[1]
                 if len(cities) > 0:
                     for city in cities:
                         increased_upkeep = 23 - 5 * len(cities)
@@ -1295,7 +1304,6 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                 move_mapper.move_unit_to_pos(actions, info,
                                         'turn > 320. put res in city that would have been unsafe otherwise', city_pos)
                                 return
-
                             safe_to_build = False
                             break
 
@@ -1662,7 +1670,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 # this is an excellent spot, but is there even a better one, one that join two different cities?
                 if game_state_info.turns_to_night > 2:
                     # only if we have then time to build after 2 turns cooldown
-                    dummy, num_adjacent_here = MapAnalysis.find_number_of_adjacent_city_tile(unit.pos, player)
+                    dummy, num_adjacent_here = find_number_of_adjacent_city_tile()
                     # prx(u_prefix, "XXXX2", adjacent_empty_tiles())
                     for adjacent_position in adjacent_empty_tiles():
                         dummy, num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
@@ -1694,7 +1702,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
                 do_not_build = False
                 if game_state_info.turns_to_night < 4:
-                    dummy, cities = MapAnalysis.find_adjacent_city_tile(unit.pos, player)
+                    cities = adjacent_city_tile()[1]
                     for city in cities:
                         # prx(u_prefix,"XXXX1 auton",c.cityid,c.get_num_tiles(),c.get_autonomy_turns())
                         if city.get_autonomy_turns() < 10:
@@ -2119,6 +2127,59 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         move_mapper.stay(unit, " NO IDEA!")
         pr(u_prefix, " TCFAIL didn't find any rule for this unit")
         # END IF is worker and can act
+
+
+def cities_around_will_survice_if_build(u_prefix, city, game_state_info, info, player, adjacent_city_tile):
+    # NOT USED TODO
+    safe_to_build = True
+    unit = info.unit
+    cities = adjacent_city_tile()[1]
+    increased_upkeep = 23 - 5 * len(cities)
+    cities_we_should_move = []
+    if len(cities) > 0:
+
+        city_fuel = 0
+        light_upkeep = 0
+        for city in cities:
+            city_fuel += city.fuel
+            light_upkeep += city.get_light_upkeep()
+
+            if city.get_autonomy_turns(increased_upkeep=increased_upkeep) < \
+                    game_state_info.all_night_turns_lef <= city.get_autonomy_turns():
+
+                # we should check if this is a safe city without building ajacent, but unsafe if we build
+                # if it is, we should actually move to it to avoid the paradox that we do not build,
+                # neither we move to the city
+                cities_we_should_move.append(city)
+
+        # this is the calculation made for all cities that we are going to join
+        expected_autonomy = city_fuel // (light_upkeep + increased_upkeep)
+
+        if expected_autonomy < game_state_info.all_night_turns_lef:
+            pr(u_prefix, "turn > 320. Not safe_to_build", city.cityid,
+               "because low expected autonomy", expected_autonomy)
+
+            safe_to_build = False
+
+
+
+        # expected_autonomy = city.get_autonomy_turns(increased_upkeep=increased_upkeep)
+        # if expected_autonomy < game_state_info.all_night_turns_lef:
+        #     pr(u_prefix, "turn > 320. Not safe_to_build", city.cityid,
+        #        "because low expected autonomy", expected_autonomy)
+        #
+        #
+        #     # we should check here if this is a safe city, if it is, we shoudl actually move to it
+        #     # to avoid the paradox that we do not build, neither we move to the city
+        #     if city.get_autonomy_turns() >= game_state_info.all_night_turns_lef:
+        #         city_pos = find_closest_city_tile_of_city(unit.pos,city)
+        #         move_mapper.move_unit_to_pos(actions, info,
+        #                 'turn > 320. put res in city that would have been unsafe otherwise', city_pos)
+        #         return
+        #
+        #     safe_to_build = False
+        #     break
+    return cities_we_should_move, safe_to_build
 
 
 def get_walkables(positions: [Position], game_state, u_prefix) -> [Position]:
