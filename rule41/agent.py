@@ -1117,10 +1117,29 @@ def agent(observation, configuration):
 
     if config.RULEM:
         units_to_exlude_rulem = []
+
+        if True:
+            # build on ethernal cities when we have 100 wood
+
+            for unit in player.units:
+                if unit.can_build(game_state.map):
+                    if unit.cargo.wood==100:
+                        adjacent_city_tile = Lazy(lambda: MapAnalysis.find_adjacent_city_tile(unit.pos, player))
+                        cities = adjacent_city_tile()[1]
+                        increased_upkeep = increased_upkeep_if_building(cities)
+                        can_increase_city = can_increase_safely_adjacent_cities(adjacent_city_tile, game_state_info,
+                                                                                increased_upkeep)
+                        if len(cities)>0 and can_increase_city:
+                            move_mapper.build_city(actions, unit_info[unit.id], 'override from ML, ethernal city')
+                            prx(t_prefix,'override against ML, ethernal city',unit.pos)
+                            units_to_exlude_rulem.append(unit)
+
         for k in manual_clusters:
             for u in k.units:
                 if u in player.units_by_id:
-                    units_to_exlude_rulem.append(player.units_by_id[u])
+                    unit = player.units_by_id[u]
+                    if unit not in units_to_exlude_rulem:
+                        units_to_exlude_rulem.append(unit)
 
         if len(units_to_exlude_rulem)>0:
             prx(t_prefix,'exlude_rulem',len(units_to_exlude_rulem))
@@ -1206,7 +1225,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
     near_city = Lazy(lambda: player.is_position_adjacent_city(unit.pos))
     # adjacent SHORTCUTS
     adjacent_city_tile = Lazy(lambda: MapAnalysis.find_adjacent_city_tile(unit.pos, player))
-    find_number_of_adjacent_city_tile = Lazy(lambda: _find_number_of_adjacent_city_tile(adjacent_city_tile))
+    number_of_adjacent_city_tile = Lazy(lambda: _find_number_of_adjacent_city_tile(adjacent_city_tile))
     adjacent_empty_tiles_with_payload = Lazy(lambda: get_adjacent_empty_tiles_with_payload(unit.pos,
                                                                                            adjacent_empty_tiles(),
                                                                                            game_state,
@@ -1357,44 +1376,40 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         if 320 <= game_state.turn < 350:
             if info.get_cargo_space_used() > 0:
                 cities = adjacent_city_tile()[1]
-                if len(cities) > 0:
-                    increased_upkeep = 23 - 5 * len(cities)
-                    external_fuel=0
-                    if game_state_info.turns_to_night > 8 and cluster is not None:
-                        external_fuel = cluster.get_available_fuel() / (len(cluster.city_tiles) + 1)
-                    cum_city_fuel = 0
-                    cum_city_upkeep = 0
-                    for city in cities:
-                        cum_city_fuel += city.fuel
-                        cum_city_upkeep += city.get_light_upkeep()
-                        cum_autonomy = (cum_city_fuel + external_fuel) // (cum_city_upkeep + increased_upkeep)
-                        if cum_autonomy < game_state_info.all_night_turns_lef:
-                            safe_to_build = False
-                            # find if there is one we should move into
-                            # first pass, find unsafe cities
-                            for city in cities:
-                                expected_autonomy = city.get_autonomy_turns()
-                                if expected_autonomy < game_state_info.all_night_turns_lef:
-                                    if_we_go_autonomy = city.get_autonomy_turns(additional_fuel=info.cargo().fuel())
-                                    increased_autonomy = if_we_go_autonomy - expected_autonomy
-                                    if if_we_go_autonomy >=10 or increased_autonomy >=2 or game_state_info.turns_to_night<4:
-                                        #this is a city that would benefit
-                                        city_pos = find_closest_city_tile_of_city(unit.pos, city)
-                                        move_mapper.move_unit_to_pos(actions, info,
-                                                     'turn > 320. put res in a unsasafe city ' + city.cityid+
-                                                     'increased_autonomy'+str(increased_autonomy) ,
-                                                     city_pos)
-                                        return
+                increased_upkeep = increased_upkeep_if_building(cities)
+                external_fuel = 0
+                if game_state_info.turns_to_night > 8 and cluster is not None:
+                    external_fuel = cluster.get_available_fuel() / (len(cluster.city_tiles) + 1)
+                can_increase_city = can_increase_safely_adjacent_cities(adjacent_city_tile, game_state_info,
+                                                                        increased_upkeep, external_fuel)
 
-                            for city in cities:
-                                expected_autonomy = city.get_autonomy_turns(increased_upkeep=increased_upkeep)
-                                if expected_autonomy < game_state_info.all_night_turns_lef <= city.get_autonomy_turns():
-                                        # we should check here if this is a safe city, if it is, we shoudl actually move to it
-                                        # to avoid the paradox that we do not build, neither we move to the city
-                                        city_pos = find_closest_city_tile_of_city(unit.pos,city)
-                                        move_mapper.move_unit_to_pos(actions, info, 'turn > 320. put res in a safe city '
-                                            'that would have been unsafe otherwise '+city.cityid, city_pos)
-                                        return
+                if len(cities) > 0 and not can_increase_city:
+                    safe_to_build = False
+                    # find if there is one we should move into
+                    # first pass, find unsafe cities
+                    for city in cities:
+                        expected_autonomy = city.get_autonomy_turns()
+                        if expected_autonomy < game_state_info.all_night_turns_lef:
+                            if_we_go_autonomy = city.get_autonomy_turns(additional_fuel=info.cargo().fuel())
+                            increased_autonomy = if_we_go_autonomy - expected_autonomy
+                            if if_we_go_autonomy >=10 or increased_autonomy >=2 or game_state_info.turns_to_night<4:
+                                #this is a city that would benefit
+                                city_pos = find_closest_city_tile_of_city(unit.pos, city)
+                                move_mapper.move_unit_to_pos(actions, info,
+                                             'turn > 320. put res in a unsasafe city ' + city.cityid+
+                                             'increased_autonomy'+str(increased_autonomy) ,
+                                             city_pos)
+                                return
+
+                    for city in cities:
+                        expected_autonomy = city.get_autonomy_turns(increased_upkeep=increased_upkeep)
+                        if expected_autonomy < game_state_info.all_night_turns_lef <= city.get_autonomy_turns():
+                                # we should check here if this is a safe city, if it is, we shoudl actually move to it
+                                # to avoid the paradox that we do not build, neither we move to the city
+                                city_pos = find_closest_city_tile_of_city(unit.pos,city)
+                                move_mapper.move_unit_to_pos(actions, info, 'turn > 320. put res in a safe city '
+                                    'that would have been unsafe otherwise '+city.cityid, city_pos)
+                                return
 
 
         #   EXPLORER
@@ -1778,7 +1793,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 # this is an excellent spot, but is there even a better one, one that join two different cities?
                 if game_state_info.turns_to_night > 2:
                     # only if we have then time to build after 2 turns cooldown
-                    dummy, num_adjacent_here = find_number_of_adjacent_city_tile()
+                    dummy, num_adjacent_here = number_of_adjacent_city_tile()
                     # prx(u_prefix, "XXXX2", adjacent_empty_tiles())
                     for adjacent_position in adjacent_empty_tiles():
                         dummy, num_adjacent_city = MapAnalysis.find_number_of_adjacent_city_tile(adjacent_position,
@@ -2258,6 +2273,28 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         move_mapper.stay(unit, " NO IDEA!")
         pr(u_prefix, " TCFAIL didn't find any rule for this unit")
         # END IF is worker and can act
+
+
+def can_increase_safely_adjacent_cities(adjacent_city_tile, game_state_info, increased_upkeep= 0, external_fuel = 0):
+    cities = adjacent_city_tile()[1]
+    if len(cities) > 0:
+
+        cum_city_fuel = 0
+        cum_city_upkeep = 0
+        for city in cities:
+            cum_city_fuel += city.fuel
+            cum_city_upkeep += city.get_light_upkeep()
+
+        cum_autonomy = (cum_city_fuel + external_fuel) // (cum_city_upkeep + increased_upkeep)
+
+        return cum_autonomy >= game_state_info.all_night_turns_lef
+    else:
+        return False
+
+
+def increased_upkeep_if_building(cities):
+    increased_upkeep = 23 - 5 * len(cities)
+    return increased_upkeep
 
 
 def cities_around_will_survice_if_build(u_prefix, city, game_state_info, info, player, adjacent_city_tile):
