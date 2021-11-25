@@ -38,9 +38,11 @@ from scipy.spatial import ConvexHull
 
 # maybe disable find research using ML when disabling rulem.
 
+# move within convex when resources= 0 and very far from it, also do not stay far from convex with res=0
+
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if False:
+    if True:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -467,8 +469,9 @@ def agent(observation, configuration):
             # the fuel tasted from when we ramped at 111 to 280, but each map is different
             # 736	T 121 (nights left = 60) FR=380k FU=4k & 360 = 66k ->5k per nights
             if game_info.turn >= 320:
-                prx(t_prefix, "Setting  rulem=False (researched_uranium 320)")
+                prx(t_prefix, "Setting  rulem=False, use_still_ML = False (researched_uranium 320)")
                 config.RULEM = False
+                use_still_ML = False
             else:
                 resource_fuel = 0
                 equivalent_wood_city = 0
@@ -485,30 +488,38 @@ def agent(observation, configuration):
                 fuel_need_per_night = equivalent_wood_city * 23
 
                 if game_info.turn >= 280:
-                    fuel_need_per_night = fuel_need_per_night * 1.25
+                    multiplier = 1
                 elif game_info.turn >= 240:
-                    fuel_need_per_night = fuel_need_per_night * 1.25
+                    multiplier = 1.1
                 elif game_info.turn >= 200:
-                    fuel_need_per_night = fuel_need_per_night * 1.15
+                    multiplier = 1.15
                 elif game_info.turn >= 160:
-                    fuel_need_per_night = fuel_need_per_night * 1.10
+                    multiplier = 1.25
                 elif game_info.turn >= 120:
-                    fuel_need_per_night = fuel_need_per_night
+                    multiplier = 1.4
                 else:
-                    fuel_need_per_night = fuel_need_per_night * 1.3
+                    multiplier = 1.6
 
-                if fuel_per_night>fuel_need_per_night:
-                    prx(t_prefix, "Setting  rulem=False (uranium) fuel_per_night=",fuel_per_night,'need',fuel_need_per_night)
+                if fuel_per_night>fuel_need_per_night*multiplier:
+                    prx(t_prefix, "Setting  rulem=False (uranium) fuel_per_night=",fuel_per_night,
+                        'need=',fuel_need_per_night,'*',multiplier,'=',fuel_need_per_night*multiplier)
                     config.RULEM = False
 
 
         if game_state.turn >= 320:
-            prx(t_prefix, "Setting  rulem=False (last night)")
+            prx(t_prefix, "Setting  rulem=False, use_still_ML = False (last night)")
             config.RULEM = False
+            use_still_ML = False
+
+
 
     if use_still_ML:
         if len(resources.all_resources_tiles) <= config.num_resource_below_no_ML:
             prx(t_prefix, "Setting use_still_ML=False (resources)")
+            use_still_ML = False
+
+        if game_state.turn >= 320:
+            prx(t_prefix, "Setting  use_still_ML = False (last night)")
             use_still_ML = False
 
     if not config.RULEM:
@@ -1275,7 +1286,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
                 do_build = True
                 for city in cities:
-                    increased_upkeep = 23 - 5 * len(cities)
+                    increased_upkeep = 23 - 5 * len(cities) * 2
                     expected_autonomy = city.get_autonomy_turns(additional_fuel=additional_fuel,increased_upkeep=increased_upkeep)
                     if expected_autonomy < game_state_info.all_night_turns_lef:
                         pr(u_prefix, "end of game. Do not build near adjacent", city.cityid,
@@ -1348,24 +1359,41 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 cities = adjacent_city_tile()[1]
                 if len(cities) > 0:
                     increased_upkeep = 23 - 5 * len(cities)
+                    external_fuel=0
+                    if game_state_info.turns_to_night > 8 and cluster is not None:
+                        external_fuel = cluster.get_available_fuel() / (len(cluster.city_tiles) + 1)
                     cum_city_fuel = 0
                     cum_city_upkeep = 0
                     for city in cities:
                         cum_city_fuel += city.fuel
                         cum_city_upkeep += city.get_light_upkeep()
-                        cum_autonomy = cum_city_fuel // (cum_city_upkeep + increased_upkeep)
+                        cum_autonomy = (cum_city_fuel + external_fuel) // (cum_city_upkeep + increased_upkeep)
                         if cum_autonomy < game_state_info.all_night_turns_lef:
                             safe_to_build = False
                             # find if there is one we should move into
+                            # first pass, find unsafe cities
+                            for city in cities:
+                                expected_autonomy = city.get_autonomy_turns()
+                                if expected_autonomy < game_state_info.all_night_turns_lef:
+                                    if_we_go_autonomy = city.get_autonomy_turns(additional_fuel=info.cargo().fuel())
+                                    increased_autonomy = if_we_go_autonomy - expected_autonomy
+                                    if if_we_go_autonomy >=10 or increased_autonomy >=2 or game_state_info.turns_to_night<4:
+                                        #this is a city that would benefit
+                                        city_pos = find_closest_city_tile_of_city(unit.pos, city)
+                                        move_mapper.move_unit_to_pos(actions, info,
+                                                     'turn > 320. put res in a unsasafe city ' + city.cityid+
+                                                     'increased_autonomy'+str(increased_autonomy) ,
+                                                     city_pos)
+                                        return
+
                             for city in cities:
                                 expected_autonomy = city.get_autonomy_turns(increased_upkeep=increased_upkeep)
                                 if expected_autonomy < game_state_info.all_night_turns_lef <= city.get_autonomy_turns():
                                         # we should check here if this is a safe city, if it is, we shoudl actually move to it
                                         # to avoid the paradox that we do not build, neither we move to the city
                                         city_pos = find_closest_city_tile_of_city(unit.pos,city)
-                                        move_mapper.move_unit_to_pos(actions, info,
-                                                'turn > 320. put res in city that would have been unsafe otherwise',
-                                                city_pos)
+                                        move_mapper.move_unit_to_pos(actions, info, 'turn > 320. put res in a safe city '
+                                            'that would have been unsafe otherwise '+city.cityid, city_pos)
                                         return
 
 
@@ -1679,8 +1707,8 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 #for 1\2 cluster wood, that we totally control, wait till 335-340
                 if cluster.res_type == RESOURCE_TYPES.WOOD:
                     if cluster.closest_enemy_distance > 2:
-                        if (cluster.num_resource() == 1 and cluster.num_units() >= 2 and game_info.turn < 335) or \
-                                (cluster.num_resource() == 2 and cluster.num_units() >= 3 and game_info.turn < 330):
+                        if (cluster.num_resource() == 1 and cluster.num_units() >= 2 and game_info.turn < 330) or \
+                                (cluster.num_resource() == 2 and cluster.num_units() >= 3 and game_info.turn < 325):
                             move_mapper.try_to_move_to(actions, info, cluster.get_centroid(), game_state,
                                                        "End, small cluster, not safe to build")
                             info.set_unit_role_expander(u_prefix)
@@ -1814,7 +1842,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                             break
                         else:
                             # autonomy if we build here
-                            increased_upkeep = 23 - 5 * len(cities)
+                            increased_upkeep = 23 - 5 * len(cities) * 2
                             expected_autonomy = city.fuel // (city.get_light_upkeep() + increased_upkeep)
                             # prx(u_prefix, "XXXX2 eauto", c.cityid,c.get_num_tiles(), expected_autonomy)
                             if expected_autonomy < 10:
@@ -1833,7 +1861,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
 
                 # if we can move to a tile where we are adjacent, do and it and build there
                 if best_adjacent_empty_tile_near_city() is not None:
-                    pr(u_prefix, " check if adjacent empty is more interesting",
+                    pr(u_prefix, " can build, check if adjacent empty is more interesting",
                        best_adjacent_empty_tile_near_city().pos)
                     direction = unit.pos.direction_to(best_adjacent_empty_tile_near_city().pos)
                     next_pos = unit.pos.translate(direction, 1)
@@ -1852,6 +1880,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
             if (not near_city()) and \
                     (game_state_info.turns_to_night > 1 or
                      (game_state_info.turns_to_night == 1 and near_resource)):
+                pr(u_prefix, ' can build,1, near_city()=',near_city())
                 unit_fuel = info.cargo().fuel()
                 if cluster is None:
                     pr(u_prefix, "Can build, but not in adjacent city. Cluster is None, fuel", unit_fuel)
@@ -1865,6 +1894,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                                            'NOT in adjacent city, we have not so much fuel ' + str(unit_fuel))
                     return
                 else:
+                    pr(u_prefix, ' can build,2')
                     do_build = True
                     # check if there are cities next to us that are better served with our fuel
                     for city_tile, dist in city_tile_distance().items():
@@ -2235,7 +2265,7 @@ def cities_around_will_survice_if_build(u_prefix, city, game_state_info, info, p
     safe_to_build = True
     unit = info.unit
     cities = adjacent_city_tile()[1]
-    increased_upkeep = 23 - 5 * len(cities)
+    increased_upkeep = 23 - 5 * len(cities) * 2
     cities_we_should_move = []
     if len(cities) > 0:
 
