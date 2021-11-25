@@ -8,10 +8,11 @@ from lux.game_map import Position
 from lux import annotate
 import maps.map_analysis as MapAnalysis
 from UnitInfo import UnitInfo
+from cluster.cluster import Cluster
 
 
 class MoveHelper:
-    def __init__(self, player: Player, opponent: Player, turn, hull, pr):
+    def __init__(self, player: Player, opponent: Player, turn, hull, pr, clusters):
         """
         initialize state
         """
@@ -26,6 +27,7 @@ class MoveHelper:
         self.opponent_units = {}
         self.__can_move_dictionary__ = {}
         self.resource_hull = hull
+        self.clusters = clusters
         for enemy in opponent.units:
             self.opponent_units[self.__hash_pos__(enemy.pos)] = enemy
 
@@ -199,3 +201,6 @@ class MoveHelper:
         self.pr(self.log_prefix + info.unit.id, '- build city', msg)
         self.add_position(info.unit.pos, info.unit)
         info.set_last_action_build()
+        cluster: Cluster = self.clusters.get_unit_cluster('', info.unit.id)
+        if cluster is not None:
+            cluster.city_built_this_turn += 1

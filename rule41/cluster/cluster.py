@@ -38,6 +38,10 @@ class Cluster:
         self.closest_unit_distance = math.inf
         self.closest_enemy_distance = math.inf
         self.score = 0.
+        self._fuel = 0
+
+        self.is_donor = False
+        self.city_built_this_turn = 0
 
     def cleanup(self):
         self.units = []
@@ -46,6 +50,8 @@ class Cluster:
         self.city_tiles = []
         self.enemy_city_tiles = []
         self.autonomy = 360
+        self._fuel = 0
+        self.city_built_this_turn = 0
 
     def refresh_score(self) -> int:
         self.score = - int (
@@ -174,7 +180,26 @@ class Cluster:
     def distance_to(self, pos) -> int:
         return self.get_centroid().distance_to(pos)
 
+    def get_prorated_fuel(self) -> int:
+        fuel = self.get_available_fuel();
+        if self.get_equivalent_units() == 0 and self.get_equivalent_enemy_units()==0:
+            if self.closest_unit_distance < 7:
+                return fuel//2
+            else:
+                return 0
+        elif self.get_equivalent_units() == 0 and self.get_equivalent_enemy_units() > 0:
+            return 0
+        elif self.get_equivalent_units() > 0 and self.get_equivalent_enemy_units() == 0:
+            return fuel
+        else:
+            f = fuel * self.get_equivalent_units() / (self.get_equivalent_units() + self.get_equivalent_enemy_units())
+            return round(f)
+
+
     def get_available_fuel(self) -> int:
+        if self._fuel>0:
+            return self._fuel
+
         FUEL_CONVERSION_RATE = \
             GAME_CONSTANTS['PARAMETERS']['RESOURCE_TO_FUEL_RATE']
 
@@ -189,7 +214,8 @@ class Cluster:
                 return cell.resource.amount * FUEL_CONVERSION_RATE['URANIUM']
             return 0
 
-        return sum([get_cell_fuel(cell) for cell in self.resource_cells])
+        self._fuel = sum([get_cell_fuel(cell) for cell in self.resource_cells])
+        return self._fuel
 
     def get_fuel_density(self) -> float:
         return self.get_available_fuel() / len(self.resource_cells)

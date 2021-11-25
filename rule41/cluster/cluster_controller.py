@@ -189,10 +189,11 @@ class ClusterControl:
         #cached
         if cluster.id in self.cache_closest_wood_cluster.keys():
             next_wood = self.cache_closest_wood_cluster[cluster.id][0]
-            if next_wood.id in self.clusters.keys():
-                if self.clusters[next_wood.id].num_resource()>0:
-                    # self.pr('Cached',cluster.id,self.cache_closest_wood_cluster[cluster.id], self.clusters[next_wood.id].num_resource(),f=True)
-                    return self.cache_closest_wood_cluster[cluster.id]
+            if next_wood is not None:
+                if next_wood.id in self.clusters.keys():
+                    if self.clusters[next_wood.id].num_resource()>0:
+                        # self.pr('Cached',cluster.id,self.cache_closest_wood_cluster[cluster.id], self.clusters[next_wood.id].num_resource(),f=True)
+                        return self.cache_closest_wood_cluster[cluster.id]
 
         # non cached
         closest_cluster_distance = math.inf

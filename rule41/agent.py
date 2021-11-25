@@ -39,8 +39,6 @@ from scipy.spatial import ConvexHull
 # maybe disable find research using ML when disabling rulem.
 
 
-
-
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
     if False:
         print(*args, sep=sep, file=sys.stderr)
@@ -296,7 +294,7 @@ def agent(observation, configuration):
 
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
-    move_mapper = MoveHelper(player, opponent, game_state.turn, hull, pr)
+
 
     # add debug statements like so!
     if game_state.turn == 0:
@@ -306,6 +304,8 @@ def agent(observation, configuration):
         config = ConfigManager(game_state.map_width, pr)
         ML = ML.ML_Agent(model_name= config.ML_model,model_map_size= config.ML_model_map_size)
         start_time = time.time()
+
+    move_mapper = MoveHelper(player, opponent, game_state.turn, hull, pr, clusters)
 
     pr("---------Turn number ", game_state.turn)
     t_prefix = "T_" + str(game_state.turn)
@@ -470,25 +470,39 @@ def agent(observation, configuration):
                 prx(t_prefix, "Setting  rulem=False (researched_uranium 320)")
                 config.RULEM = False
             else:
-                fuel_per_night = (resources.total_fuel + fuel_with_units)//game_state_info.all_night_turns_lef
+                resource_fuel = 0
+                equivalent_wood_city = 0
+                for cluster in clusters.get_clusters():
+                    if cluster.res_type == RESOURCE_TYPES.COAL or \
+                            (cluster.res_type == RESOURCE_TYPES.URANIUM and uranium_minable):
+                        resource_fuel += cluster.get_prorated_fuel()
+                    else:
+                        equivalent_wood_city += cluster.get_prorated_fuel() // 250
+
+                total_fuel_excess = resource_fuel + fuel_with_units - total_fuel_required_by_unsafe
+                fuel_per_night = total_fuel_excess // game_state_info.all_night_turns_lef
+
+                fuel_need_per_night = equivalent_wood_city * 23
+
                 if game_info.turn >= 280:
-                    fuel_need = 5000
+                    fuel_need_per_night = fuel_need_per_night * 1.25
                 elif game_info.turn >= 240:
-                    fuel_need = 5500
+                    fuel_need_per_night = fuel_need_per_night * 1.25
                 elif game_info.turn >= 200:
-                    fuel_need = 6000
+                    fuel_need_per_night = fuel_need_per_night * 1.15
                 elif game_info.turn >= 160:
-                    fuel_need = 6500
+                    fuel_need_per_night = fuel_need_per_night * 1.10
                 elif game_info.turn >= 120:
-                    fuel_need = 7000
+                    fuel_need_per_night = fuel_need_per_night
                 else:
-                    fuel_need = 7500
-                if fuel_per_night>fuel_need:
-                    prx(t_prefix, "Setting  rulem=False (uranium) fuel_per_night=",fuel_per_night,'need',fuel_need)
+                    fuel_need_per_night = fuel_need_per_night * 1.3
+
+                if fuel_per_night>fuel_need_per_night:
+                    prx(t_prefix, "Setting  rulem=False (uranium) fuel_per_night=",fuel_per_night,'need',fuel_need_per_night)
                     config.RULEM = False
 
 
-        if game_state.turn >= 349:
+        if game_state.turn >= 320:
             prx(t_prefix, "Setting  rulem=False (last night)")
             config.RULEM = False
 
@@ -903,7 +917,7 @@ def agent(observation, configuration):
                 # a big cluster in which we are dominating, from which we can extract a ton of fuel, find next wood
                 next_wood, next_wood_distance = clusters.get_closest_wood_cluster(cluster)
                 # if it is close enough, big enough, and controlled
-                if next_wood_distance <= 5 \
+                if next_wood_distance < cluster.closest_enemy_distance and next_wood_distance < 6 \
                     and (next_wood.get_available_fuel() // 200) + next_wood.num_city_tiles() >= 6 \
                     and next_wood.num_resource() > 1 \
                     and next_wood.get_equivalent_units() + cluster.get_equivalent_units() \
@@ -919,10 +933,22 @@ def agent(observation, configuration):
                     if cluster.get_available_fuel() > fuel_needed:
                         manual_clusters.append(cluster)
                         manual_clusters.append(next_wood)
+                        cluster.is_donor = True
 
                         prx(t_prefix, 'Link ', cluster.id, cluster.get_centroid(), 'is',
                             next_wood, next_wood.get_centroid(), 'd=', next_wood_distance,
                             'need fuel', fuel_needed, 'got', cluster.get_available_fuel())
+
+                else:
+                    if cluster.is_donor:
+                        manual_clusters.append(cluster)
+                        prx(t_prefix, 'Donor', cluster.id, cluster.get_centroid())
+            else:
+                if cluster.is_donor:
+                    prx(t_prefix, 'Donor Off', cluster.id, cluster.get_centroid())
+                    cluster.is_donor = False
+
+
 
                 # else:
                 #     prx(t_prefix, 'Closest to ', cluster.id, cluster.get_centroid(), ' not meeting req is',
@@ -1233,6 +1259,7 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
     if (len(resources.all_resources_tiles) == 0 and info.cargo().fuel() > 0 and len(unsafe_cities) == 0):
         pr(u_prefix, ' end of game, with resources ', info.get_cargo_space_used())
         if unit.can_build(game_state.map):
+
             cities = adjacent_city_tile()[1]
             if len(cities) == 0:
                 move_mapper.build_city(actions, info, 'end of game')
@@ -1320,23 +1347,27 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
             if info.get_cargo_space_used() > 0:
                 cities = adjacent_city_tile()[1]
                 if len(cities) > 0:
+                    increased_upkeep = 23 - 5 * len(cities)
+                    cum_city_fuel = 0
+                    cum_city_upkeep = 0
                     for city in cities:
-                        increased_upkeep = 23 - 5 * len(cities)
-                        expected_autonomy = city.get_autonomy_turns(increased_upkeep=increased_upkeep)
-                        if expected_autonomy < game_state_info.all_night_turns_lef:
-                            pr(u_prefix, "turn > 320. Not safe_to_build", city.cityid,
-                               "because low expected autonomy", expected_autonomy)
-
-
-                            # we should check here if this is a safe city, if it is, we shoudl actually move to it
-                            # to avoid the paradox that we do not build, neither we move to the city
-                            if city.get_autonomy_turns() >= game_state_info.all_night_turns_lef:
-                                city_pos = find_closest_city_tile_of_city(unit.pos,city)
-                                move_mapper.move_unit_to_pos(actions, info,
-                                        'turn > 320. put res in city that would have been unsafe otherwise', city_pos)
-                                return
+                        cum_city_fuel += city.fuel
+                        cum_city_upkeep += city.get_light_upkeep()
+                        cum_autonomy = cum_city_fuel // (cum_city_upkeep + increased_upkeep)
+                        if cum_autonomy < game_state_info.all_night_turns_lef:
                             safe_to_build = False
-                            break
+                            # find if there is one we should move into
+                            for city in cities:
+                                expected_autonomy = city.get_autonomy_turns(increased_upkeep=increased_upkeep)
+                                if expected_autonomy < game_state_info.all_night_turns_lef <= city.get_autonomy_turns():
+                                        # we should check here if this is a safe city, if it is, we shoudl actually move to it
+                                        # to avoid the paradox that we do not build, neither we move to the city
+                                        city_pos = find_closest_city_tile_of_city(unit.pos,city)
+                                        move_mapper.move_unit_to_pos(actions, info,
+                                                'turn > 320. put res in city that would have been unsafe otherwise',
+                                                city_pos)
+                                        return
+
 
         #   EXPLORER
         if info.is_role_explorer():
@@ -1345,10 +1376,10 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 pr(u_prefix, ' explorer failed as too close to night')
             else:
                 # check if the target position is achievable
-                cluster = clusters.get_cluster_from_centroid(info.target_position)
-                if cluster is not None:
-                    target_pos, distance = cluster.get_closest_distance_to_perimeter(unit.pos)
-                    pr(u_prefix, ' explorer is to cluster', cluster.id)
+                exlporer_cluster = clusters.get_cluster_from_centroid(info.target_position)
+                if exlporer_cluster is not None:
+                    target_pos, distance = exlporer_cluster.get_closest_distance_to_perimeter(unit.pos)
+                    pr(u_prefix, ' explorer is to cluster', exlporer_cluster.id)
                 else:
                     target_pos = info.target_position
                     distance = unit.pos.distance_to(info.target_position)
@@ -1384,7 +1415,8 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
         #   EXPANDER ENDS
 
         # night rules
-        if game_state_info.is_night_time() or game_state_info.is_night_tomorrow():
+        if game_state_info.is_night_time() or \
+                (game_state_info.is_night_tomorrow() and (game_info.turn != 349 or unit.get_cargo_space_used() ==0)):
             # time_to_dawn differs from game_state_info.turns_to_dawn as it could be even 11 on turn before night
             time_to_dawn = 10 + game_state_info.steps_until_night
             num_units_here = player.get_units_number_around_pos(unit.pos, 0) - \
@@ -1642,6 +1674,23 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                 return
 
         # CAN BUILD RULES
+        if unit.can_build(game_state.map) and safe_to_build:
+            if game_info.turn >=320 and cluster is not None:
+                #for 1\2 cluster wood, that we totally control, wait till 335-340
+                if cluster.res_type == RESOURCE_TYPES.WOOD:
+                    if cluster.closest_enemy_distance > 2:
+                        if (cluster.num_resource() == 1 and cluster.num_units() >= 2 and game_info.turn < 335) or \
+                                (cluster.num_resource() == 2 and cluster.num_units() >= 3 and game_info.turn < 330):
+                            move_mapper.try_to_move_to(actions, info, cluster.get_centroid(), game_state,
+                                                       "End, small cluster, not safe to build")
+                            info.set_unit_role_expander(u_prefix)
+                            return
+                        elif (cluster.num_resource() == 1 and cluster.num_units() >= 2) and \
+                                cluster.city_built_this_turn > 0:
+                            move_mapper.try_to_move_to(actions, info, cluster.get_centroid(), game_state,
+                                                       "End, already built")
+                            return
+
         if unit.can_build(game_state.map) and safe_to_build:
 
             if config.ml_can_build and use_still_ML:
@@ -2015,6 +2064,27 @@ def get_unit_action(observation, unit: Unit, actions, resources: ResourceService
                     if res_pos is not None:
                         distance_to_res = res_pos.distance_to(unit.pos)
                         pr(u_prefix, " Find resources2, resource_type ", resource_type, "dist=", distance_to_res)
+
+                        # special rule for end of the game. Do not go too far.
+                        if game_info.turn >= 320 and info.get_cargo_space_used() > 0 and len(unsafe_cities) > 0:
+                            if distance_to_res > 6:
+                                direction, city_pos, msg, dummy, dummy = \
+                                    find_best_city(game_state, city_tile_distance(), unsafe_cities, info, player,
+                                                   in_resource, near_resource, resources.available_resources_tiles, pr)
+                                if city_pos is not None:
+                                    distance_to_city = unit.pos.distance_to(city_pos)
+
+                                    if distance_to_city < distance_to_res:
+                                        pr(u_prefix, 'Resource is too far,', distance_to_res,'will go to unsafe city',
+                                            city_pos, 'dist', distance_to_city)
+                                        info.set_unit_role_returner(u_prefix)
+                                        move_unit_to_or_transfer(actions, direction, info, player, u_prefix, unit,
+                                                                 'city end' + msg)
+                                        pr(u_prefix, " Goto city end")
+
+
+
+
                         if (resource_type == RESOURCE_TYPES.COAL and not player.researched_coal()) or \
                                 (resource_type == RESOURCE_TYPES.URANIUM and not player.researched_uranium()):
                             # this is a not researched yet resource, force to go there, so there is no jitter
