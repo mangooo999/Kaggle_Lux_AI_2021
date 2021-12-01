@@ -7,8 +7,9 @@ class ConfigManager():
         self.spread_big_cluster = False
 
         # ML Parameters
-        self.ML_model = 'model5_36_t_8402'
+        self.ML_model = 'model_t8_36_1127_8144'
         self.ML_model_map_size = 32
+        self.ML_model_type = 4
 
         self.ml_find_resources = True
         self.ml_can_build = False

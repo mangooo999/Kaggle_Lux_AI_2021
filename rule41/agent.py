@@ -42,7 +42,7 @@ from scipy.spatial import ConvexHull
 
 
 def pr(*args, sep=' ', end='\n', f=False):  # known special case of print
-    if True:
+    if False:
         print(*args, sep=sep, file=sys.stderr)
     elif f:
         print(*args, sep=sep, file=sys.stderr)
@@ -304,7 +304,7 @@ def agent(observation, configuration):
         # This is the start of the game
         clusters = ClusterControl(game_state, pr)
         config = ConfigManager(game_state.map_width, pr)
-        ML = ML.ML_Agent(model_name= config.ML_model,model_map_size= config.ML_model_map_size)
+        ML = ML.ML_Agent(model_name= config.ML_model,model_map_size= config.ML_model_map_size, model_type=config.ML_model_type)
         start_time = time.time()
 
     move_mapper = MoveHelper(player, opponent, game_state.turn, hull, pr, clusters)
@@ -522,8 +522,7 @@ def agent(observation, configuration):
             prx(t_prefix, "Setting  use_still_ML = False (last night)")
             use_still_ML = False
 
-    if not config.RULEM:
-        hull = MapAnalysis.get_convex_hull(prx, resources, include_coal, include_uranium, t_prefix)
+    hull = MapAnalysis.get_convex_hull(prx, resources, include_coal, include_uranium, t_prefix)
 
     if game_state.turn == 0:
         # initial calculations
@@ -1031,38 +1030,73 @@ def agent(observation, configuration):
                         MapAnalysis.get_resources_around(resources.available_resources_tiles, city_tile.pos, 3))
                     dummy, closest_resource = MapAnalysis.get_closest_position_cells(city_tile.pos,
                                                                                      resources.available_resources_tiles)
+                    near_coal = False
+                    near_uranium = False
+                    if player.researched_coal():
+                        dummy, near_coal = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.coal_tiles,
+                                                                                           city_tile.pos)
+                    if player.researched_uranium():
+                        dummy, near_uranium = MapAnalysis.is_position_in_X_adjacent_to_resource(resources.uranium_tiles,
+                                                                                           city_tile.pos)
+
                     has_res_around = res_around > 0
-                    score1 = 0
-                    score2 = closest_resource
-                    if has_res_around:
-                        # RES around
-                        if not will_live_this_night:
+                    if game_state.turn >= 340:
+                        score1 = 0
+                        score2 = closest_resource
+                        if has_res_around:
+                            # RES around
+                            if not will_live_this_night:
+                                if not units_around:
+                                    # first city that have not unit around, that will die next
+                                    score1 = 0
+                                    score2 = -city_size
+                                else:
+                                    score1 = 1
+                                    score2 = float(units_around) / float(res_around + 1)
+                            elif not will_live:
+                                if not units_around:
+                                    # then city  that will die at one point
+                                    score1 = 3
+                                    score2 = -city_size
+                                else:
+                                    score1 = 4
+                                    score2 = float(units_around) / float(res_around + 1)
+                        else:
+                            # NO RES around
+                            if not units_around:
+                                # there are no resources, no units, if no other city with resource around
+                                score1 = 5
+                                score2 = closest_resource
+                            else:
+                                # at the moment we score identically city with no resource around,
+                                # regardless if they have or not units
+                                score1 = 5
+                                score2 = closest_resource
+                    else:
+                        #turn 0-340
+                        if has_res_around:
+                            # RES around
                             if not units_around:
                                 # first city that have not unit around, that will die next
-                                score1 = 0
-                                score2 = -city_size
+                                if near_uranium:
+                                    score1 = -2
+                                elif near_coal:
+                                    score1 = -1
+                                else:
+                                    score1 = 0
+                                score2 = -res_around
                             else:
                                 score1 = 1
                                 score2 = float(units_around) / float(res_around + 1)
-                        elif not will_live:
-                            if not units_around:
-                                # then city  that will die at one point
-                                score1 = 3
-                                score2 = -city_size
-                            else:
-                                score1 = 4
-                                score2 = float(units_around) / float(res_around + 1)
-                    else:
-                        # NO RES around
-                        if not units_around:
-                            # there are no resources, no units, if no other city with resource around
-                            score1 = 5
-                            score2 = closest_resource
                         else:
-                            # at the moment we score identically city with no resource around,
-                            # regardless if they have or not units
-                            score1 = 5
-                            score2 = closest_resource
+                            # NO RES around
+                            if not units_around:
+                                # there are no resources, no units, if no other city with resource around
+                                score1 = 2
+                                score2 = closest_resource
+                            else:
+                                score1 = 3
+                                score2 = closest_resource
 
                     ordered_tiles[(
                         score1,
@@ -1088,11 +1122,13 @@ def agent(observation, configuration):
             for city_tile in city.citytiles:
                 # pr(t_prefix, "- C tile ", city_tile.pos, " CD=", city_tile.cooldown)
                 if city_tile.can_act():
+                    if game_state.turn < 20:
+                        continue
                     if game_state.turn < 30:  # TODO maybe this should be based on how close is the unit to build
                         # we are turn<30, we need to prioritise spawning in the right city rather than research
                         # if we have resources around here, but no units, do not research
                         near_resource = MapAnalysis.is_position_within_distance_to_resource(
-                            resources.available_resources_tiles, city_tile.pos, 2)
+                            resources.available_resources_tiles, city_tile.pos, 3)
                         near_units = player.get_units_number_around_pos(city_tile.pos, 2)
                         if near_resource and near_units == 0:
                             pr(t_prefix,
