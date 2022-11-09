@@ -28,10 +28,26 @@ def in_city(pos, game_state):
 def distance(x1,y1,x2,y2) -> int:
     return abs(x1 - x2) + abs(y1 - y2)
 
+def turns_it_will_live(autonomy, steps_until_night, _next_night_number_turn=-1) -> int:
+    autonomy = max(0, autonomy)
+    if _next_night_number_turn == -1:
+        next_night_number_turn = min(10, 10 + steps_until_night)
+    else:
+        next_night_number_turn = _next_night_number_turn
+
+    turn_to_night = max(0, steps_until_night)
+    # print('turn_to_night',turn_to_night, 'next_night_number_turn',next_night_number_turn, 'aut',autonomy)
+    if autonomy >= next_night_number_turn:
+        return turns_it_will_live(autonomy - next_night_number_turn, turn_to_night + 40, 10)
+    else:
+        return autonomy + turn_to_night
+
 unit_actions = [('move', 'n'), ('move', 's'), ('move', 'w'), ('move', 'e'),
                 ('build_city',),
                 ('transfer', 'n'), ('transfer', 's'), ('transfer', 'w'), ('transfer', 'e'),
                 ('stay',)]
+
+
 
 MAX_DAYS = 360
 DAY_LENGTH = 30
@@ -42,7 +58,7 @@ class ML_Agent:
         self.include_coal = False
         self.include_uranium = False
         self.model_map_size = model_map_size
-        self.model_type =  model_type
+        self.model_type = model_type
 
         path = '/kaggle_simulations/agent' if os.path.exists('/kaggle_simulations') else '.'
         self.model = torch.jit.load(f'{path}/{model_name}.pth')
@@ -51,10 +67,10 @@ class ML_Agent:
     def update_include_resources(self, t_prefix, include_coal, include_uranium):
         # only switches from False to True (no way back)
         if (not self.include_coal) and include_coal:
-            pr(t_prefix, "ML Agent changing include_coal to", include_coal)
+            pr(t_prefix, "ML Agent include_coal to", include_coal)
             self.include_coal = include_coal
         if (not self.include_uranium) and include_uranium:
-            pr(t_prefix, "ML Agent changing include_uranium to", include_uranium)
+            pr(t_prefix, "ML Agent include_uranium to", include_uranium)
             self.include_uranium = include_uranium
 
     # Input for Neural Network
@@ -135,9 +151,10 @@ class ML_Agent:
                 r_y = int(strs[3])
                 if (r_type == 'coal' and not self.include_coal) \
                         or (r_type == 'uranium' and not self.include_uranium):
-                    dist = distance(unit.pos.x, unit.pos.y, r_x, r_y)
-                    if dist > 1:
-                        continue
+                    continue
+                    # dist = distance(unit.pos.x, unit.pos.y, r_x, r_y)
+                    # if dist > 1:
+                    #     continue
                 x = r_x + x_shift
                 y = r_y + y_shift
                 amt = int(float(strs[4]))
@@ -170,13 +187,36 @@ class ML_Agent:
 
         return b
 
-    def make_input(self, obs, unit_id, size=32):
+
+    # Input for Neural Network
+    def make_input3(self, obs, unit, size=32):
+        unit_id = unit.id
+        CHANNELS = 25
+
         width, height = obs['width'], obs['height']
         x_shift = (size - width) // 2
         y_shift = (size - height) // 2
         cities = {}
 
-        b = np.zeros((20, size, size), dtype=np.float32)
+        turn = obs['step']
+
+        FULL_LENTH = DAY_LENGTH + NIGHT_LENGTH
+        all_night_turns_lef = ((MAX_DAYS - 1 - turn) // FULL_LENTH + 1) * NIGHT_LENGTH
+
+        turns_to_night = (DAY_LENGTH - turn) % FULL_LENTH
+        turns_to_night = 0 if turns_to_night > 30 else turns_to_night
+
+        turns_to_dawn = FULL_LENTH - turn % FULL_LENTH
+        turns_to_dawn = 0 if turns_to_dawn > 10 else turns_to_dawn
+
+        if turns_to_night == 0:
+            all_night_turns_lef -= (10 - turns_to_dawn)
+
+        steps_until_night = 30 - turn % 40
+        next_night_number_turn = min(10, 10 + steps_until_night)
+
+        b = np.zeros((CHANNELS, size, size), dtype=np.float32)
+
 
         for update in obs['updates']:
             strs = update.split(' ')
@@ -188,17 +228,19 @@ class ML_Agent:
                 wood = int(strs[7])
                 coal = int(strs[8])
                 uranium = int(strs[9])
+                fuel = wood + coal * 10 + uranium * 40
                 if unit_id == strs[3]:
                     # Position and Cargo
-                    b[:2, x, y] = (
+                    b[:3, x, y] = (
                         1,
-                        (wood + coal + uranium) / 100
+                        (wood + coal + uranium) / 100,
+                        fuel / 4000
                     )
                 else:
                     # Units
                     team = int(strs[2])
                     cooldown = float(strs[6])
-                    idx = 2 + (team - obs['player']) % 2 * 3
+                    idx = 3 + (team - obs['player']) % 2 * 3
                     b[idx:idx + 3, x, y] = (
                         1,
                         cooldown / 6,
@@ -210,45 +252,64 @@ class ML_Agent:
                 city_id = strs[2]
                 x = int(strs[3]) + x_shift
                 y = int(strs[4]) + y_shift
-                idx = 8 + (team - obs['player']) % 2 * 2
-                b[idx:idx + 2, x, y] = (
+                idx = 9 + (team - obs['player']) % 2 * 4
+                b[idx:idx + 4, x, y] = (
                     1,
-                    cities[city_id]
+                    cities[city_id][0],
+                    cities[city_id][1],
+                    cities[city_id][2]
                 )
             elif input_identifier == 'r':
                 # Resources
                 r_type = strs[1]
+                r_x = int(strs[2])
+                r_y = int(strs[3])
                 if (r_type == 'coal' and not self.include_coal) \
                         or (r_type == 'uranium' and not self.include_uranium):
                     continue
-                x = int(strs[2]) + x_shift
-                y = int(strs[3]) + y_shift
+                    # dist = distance(unit.pos.x, unit.pos.y, r_x, r_y)
+                    # if dist > 1:
+                    #     continue
+                x = r_x + x_shift
+                y = r_y + y_shift
                 amt = int(float(strs[4]))
-                b[{'wood': 12, 'coal': 13, 'uranium': 14}[r_type], x, y] = amt / 800
-                # pr("ML XXX res:", obs['step'], r_type, x, y, amt)
+                b[{'wood': 17, 'coal': 18, 'uranium': 19}[r_type], x, y] = amt / 800
             elif input_identifier == 'rp':
                 # Research Points
                 team = int(strs[1])
                 rp = int(strs[2])
-                b[15 + (team - obs['player']) % 2, :] = min(rp, 200) / 200
+                b[20 + (team - obs['player']) % 2, :] = min(rp, 200) / 200
             elif input_identifier == 'c':
                 # Cities
                 city_id = strs[2]
                 fuel = float(strs[3])
                 lightupkeep = float(strs[4])
-                cities[city_id] = min(fuel / lightupkeep, 10) / 10
+                autonomy = int(fuel) // int(lightupkeep)
+                will_live = autonomy >= all_night_turns_lef
+                excess_fuel = 0
+                if will_live:
+                    excess_fuel = (1 + int(fuel) - (int(lightupkeep) * all_night_turns_lef)) / 4000
+                will_live_next_night = autonomy >= next_night_number_turn
+                tag1= int(will_live_next_night)
+                if self.model_type == 4:
+                    tag1 = int(will_live)
+                cities[city_id] = (
+                    tag1,
+                    excess_fuel,
+                    turns_it_will_live(autonomy, steps_until_night) / 360)
+
 
         # Day/Night Cycle
-        b[17, :] = obs['step'] % 40 / 40
+        b[22, :] = obs['step'] % 40 / 40
         # Turns
-        b[18, :] = obs['step'] / 360
+        b[23, :] = obs['step'] / 360
         # Map Size
-        b[19, x_shift:size - x_shift, y_shift:size - y_shift] = 1
+        b[24, x_shift:size - x_shift, y_shift:size - y_shift] = 1
 
         return b
 
     def get_actions_unit(self, observation, game_state, actions: [], move_mapper: MoveHelper, unit_info,
-                         resources, transfer_to_direction= None) -> []:
+                         resources, transfer_to_direction= None, exclude=[]) -> []:
         player = game_state.players[observation.player]
 
         # Worker Actions
@@ -259,13 +320,25 @@ class ML_Agent:
                 destinations.append(unit.pos)
 
         for unit in player.units:
-            if unit.can_build(game_state.map) and unit.can_act():
+            if unit.can_build(game_state.map) and unit.can_act() and unit not in exclude:
                 self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources,
                                      can_transfer=True, transfer_to_direction= transfer_to_direction)
 
         for unit in player.units:
-             if (not unit.can_build(game_state.map)) and unit.can_act():
+             if (not unit.can_build(game_state.map)) and unit.can_act() and unit not in exclude:
+                allow_move_to_outside_hull = True
+                allow_stay_to_outside_hull = True
+                if unit.get_cargo_space_used() == 0:
+                    # if this unit has no cargo, and it is really far from the action, make him move closer
+                    opponent = game_state.players[(observation.player + 1) % 2]
+                    dummy, closest_enemy_distance = opponent.get_closest_unit(unit.pos)
+                    if closest_enemy_distance > 3:
+                        allow_move_to_outside_hull = False
+                        allow_stay_to_outside_hull = False
+
                 self.get_action_unit(observation, game_state, unit_info[unit.id], move_mapper, actions, resources,
+                                     allow_move_to_outside_hull=allow_move_to_outside_hull,
+                                     allow_stay_to_outside_hull=allow_stay_to_outside_hull,
                                      can_transfer=True, transfer_to_direction= transfer_to_direction)
 
     def call_func(obj, method, args=[]):
@@ -277,6 +350,7 @@ class ML_Agent:
                         allow_build=True,
                         stay_in_case_no_found=True,
                         allow_move_to_outside_hull=True,
+                        allow_stay_to_outside_hull=True,
                         can_transfer = False,
                         log='',
                         transfer_to_direction= None, adjacent_units= None
@@ -325,8 +399,15 @@ class ML_Agent:
             type_action = act[0]
             if type_action == 'stay':
                 if action_order == 1: # if this was very high in the list of action
-                    move_mapper.stay(unit, log_string)
-                    return True
+                    if allow_stay_to_outside_hull or is_night or steps_until_night == 1:
+                        move_mapper.stay(unit, log_string)
+                        return True
+                    else:
+                        if move_mapper.is_not_staying_outside_resource_hull(unit):
+                            move_mapper.stay(unit, log_string)
+                            return True
+
+
 
             # if (not (is_day and steps_until_night > 1)) and \
             #         (unit.night_turn_survivable > number_turns_stuck_in_night):
@@ -351,7 +432,7 @@ class ML_Agent:
                     # or
                     # NIGHT outside, without enough resource to live until the end of cooldown after move
                     # ->
-                    #    move only near resource or in cities
+                    #    move only near resource or in cities, do not apply move within  hull
                     if in_city(next_pos, game_state):
                         # move to another city, ok
                         move_mapper.move_unit_to_pos(actions, info, log_string, next_pos)
@@ -395,9 +476,11 @@ class ML_Agent:
 
     def get_policy(self, observation, unit):
         if self.model_type==1:
-            state = self.make_input(observation, unit.id, size=self.model_map_size)
+            pass
         elif self.model_type == 2:
             state = self.make_input2(observation, unit, size=self.model_map_size)
+        elif self.model_type == 3 or self.model_type == 4:
+            state = self.make_input3(observation, unit, size=self.model_map_size)
 
         with torch.no_grad():
             p = self.model(torch.from_numpy(state).unsqueeze(0))

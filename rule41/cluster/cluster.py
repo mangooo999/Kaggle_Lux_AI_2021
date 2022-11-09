@@ -24,7 +24,9 @@ class Cluster:
         self.incoming_explorers: List[str] = []
         self.incoming_explorers_position: List[Position] = []
         self.city_tiles: List[CityTile] = []
+        self.enemy_city_tiles: List[CityTile] = []
         self.min_autonomy: int = 360
+        self.enemy_min_autonomy: int = 360
         self.enemy_unit: List[str] = []
         self.perimeter: List[Position] = [Position]
         self.perimeter_empty: List[Position] = [Position] # empty (no resources, no city)
@@ -36,13 +38,20 @@ class Cluster:
         self.closest_unit_distance = math.inf
         self.closest_enemy_distance = math.inf
         self.score = 0.
+        self._fuel = 0
+
+        self.is_donor = False
+        self.city_built_this_turn = 0
 
     def cleanup(self):
         self.units = []
         self.incoming_explorers = []
         self.incoming_explorers_position = []
         self.city_tiles = []
+        self.enemy_city_tiles = []
         self.autonomy = 360
+        self._fuel = 0
+        self.city_built_this_turn = 0
 
     def refresh_score(self) -> int:
         self.score = - int (
@@ -65,7 +74,13 @@ class Cluster:
     def add_city_tile(self, ct: CityTile, autonomy:int ):
         if ct not in self.city_tiles:
             self.city_tiles.append(ct)
-        self.autonomy  = min(autonomy,self.autonomy)
+        self.min_autonomy = min(autonomy,self.min_autonomy)
+
+    def add_enemy_city_tile(self, ct: CityTile, enemy_autonomy:int ):
+        if ct not in self.enemy_city_tiles:
+            self.enemy_city_tiles.append(ct)
+        self.enemy_min_autonomy = min(enemy_autonomy,self.enemy_min_autonomy)
+
 
     def add_enemy_unit(self, unit_id: str):
         if unit_id not in self.enemy_unit:
@@ -107,6 +122,11 @@ class Cluster:
         ct = len(self.city_tiles)
         return min(max(u, ct), u + 2)  # logic is that if units<ct, we can spawn units
 
+    def get_equivalent_enemy_units(self) -> int:
+        u = len(self.enemy_unit)
+        ct = len(self.enemy_city_tiles)
+        return min(max(u, ct), u + 2)  # logic is that if units<ct, we can spawn units
+
     def get_unit_to_res_ratio(self, diff_unit: int = 0) -> float:
         eq_resources = self.get_equivalent_resources()
         if eq_resources <= 0:
@@ -118,8 +138,8 @@ class Cluster:
     def get_equivalent_units_and_incoming(self) -> int:
         return self.get_equivalent_units() + self.num_incoming()
 
-    def get_equivalent_resources(self) -> int:
-        return min(len(self.resource_cells), int(float(self.get_available_fuel()) / 500.))
+    def get_equivalent_resources(self, resource_equivalent=500.) -> int:
+        return min(len(self.resource_cells), int(float(self.get_available_fuel()) / resource_equivalent))
 
     def has_no_units(self) -> bool:
         return len(self.units) == 0
@@ -145,6 +165,9 @@ class Cluster:
     def num_city_tiles(self) -> int:
         return len(self.city_tiles)
 
+    def num_enemy_city_tiles(self) -> int:
+        return len(self.enemy_city_tiles)
+
     def num_units_and_incoming(self) -> int:
         return len(self.units) + len(self.incoming_explorers)
 
@@ -157,7 +180,26 @@ class Cluster:
     def distance_to(self, pos) -> int:
         return self.get_centroid().distance_to(pos)
 
+    def get_prorated_fuel(self) -> int:
+        fuel = self.get_available_fuel();
+        if self.get_equivalent_units() == 0 and self.get_equivalent_enemy_units()==0:
+            if self.closest_unit_distance < 7:
+                return fuel//2
+            else:
+                return 0
+        elif self.get_equivalent_units() == 0 and self.get_equivalent_enemy_units() > 0:
+            return 0
+        elif self.get_equivalent_units() > 0 and self.get_equivalent_enemy_units() == 0:
+            return fuel
+        else:
+            f = fuel * self.get_equivalent_units() / (self.get_equivalent_units() + self.get_equivalent_enemy_units())
+            return round(f)
+
+
     def get_available_fuel(self) -> int:
+        if self._fuel>0:
+            return self._fuel
+
         FUEL_CONVERSION_RATE = \
             GAME_CONSTANTS['PARAMETERS']['RESOURCE_TO_FUEL_RATE']
 
@@ -172,7 +214,8 @@ class Cluster:
                 return cell.resource.amount * FUEL_CONVERSION_RATE['URANIUM']
             return 0
 
-        return sum([get_cell_fuel(cell) for cell in self.resource_cells])
+        self._fuel = sum([get_cell_fuel(cell) for cell in self.resource_cells])
+        return self._fuel
 
     def get_fuel_density(self) -> float:
         return self.get_available_fuel() / len(self.resource_cells)

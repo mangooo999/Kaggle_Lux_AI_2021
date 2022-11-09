@@ -8,10 +8,11 @@ from lux.game_map import Position
 from lux import annotate
 import maps.map_analysis as MapAnalysis
 from UnitInfo import UnitInfo
+from cluster.cluster import Cluster
 
 
 class MoveHelper:
-    def __init__(self, player: Player, opponent: Player, turn, hull, pr):
+    def __init__(self, player: Player, opponent: Player, turn, hull, pr, clusters):
         """
         initialize state
         """
@@ -26,6 +27,7 @@ class MoveHelper:
         self.opponent_units = {}
         self.__can_move_dictionary__ = {}
         self.resource_hull = hull
+        self.clusters = clusters
         for enemy in opponent.units:
             self.opponent_units[self.__hash_pos__(enemy.pos)] = enemy
 
@@ -150,15 +152,44 @@ class MoveHelper:
         else:
             unit_distance = self.get_distance_to_res_hull(unit.pos)
             next_distance = self.get_distance_to_res_hull(next_pos)
-            if unit_distance<=0.:
+            if unit_distance <= 1.:
                 #unit is inside, we are cool, if next is also inside
-                returnVal = next_distance <=0.
+                returnVal = next_distance <= 2.
             else:
                 #unit is outside, just make it go toward hull
                 returnVal = next_distance <= unit_distance
 
             self.pr(self.log_prefix + unit.id, "is_moving_to_resource_hull from ", unit.pos, ' d=', unit_distance,
                     "to", next_pos, next_distance, "return",returnVal)
+
+            # DEBUG TODO REMOVE
+            if not returnVal:
+                self.pr(self.log_prefix, 'nh', unit.id, unit.pos, next_pos
+                        , f' {unit_distance:.2f} -> {next_distance:.2f}', f=True)
+
+            return returnVal
+
+    def is_not_staying_outside_resource_hull(self,unit) -> bool:
+        if self.resource_hull is None:
+            # we do not have a hull, just return true
+            return True
+        else:
+            distance_to_hull = self.get_distance_to_res_hull(unit.pos)
+            # can be done in one line(return distance_to_hull <= 2.), kept if-then-else for debugging
+            if distance_to_hull <= 1.:
+                # unit is inside, we are cool
+                return True
+            else:
+                #unit is outside, just let is stay if is within 2 from hull
+                returnVal = distance_to_hull <= 2.
+
+            self.pr(self.log_prefix + unit.id, "is_not_staying_outside_resource_hull from ", unit.pos,
+                    ' d=', distance_to_hull, "return",returnVal)
+
+            # DEBUG TODO REMOVE
+            if not returnVal:
+                self.pr(self.log_prefix, 'sh', unit.id, unit.pos, f'{distance_to_hull:.2f}', f=True)
+
             return returnVal
 
     def get_distance_to_res_hull(self, pos:Position):
@@ -194,3 +225,6 @@ class MoveHelper:
         self.pr(self.log_prefix + info.unit.id, '- build city', msg)
         self.add_position(info.unit.pos, info.unit)
         info.set_last_action_build()
+        cluster: Cluster = self.clusters.get_unit_cluster('', info.unit.id)
+        if cluster is not None:
+            cluster.city_built_this_turn += 1
