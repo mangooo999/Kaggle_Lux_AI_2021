@@ -1,6 +1,6 @@
 "# luxui-2021" 
 
-This project showcase the code that achieved the [9th place (out 1178 participants)](https://www.kaggle.com/competitions/lux-ai-2021/leaderboard?) in the Lux-UI Kaggle competitio .
+This project showcase the code that achieved the [9th place (out 1178 participants)](https://www.kaggle.com/competitions/lux-ai-2021/leaderboard?) in the Lux-UI Kaggle competition.
 
 You can see the engine in action in this replay against a pure ML engine:
 
