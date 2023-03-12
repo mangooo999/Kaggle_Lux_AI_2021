@@ -1,12 +1,12 @@
 "# luxui-2021" 
 
-This project showcase the code that achieved the 9th place (out 1178 participants) in the Lux-UI Kaggle competition.
+This project showcase the code that achieved the [9th place (out 1178 participants)](https://www.kaggle.com/competitions/lux-ai-2021/leaderboard?) in the Lux-UI Kaggle competitio .
 
 You can see the engine in action in this replay against a pure ML engine:
 
 https://www.kaggle.com/competitions/lux-ai-2021/leaderboard?dialog=episodes-episode-35210052
 
-It uses a mix of rule base engine, and an ML one that have been developed in parallel.
+It uses a mix of rule base engine, and an machine learning one that have been developed in parallel.
 
 # Neural network architecture Engine
 The neural network body consisted of a convolutional ResNet architecture with squeeze-excitation layers. 
