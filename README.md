@@ -33,4 +33,4 @@ The fact that there are two rule engine plus a super engine on top, create a thr
 In other words, you have a combination of version across different engine that work together, and for which finding a surface maximum has a way more complex structure.
 I back tested each combination of those, and tried to release every day the best 5 promising engine, and then meticulously recorded the result in a old style excel spreadsheet that you can find here together with some interesting graphs:
 
-https://github.com/vitoque-git/luxui-2021/blob/main/results.xlsm
+https://github.com/vitoque-git/luxui-2021/raw/main/results.xlsm
