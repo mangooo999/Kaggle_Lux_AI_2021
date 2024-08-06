@@ -14,8 +14,18 @@ The network blocks used 128-channel 5x5 convolutions, and include two types of n
 The network had four outputs consisting of three actor outputs - a 32x32xN-actions tensor for workers, and city tiles 
 The final network consisted of 16 residual blocks, plus the input encoder and output layers, for a grand total of 3 million parameters.
 
-# Reinforcement learning algorithm
-For reinforcement learning, I used a frozen teacher model perform inference on all states, and added a KL loss term for the current model’s policy from that of the teacher. 
+# Imitation Learning 
+The AI model in this project uses a form of imitation learning, where the model is trained to mimic the behavior of an expert or a set of expert demonstrations. In the context of the Lux AI competition, imitation learning involves training the model on a dataset of game episodes where actions taken by the agents are recorded.
+
+## Advantages of Imitation Learning 
+ 
+- **Efficiency** : Imitation learning can leverage a large amount of pre-recorded data, making it efficient to train compared to reinforcement learning, which requires extensive interaction with the environment.
+ 
+- **Simplicity** : The approach simplifies the training process as it directly learns from the expert's decisions without the need for complex reward signals.
+
+This type of imitation learning helps in quickly developing a competitive agent by learning from the strategies and actions of expert players, enabling the model to perform well in the Lux AI competition environment.
+
+A lot of details of the ML part of the code is in this separate repository: https://github.com/vitoque-git/Kaggle-luxai-Season1-Machine-Learning-Framework/blob/main/README.md
 
 # Rule Based Engine
 The approach taken was stateless approach. 
