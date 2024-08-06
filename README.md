@@ -76,6 +76,8 @@ The presence of two rule engines plus a super engine on top creates a three-dime
 ## Correlation between Backtesting Results and Agent Scores
 The graph below shows the correlation between the win rate in backtesting and the score achieved by the agent in the competition. Achieving a high position in the competition was largely possible due to accurately predicting which agent would perform best in the competition based on backtesting results:
 
+![Correlation between Backtesting Results and Agent Scores](https://github.com/vitoque-git/Kaggle-luxai-Season1-Python-Framework/blob/main/img/2.jpg)
+
 ### Daily Model Releases 
 
 Each day, a new model was released. In the graph below, you can observe the changes over time:
@@ -86,6 +88,9 @@ Each day, a new model was released. In the graph below, you can observe the chan
   - **Blue** : Change in agent score
  
 - **Horizontal Axis** : The day of the competition on which the model was released.
+
+![Trend of released models by the day of competition](https://github.com/vitoque-git/Kaggle-luxai-Season1-Python-Framework/blob/main/img/1.jpg)
+  
 # Code Structure
 
 The code is organized into several modules, including:
