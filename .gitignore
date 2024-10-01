@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+.ipynb_checkpoints/
+.directory
+.idea/
+
+# Hydra experiment outputs
+outputs/
+# Rl agent config and .pt files
+lux_ai/rl_agent/config.yaml
+lux_ai/rl_agent/*.pt
+# RL agent copy for comparing different model weights
+main_2.py
+lux_ai/rl_agent_2/
+# Zipped submission files
+*.tar.gz
+# Retired internal testing agents
+internal_testing/hall_of_fame/retired/
+internal_testing/internal_agents/retired/
